@@ -62,8 +62,12 @@ export const ProjectProvider: React.FunctionComponent = ({ children }) => {
 
       if (!result || result?.$meta?.ok === false) {
         projectCache.delete(finalProjectId);
-        setProjectData({});
-        updateStore({ project: {} });
+
+        const activeProjectId = +(window.location.pathname.match(/\/projects\/(\d+)(?:\/|$)/)?.[1] ?? NaN);
+        if (activeProjectId === finalProjectId) {
+          setProjectData({});
+          updateStore({ project: {} });
+        }
         return;
       }
 
