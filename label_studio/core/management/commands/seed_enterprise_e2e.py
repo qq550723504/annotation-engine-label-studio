@@ -16,6 +16,8 @@ EMAILS = {
     'annotator_a': 'e2e-annotator-a@example.com',
     'annotator_b': 'e2e-annotator-b@example.com',
     'reviewer': 'e2e-reviewer@example.com',
+    'candidate_annotator': 'e2e-candidate-annotator@example.com',
+    'candidate_reviewer': 'e2e-candidate-reviewer@example.com',
 }
 
 
@@ -49,7 +51,7 @@ class Command(BaseCommand):
         manager.save(update_fields=['active_organization'])
 
         users = {'manager': manager}
-        for key in ('annotator_a', 'annotator_b', 'reviewer'):
+        for key in ('annotator_a', 'annotator_b', 'reviewer', 'candidate_annotator', 'candidate_reviewer'):
             user = User.objects.create_user(
                 EMAILS[key],
                 PASSWORD,
