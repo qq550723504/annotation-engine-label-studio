@@ -282,20 +282,17 @@ class TestTaskAgreementAPI(APITestCase):
         assert response.json() == {'error': 'Task not found'}
 
     @patch('tasks.api.flag_set')
-    @patch.object(Project, 'has_permission')
-    def test_distribution_permission_denied_for_other_project(self, mock_has_permission, mock_flag_set):
+    def test_distribution_hidden_for_other_project(self, mock_flag_set):
         mock_flag_set.return_value = True
         other_org = OrganizationFactory()
         other_project = ProjectFactory(organization=other_org)
         task = TaskFactory(project=other_project)
-        # In OSS Project.has_permission is a stub that always returns True; patch so other_project denies access
-        def has_perm(project, user):
-            return project.id != other_project.id
 
-        mock_has_permission.side_effect = has_perm
         self.client.force_authenticate(user=self.user)
         response = self.client.get(f'/api/tasks/{task.id}/agreement/')
-        assert response.status_code == 403
+
+        # Unauthorized task existence is not disclosed across project boundaries.
+        assert response.status_code == 404
 
     @patch('tasks.api.flag_set')
     def test_distribution_empty_task_returns_zero_annotations(self, mock_flag_set):

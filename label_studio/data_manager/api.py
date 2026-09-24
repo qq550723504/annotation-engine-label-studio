@@ -340,7 +340,9 @@ class TaskListAPI(generics.ListCreateAPIView):
         }
 
     def get_task_queryset(self, request, prepare_params):
-        return Task.prepared.only_filtered(prepare_params=prepare_params)
+        queryset = Task.prepared.only_filtered(prepare_params=prepare_params)
+        allowed_task_ids = Task.objects.for_user(request.user).values_list('id', flat=True)
+        return queryset.filter(id__in=allowed_task_ids)
 
     @staticmethod
     def prefetch(queryset):

@@ -12,7 +12,7 @@ from drf_spectacular.utils import extend_schema_field
 from fsm.serializer_fields import FSMStateField
 from projects.models import Project
 from rest_framework import serializers
-from tasks.models import Task
+from tasks.models import Task, TaskAssignment
 from tasks.serializers import (
     AnnotationDraftSerializer,
     AnnotationSerializer,
@@ -460,6 +460,8 @@ class DataManagerTaskSerializer(TaskSerializer):
     draft_exists = serializers.BooleanField(required=False)
     updated_by = UpdatedByDMFieldSerializer(required=False, read_only=True)
     state = FSMStateField(read_only=True)  # FSM state - automatically uses annotation if present
+    assignment_id = serializers.SerializerMethodField(required=False, read_only=True)
+    assignment_version = serializers.SerializerMethodField(required=False, read_only=True)
 
     CHAR_LIMITS = 500
 
@@ -472,6 +474,28 @@ class DataManagerTaskSerializer(TaskSerializer):
     def to_representation(self, obj):
         """Dynamically manage including of some fields in the API result"""
         ret = super(DataManagerTaskSerializer, self).to_representation(obj)
+
+        if ret.get('assignment_id') is None:
+            ret.pop('assignment_id', None)
+            ret.pop('assignment_version', None)
+
+        request = self.context.get('request')
+        if request is not None and getattr(request, 'user', None) is not None:
+            user = request.user
+            is_manager = (
+                obj.project.created_by_id == user.id
+                or obj.project.members.filter(user=user, enabled=True, role='manager').exists()
+            )
+            if not is_manager:
+                visible_annotations = obj.annotations.filter(
+                    task_assignment__assignee=user,
+                    task_assignment__status__in=['assigned', 'in_progress'],
+                )
+                ret['total_annotations'] = visible_annotations.filter(was_cancelled=False).count()
+                # Aggregate annotation metadata can reveal another annotator's work.
+                ret['annotations_results'] = ''
+                ret['annotations_ids'] = ','.join(str(pk) for pk in visible_annotations.values_list('id', flat=True))
+                ret['annotators'] = [user.id] if visible_annotations.exists() else []
         if not self.context.get('annotations'):
             ret.pop('annotations', None)
         if not self.context.get('predictions'):
@@ -484,6 +508,36 @@ class DataManagerTaskSerializer(TaskSerializer):
         ):
             ret.pop('state', None)
         return ret
+
+    def _get_current_assignment(self, task):
+        request = self.context.get('request')
+        if request is None or getattr(request, 'user', None) is None:
+            return None
+
+        cache = getattr(self, '_assignment_cache', None)
+        if cache is None:
+            cache = {}
+            self._assignment_cache = cache
+
+        if task.id not in cache:
+            cache[task.id] = (
+                TaskAssignment.objects.filter(
+                    task=task,
+                    assignee=request.user,
+                    status__in=TaskAssignment.ACTIVE_STATUSES,
+                )
+                .order_by('-assigned_at', '-id')
+                .first()
+            )
+        return cache[task.id]
+
+    def get_assignment_id(self, task):
+        assignment = self._get_current_assignment(task)
+        return assignment.id if assignment else None
+
+    def get_assignment_version(self, task):
+        assignment = self._get_current_assignment(task)
+        return assignment.version if assignment else None
 
     def _pretty_results(self, task, field, unique=False):
         if not hasattr(task, field) or getattr(task, field) is None:
@@ -527,6 +581,18 @@ class DataManagerTaskSerializer(TaskSerializer):
             return []
 
         annotations = task.annotations.all()
+        request = self.context.get('request')
+        if request is not None and getattr(request, 'user', None) is not None:
+            user = request.user
+            is_manager = (
+                task.project.created_by_id == user.id
+                or task.project.members.filter(user=user, enabled=True, role='manager').exists()
+            )
+            if not is_manager:
+                annotations = annotations.filter(
+                    task_assignment__assignee=user,
+                    task_assignment__status__in=['assigned', 'in_progress'],
+                )
 
         # Use stub serializer if requested (feature flag checked at API level)
         if self.context.get('annotations_stub'):
