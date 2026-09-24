@@ -12,7 +12,7 @@ from drf_spectacular.utils import extend_schema_field
 from fsm.serializer_fields import FSMStateField
 from projects.models import Project
 from rest_framework import serializers
-from tasks.models import Task
+from tasks.models import Task, TaskAssignment
 from tasks.serializers import (
     AnnotationDraftSerializer,
     AnnotationSerializer,
@@ -460,6 +460,8 @@ class DataManagerTaskSerializer(TaskSerializer):
     draft_exists = serializers.BooleanField(required=False)
     updated_by = UpdatedByDMFieldSerializer(required=False, read_only=True)
     state = FSMStateField(read_only=True)  # FSM state - automatically uses annotation if present
+    assignment_id = serializers.SerializerMethodField(required=False, read_only=True)
+    assignment_version = serializers.SerializerMethodField(required=False, read_only=True)
 
     CHAR_LIMITS = 500
 
@@ -502,6 +504,36 @@ class DataManagerTaskSerializer(TaskSerializer):
         ):
             ret.pop('state', None)
         return ret
+
+    def _get_current_assignment(self, task):
+        request = self.context.get('request')
+        if request is None or getattr(request, 'user', None) is None:
+            return None
+
+        cache = getattr(self, '_assignment_cache', None)
+        if cache is None:
+            cache = {}
+            self._assignment_cache = cache
+
+        if task.id not in cache:
+            cache[task.id] = (
+                TaskAssignment.objects.filter(
+                    task=task,
+                    assignee=request.user,
+                    status__in=TaskAssignment.ACTIVE_STATUSES,
+                )
+                .order_by('-assigned_at', '-id')
+                .first()
+            )
+        return cache[task.id]
+
+    def get_assignment_id(self, task):
+        assignment = self._get_current_assignment(task)
+        return assignment.id if assignment else None
+
+    def get_assignment_version(self, task):
+        assignment = self._get_current_assignment(task)
+        return assignment.version if assignment else None
 
     def _pretty_results(self, task, field, unique=False):
         if not hasattr(task, field) or getattr(task, field) is None:
