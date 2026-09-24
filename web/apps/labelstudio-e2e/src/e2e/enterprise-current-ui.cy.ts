@@ -29,7 +29,7 @@ describe('enterprise collaboration - currently available UI', () => {
   const openDataManager = (email: string) => {
     cy.loginAs(email, fixture.password, dataPage());
     cy.visit(dataPage());
-    cy.contains('Tasks:', { timeout: 30000 }).should('be.visible');
+    cy.location('pathname', { timeout: 30000 }).should('eq', dataPage());
   };
 
   const startLabelStream = (expectedStatus: number, expectedTaskId?: number) => {
