@@ -55,7 +55,12 @@ class AuthorizationService:
         if principal.local_user_id is None:
             return None
 
+        from projects.models import ProjectMember
         from tasks.models import TaskAssignment
+
+        role = cls.project_role(principal, task.project)
+        if role not in (ProjectMember.Role.ANNOTATOR, ProjectMember.Role.MANAGER):
+            return None
 
         return (
             TaskAssignment.objects.filter(
