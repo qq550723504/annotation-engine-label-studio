@@ -22,18 +22,29 @@ describe("project member and role management UI", () => {
     });
   });
 
+  const dataPage = () => `/projects/${fixture.project_id}/data`;
   const settingsPage = () => `/projects/${fixture.project_id}/settings`;
   const membersPage = () => `${settingsPage()}/members`;
 
-  const loginAt = (email: string, path: string) => {
-    cy.loginAs(email, fixture.password, path);
-    cy.visit(path);
+  const loginToProject = (email: string) => {
+    cy.loginAs(email, fixture.password, dataPage());
+    cy.visit(dataPage());
+    cy.location("pathname", { timeout: 30000 }).should("eq", dataPage());
+    cy.get("body").should("be.visible");
+  };
+
+  const navigateInApp = (path: string) => {
+    cy.window().then((win) => {
+      win.history.pushState({}, "", path);
+      win.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    cy.location("pathname", { timeout: 30000 }).should("eq", path);
   };
 
   const openAsManager = () => {
-    loginAt(fixture.users.manager.email, membersPage());
-    cy.location("pathname", { timeout: 30000 }).should("eq", membersPage());
-    cy.get('[data-testid="project-members-settings"]').should("be.visible");
+    loginToProject(fixture.users.manager.email);
+    navigateInApp(membersPage());
+    cy.get('[data-testid="project-members-settings"]', { timeout: 30000 }).should("be.visible");
   };
 
   it("lets a manager add annotator/reviewer members and mutate authoritative state", () => {
@@ -109,12 +120,11 @@ describe("project member and role management UI", () => {
 
   for (const actor of ["annotator_a", "reviewer"] as const) {
     it(`does not expose member management to ${actor}`, () => {
-      loginAt(fixture.users[actor].email, settingsPage());
-      cy.location("pathname", { timeout: 30000 }).should("eq", settingsPage());
-
+      loginToProject(fixture.users[actor].email);
+      navigateInApp(settingsPage());
       cy.contains("a", "Members").should("not.exist");
 
-      cy.visit(membersPage());
+      navigateInApp(membersPage());
       cy.location("pathname", { timeout: 30000 }).should("eq", settingsPage());
       cy.get('[data-testid="project-members-settings"]').should("not.exist");
 
