@@ -91,4 +91,16 @@ class Migration(migrations.Migration):
                 ],
             },
         ),
+        migrations.AddField(
+            model_name='annotationdraft',
+            name='assignment',
+            field=models.ForeignKey(
+                blank=True,
+                help_text='Task assignment lifecycle that owns this draft',
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name='drafts',
+                to='tasks.taskassignment',
+            ),
+        ),
     ]
