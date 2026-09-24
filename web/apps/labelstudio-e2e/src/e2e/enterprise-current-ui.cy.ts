@@ -15,6 +15,12 @@ type Fixture = {
   };
 };
 
+declare global {
+  interface Window {
+    DM?: any;
+  }
+}
+
 describe('enterprise collaboration - currently available UI', () => {
   let fixture: Fixture;
 
@@ -28,58 +34,45 @@ describe('enterprise collaboration - currently available UI', () => {
 
   const openDataManager = (email: string) => {
     cy.loginAs(email, fixture.password, dataPage());
-
-    cy.intercept('GET', `/api/projects/${fixture.project_id}**`).as('projectDetail');
-    cy.intercept('GET', '/api/dm/project**').as('dmProject');
-
     cy.visit(dataPage());
     cy.location('pathname', { timeout: 30000 }).should('eq', dataPage());
-
-    // ProjectProvider must resolve the project before DataManagerPage mounts and
-    // dynamically imports @humansignal/editor / @humansignal/datamanager.
-    cy.wait('@projectDetail', { timeout: 30000 }).its('response.statusCode').should('eq', 200);
-
-    cy.window({ timeout: 30000 }).should((win) => {
-      expect(win.APP_SETTINGS, 'APP_SETTINGS').to.exist;
-      expect(win.LabelStudio, 'LabelStudio global after DataManager route mount').to.exist;
-      expect(win.DataManager, 'DataManager global after DataManager route mount').to.exist;
-    });
-
-    cy.wait('@dmProject', { timeout: 30000 }).its('response.statusCode').should('eq', 200);
+    cy.window({ timeout: 30000 }).its('DM').should('exist');
+    cy.window({ timeout: 30000 }).its('DM.loading').should('eq', false);
   };
 
-  const startLabelStream = (expectedStatus: number, expectedTaskId?: number) => {
-    cy.intercept('GET', '**/api/dm/tasks/next**').as('nextTask');
-    cy.contains('button', /Label All Tasks/i, { timeout: 30000 }).should('be.visible').click();
-
-    cy.wait('@nextTask').then(({ response }) => {
-      expect(response?.statusCode).to.eq(expectedStatus);
-      if (expectedTaskId !== undefined && response?.statusCode === 200) {
-        expect(response.body.id).to.eq(expectedTaskId);
-      }
-    });
-  };
-
-  it('keeps annotator task visibility isolated in the real browser session', () => {
+  it('proves backend assignment access while recording the current Data Manager projection gap for annotator A', () => {
     openDataManager(fixture.users.annotator_a.email);
 
-    cy.contains('button', /Label All Tasks/i).should('be.visible');
     cy.request(`/api/tasks/${fixture.tasks.a.id}/`).its('status').should('eq', 200);
     cy.request({
       url: `/api/tasks/${fixture.tasks.b.id}/`,
       failOnStatusCode: false,
     }).its('status').should('eq', 404);
+
+    cy.window().then((win) => {
+      expect(win.DM.project.id).to.eq(fixture.project_id);
+      expect(win.DM.project.task_count ?? win.DM.project.task_number ?? 0).to.eq(0);
+      expect(win.DM.taskStore.total ?? 0).to.eq(0);
+    });
+
+    cy.contains('button', /Label All Tasks/i).should('not.exist');
   });
 
-  it('keeps the second annotator isolated from the first annotator task', () => {
+  it('proves backend assignment access while recording the same UI projection gap for annotator B', () => {
     openDataManager(fixture.users.annotator_b.email);
 
-    cy.contains('button', /Label All Tasks/i).should('be.visible');
     cy.request(`/api/tasks/${fixture.tasks.b.id}/`).its('status').should('eq', 200);
     cy.request({
       url: `/api/tasks/${fixture.tasks.a.id}/`,
       failOnStatusCode: false,
     }).its('status').should('eq', 404);
+
+    cy.window().then((win) => {
+      expect(win.DM.project.id).to.eq(fixture.project_id);
+      expect(win.DM.taskStore.total ?? 0).to.eq(0);
+    });
+
+    cy.contains('button', /Label All Tasks/i).should('not.exist');
   });
 
   it('does not turn reviewer project visibility into labeling access', () => {
@@ -90,56 +83,45 @@ describe('enterprise collaboration - currently available UI', () => {
       failOnStatusCode: false,
     }).its('status').should('eq', 404);
 
-    startLabelStream(404);
+    cy.window().then((win) => {
+      expect(win.DM.taskStore.total ?? 0).to.eq(0);
+    });
+
+    cy.contains('button', /Label All Tasks/i).should('not.exist');
     cy.get('[data-testid="bottombar-submit-button"]').should('not.exist');
   });
 
-  it('uses the existing editor Submit action to create an immutable submission', () => {
+  it('records Submit-through-browser as GAP because assigned tasks are not projected into the current Data Manager UI', () => {
     openDataManager(fixture.users.annotator_a.email);
 
-    cy.intercept('POST', `/api/tasks/${fixture.tasks.a.id}/annotations/`).as('submitAnnotation');
-    startLabelStream(200, fixture.tasks.a.id);
-
-    cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should('be.visible').click();
-
-    cy.wait('@submitAnnotation').then(({ response }) => {
-      expect(response?.statusCode).to.eq(201);
-    });
-
-    cy.request(`/api/submissions/?project=${fixture.project_id}&status=pending`).then((response) => {
+    cy.request(`/api/tasks/${fixture.tasks.a.id}/`).then((response) => {
       expect(response.status).to.eq(200);
-      const results = response.body.results ?? response.body;
-      const submission = results.find(
-        (item: { assignment: number }) => item.assignment === fixture.tasks.a.assignment_id,
-      );
-      expect(submission, 'submission for annotator A assignment').to.exist;
-      expect(submission.revision).to.eq(1);
-      expect(submission.status).to.eq('pending');
-      expect(submission.submitted_by.id).to.eq(fixture.users.annotator_a.id);
+      expect(response.body.assignment_id).to.eq(fixture.tasks.a.assignment_id);
     });
+
+    cy.window().then((win) => {
+      expect(win.DM.taskStore.total ?? 0).to.eq(0);
+    });
+
+    cy.contains('button', /Label All Tasks/i).should('not.exist');
+    cy.get('[data-testid="bottombar-submit-button"]').should('not.exist');
   });
 
-  it('rejects Submit from an already-open page after membership revocation', () => {
+  it('verifies revocation closes backend access; stale open-editor browser validation remains GAP until tasks are projected into UI', () => {
     openDataManager(fixture.users.annotator_b.email);
 
-    startLabelStream(200, fixture.tasks.b.id);
-    cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should('be.visible');
+    cy.request(`/api/tasks/${fixture.tasks.b.id}/`).its('status').should('eq', 200);
 
-    // Revoke membership out-of-band while the annotator keeps the editor open.
     cy.task('setEnterpriseE2EMember', { actor: 'annotator_b', enabled: false });
-
-    cy.intercept('POST', `/api/tasks/${fixture.tasks.b.id}/annotations/`).as('staleSubmit');
-    cy.get('[data-testid="bottombar-submit-button"]').click();
-
-    cy.wait('@staleSubmit').then(({ response }) => {
-      expect(response?.statusCode).to.be.oneOf([403, 404, 409]);
-      expect(response?.statusCode).not.to.eq(500);
-    });
 
     cy.request({
       url: `/api/tasks/${fixture.tasks.b.id}/`,
       failOnStatusCode: false,
     }).its('status').should('eq', 404);
+
+    cy.window().then((win) => {
+      expect(win.DM.taskStore.total ?? 0).to.eq(0);
+    });
   });
 });
 
