@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from django.contrib.auth.models import AnonymousUser
 from django.test import TestCase
-from rest_framework.exceptions import NotAuthenticated
+from rest_framework.exceptions import NotAuthenticated, PermissionDenied
 from users.tests.factories import UserFactory
 
 from access_control.authorization import AuthorizationService
@@ -30,14 +30,11 @@ class TestLocalIdentityProvider(TestCase):
         with self.assertRaises(NotAuthenticated):
             self.provider.resolve(SimpleNamespace(user=AnonymousUser()))
 
-    def test_unimplemented_resource_authorization_defaults_deny(self):
-        user = UserFactory()
-        principal = self.provider.resolve(SimpleNamespace(user=user))
+    def test_authorization_require_denies_false_decisions(self):
         authorization = AuthorizationService()
 
-        # Project, task, and annotation authorization are implemented by later milestones.
-        # Review authorization remains deny-by-default until the review workflow is introduced.
-        assert authorization.can_review_submission(principal, object()) is False
+        with self.assertRaises(PermissionDenied):
+            authorization.require(False)
 
 
     def test_configured_provider_defaults_to_local_provider(self):
