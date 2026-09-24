@@ -157,6 +157,10 @@ export const MembersSettings = () => {
 
       if (!result || result?.error || result?.$meta?.ok === false) {
         setError(errorMessage(result, "The requested member change could not be completed."));
+        const stillAllowed = await loadMembers();
+        if (stillAllowed) {
+          await loadOrganizationUsers();
+        }
         setProcessing(null);
         return false;
       }
