@@ -79,8 +79,8 @@ class Migration(migrations.Migration):
             ],
             options={
                 'indexes': [
-                    models.Index(fields=['project', 'assignee', 'status'], name='tasks_taska_project_0fa34e_idx'),
-                    models.Index(fields=['task', 'assignee', 'status'], name='tasks_taska_task_id_da9dbd_idx'),
+                    models.Index(fields=['project', 'assignee', 'status'], name='tasks_taska_project_116fc7_idx'),
+                    models.Index(fields=['task', 'assignee', 'status'], name='tasks_taska_task_id_099daf_idx'),
                 ],
                 'constraints': [
                     models.UniqueConstraint(
