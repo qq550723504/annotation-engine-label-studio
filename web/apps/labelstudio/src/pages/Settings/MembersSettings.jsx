@@ -51,7 +51,7 @@ export const MembersSettings = () => {
       errorFilter: (apiError) => apiError?.status === 403,
     });
 
-    if (result?.status === 403 || result?.$meta?.status === 403) {
+    if ([403, 404].includes(result?.status) || [403, 404].includes(result?.$meta?.status)) {
       history.replace(`/projects/${project.id}/settings`);
       return false;
     }
@@ -118,7 +118,7 @@ export const MembersSettings = () => {
       });
 
       const status = result?.status ?? result?.$meta?.status;
-      if (status === 403) {
+      if ([403, 404].includes(status)) {
         setMembers([]);
         setOrganizationUsers([]);
         setProcessing(null);
