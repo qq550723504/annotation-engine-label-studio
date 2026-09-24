@@ -109,9 +109,10 @@ jobs:
         working-directory: web
         run: |
           yarn cypress run \
-            --config-file apps/labelstudio-e2e/cypress.config.ts \
+            --project apps/labelstudio-e2e \
+            --config-file cypress.config.ts \
             --config baseUrl=http://localhost:8080,video=true \
-            --spec apps/labelstudio-e2e/src/e2e/enterprise-current-ui.cy.ts
+            --spec src/e2e/enterprise-current-ui.cy.ts
 
       - name: Upload browser failure artifacts
         if: failure()
