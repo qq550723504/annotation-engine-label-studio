@@ -1,0 +1,75 @@
+name: Fork PR Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    paths:
+      - "label_studio/**"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/fork-pr-gate.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-pr-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  POETRY_VERSION: 2.3.2
+  DJANGO_SETTINGS_MODULE: core.settings.label_studio
+  DJANGO_DB: sqlite
+  LOG_DIR: pytest_logs
+  COLLECT_ANALYTICS: "false"
+  SENTRY_RATE: "0"
+  JSON_LOG: "0"
+
+jobs:
+  authorization-tests:
+    name: Authorization foundation tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install Poetry
+        run: pipx install "poetry==${{ env.POETRY_VERSION }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Install OS dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libffi8 libldap2-dev libsasl2-dev libssl-dev libxml2-dev libxslt-dev python3-dev
+
+      - name: Install Python dependencies
+        run: poetry install --with test
+
+      - name: Generate version file
+        run: poetry run python label_studio/core/version.py
+
+      - name: Run identity and actor security tests
+        working-directory: label_studio
+        run: |
+          poetry run pytest -v \
+            access_control/tests/test_identity.py \
+            tasks/tests/test_annotation_actor_security.py
+
+      - name: Run annotation/task API smoke tests
+        working-directory: label_studio
+        run: poetry run pytest -v tasks/tests/test_api.py -m "not integration_tests"
