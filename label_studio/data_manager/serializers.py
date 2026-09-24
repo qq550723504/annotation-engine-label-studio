@@ -475,6 +475,10 @@ class DataManagerTaskSerializer(TaskSerializer):
         """Dynamically manage including of some fields in the API result"""
         ret = super(DataManagerTaskSerializer, self).to_representation(obj)
 
+        if ret.get('assignment_id') is None:
+            ret.pop('assignment_id', None)
+            ret.pop('assignment_version', None)
+
         request = self.context.get('request')
         if request is not None and getattr(request, 'user', None) is not None:
             user = request.user
