@@ -119,6 +119,14 @@ jobs:
             --config baseUrl=http://localhost:8080,video=true \
             --spec apps/labelstudio-e2e/src/e2e/enterprise-current-ui.cy.ts
 
+      - name: Print server logs on browser failure
+        if: failure()
+        run: |
+          echo "===== Django log ====="
+          tail -200 /tmp/label-studio-django.log || true
+          echo "===== Frontend log ====="
+          tail -300 /tmp/label-studio-frontend.log || true
+
       - name: Upload browser failure artifacts
         if: failure()
         uses: actions/upload-artifact@v6
