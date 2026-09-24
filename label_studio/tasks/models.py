@@ -633,6 +633,17 @@ class TaskAssignment(models.Model):
                 raise ValidationError('Task assignment project must match the task project.')
         return super().save(*args, **kwargs)
 
+    def has_permission(self, user):
+        if user is None or not getattr(user, 'is_authenticated', False):
+            return False
+        if self.project.created_by_id == user.id:
+            return True
+        return self.project.members.filter(
+            user=user,
+            enabled=True,
+            role='manager',
+        ).exists()
+
     def cancel(self):
         if self.status != self.Status.CANCELLED:
             self.status = self.Status.CANCELLED
