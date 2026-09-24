@@ -202,14 +202,6 @@ export const DataManagerPage = ({ ...props }) => {
   }, []);
 
   useEffect(() => {
-    if (projectId) {
-      // Project-level navigation (for example Settings) must remain reachable
-      // even when the Data Manager bundle has not initialized yet.
-      setContextProps({ dmRef: dataManagerRef.current ?? null });
-    }
-  }, [projectId, setContextProps]);
-
-  useEffect(() => {
     Promise.all(dependencies)
       .then(() => setLoading(false))
       .then(init);
