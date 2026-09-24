@@ -27,12 +27,19 @@ export const MenuLayout = ({ children, ...routeProps }) => {
 
       const result = await api.callApi("projectMembers", {
         params: { pk: project.id },
-        errorFilter: (apiError) => apiError?.status === 403,
+        errorFilter: (apiError) => [403, 404].includes(apiError?.status),
       });
 
       if (!active) return;
 
-      setCanManageMembers(Boolean(result && !result.error && result?.$meta?.status !== 403));
+      const status = result?.status ?? result?.$meta?.status;
+      if (status === 404) {
+        setCanManageMembers(false);
+        routeProps.history.replace("/projects");
+        return;
+      }
+
+      setCanManageMembers(Boolean(result && !result.error && status !== 403));
     };
 
     probeMemberManagement();
