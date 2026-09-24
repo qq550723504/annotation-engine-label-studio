@@ -6,6 +6,7 @@ import traceback as tb
 from datetime import datetime
 from urllib.parse import urlparse
 
+from access_control.project_access import managed_projects_for_user
 from core.feature_flags import flag_set
 from core.permissions import all_permissions
 from core.redis import start_job_async_or_sync
@@ -83,7 +84,7 @@ class ExportFormatsListAPI(generics.RetrieveAPIView):
     permission_required = all_permissions.projects_view
 
     def get_queryset(self):
-        return Project.objects.filter(organization=self.request.user.active_organization)
+        return managed_projects_for_user(self.request)
 
     def get(self, request, *args, **kwargs):
         project = self.get_object()
@@ -178,7 +179,7 @@ class ExportAPI(generics.RetrieveAPIView):
     permission_required = all_permissions.projects_change
 
     def get_queryset(self):
-        return Project.objects.filter(organization=self.request.user.active_organization)
+        return managed_projects_for_user(self.request)
 
     def get_task_queryset(self, queryset):
         # Import here to avoid circular dependencies
@@ -270,7 +271,7 @@ class ProjectExportFiles(generics.RetrieveAPIView):
     permission_required = all_permissions.projects_change
 
     def get_queryset(self):
-        return Project.objects.filter(organization=self.request.user.active_organization)
+        return managed_projects_for_user(self.request)
 
     def get(self, request, *args, **kwargs):
         # project permission check
@@ -304,7 +305,7 @@ class ProjectExportFilesAuthCheck(APIView):
         except ValueError:
             return Response({'detail': 'Incorrect filename in export'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
-        generics.get_object_or_404(Project.objects.filter(organization=self.request.user.active_organization), pk=pk)
+        generics.get_object_or_404(managed_projects_for_user(request), pk=pk)
         return Response({'detail': 'auth ok'}, status=status.HTTP_200_OK)
 
 

@@ -5,6 +5,7 @@ import logging
 import os
 import time
 
+from access_control.project_access import get_managed_project_or_404, managed_projects_for_user, require_project_manager
 from core.permissions import ViewClassPermission, all_permissions
 from core.utils.io import read_yaml
 from django.conf import settings
@@ -28,13 +29,17 @@ class ImportStorageListAPI(generics.ListCreateAPIView):
 
     serializer_class = ImportStorageSerializer
 
+    def perform_create(self, serializer):
+        project = serializer.validated_data.get('project')
+        require_project_manager(self.request, project)
+        serializer.save()
+
     def get_queryset(self):
         project_pk = self.request.query_params.get('project')
         if not project_pk:
             raise ValidationError('query parameter "project" is required')
 
-        project = generics.get_object_or_404(Project, pk=project_pk)
-        self.check_object_permissions(self.request, project)
+        project = get_managed_project_or_404(self.request, project_pk)
         StorageClass = self.serializer_class.Meta.model
         storages = StorageClass.objects.filter(project_id=project.id)
 
@@ -55,6 +60,10 @@ class ImportStorageDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     parser_classes = (JSONParser, FormParser, MultiPartParser)
     serializer_class = ImportStorageSerializer
 
+    def get_queryset(self):
+        StorageClass = self.serializer_class.Meta.model
+        return StorageClass.objects.filter(project__in=managed_projects_for_user(self.request))
+
     @extend_schema(exclude=True)
     def put(self, request, *args, **kwargs):
         return super(ImportStorageDetailAPI, self).put(request, *args, **kwargs)
@@ -74,8 +83,7 @@ class ExportStorageListAPI(generics.ListCreateAPIView):
         if not project_pk:
             raise ValidationError('query parameter "project" is required')
 
-        project = generics.get_object_or_404(Project, pk=project_pk)
-        self.check_object_permissions(self.request, project)
+        project = get_managed_project_or_404(self.request, project_pk)
         StorageClass = self.serializer_class.Meta.model
         storages = StorageClass.objects.filter(project_id=project.id)
 
@@ -84,6 +92,8 @@ class ExportStorageListAPI(generics.ListCreateAPIView):
         return storages
 
     def perform_create(self, serializer):
+        project = serializer.validated_data.get('project')
+        require_project_manager(self.request, project)
         # double check: not export storages don't validate connection in serializer,
         # just make another explicit check here, note: in this create API we have credentials in request.data
         instance = serializer.Meta.model(**serializer.validated_data)
@@ -109,6 +119,10 @@ class ExportStorageDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     parser_classes = (JSONParser, FormParser, MultiPartParser)
     serializer_class = ExportStorageSerializer
 
+    def get_queryset(self):
+        StorageClass = self.serializer_class.Meta.model
+        return StorageClass.objects.filter(project__in=managed_projects_for_user(self.request))
+
     @extend_schema(exclude=True)
     def put(self, request, *args, **kwargs):
         return super(ExportStorageDetailAPI, self).put(request, *args, **kwargs)
@@ -124,7 +138,7 @@ class ImportStorageSyncAPI(generics.GenericAPIView):
 
     def get_queryset(self):
         ImportStorageClass = self.serializer_class.Meta.model
-        return ImportStorageClass.objects.all()
+        return ImportStorageClass.objects.filter(project__in=managed_projects_for_user(self.request))
 
     def post(self, request, *args, **kwargs):
         storage = self.get_object()
@@ -148,7 +162,7 @@ class ExportStorageSyncAPI(generics.GenericAPIView):
 
     def get_queryset(self):
         ExportStorageClass = self.serializer_class.Meta.model
-        return ExportStorageClass.objects.all()
+        return ExportStorageClass.objects.filter(project__in=managed_projects_for_user(self.request))
 
     def post(self, request, *args, **kwargs):
         storage = self.get_object()

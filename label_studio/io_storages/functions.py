@@ -40,12 +40,15 @@ def validate_storage_instance(request, serializer_class):
 
     if storage_id:
         instance = get_object_or_404(serializer_class.Meta.model.objects.all(), pk=storage_id)
-        if not instance.has_permission(request.user):
-            raise PermissionDenied()
+        require_project_manager(request, instance.project)
 
     # combine instance fields with request.data
     serializer = serializer_class(data=request.data)
     serializer.is_valid(raise_exception=True)
+
+    project = serializer.validated_data.get('project')
+    if project is not None:
+        require_project_manager(request, project)
 
     # if storage exists, we have to use instance from DB,
     # because instance from serializer won't have credentials, they were popped intentionally

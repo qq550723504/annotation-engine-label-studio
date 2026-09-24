@@ -5,6 +5,7 @@ import os
 import pathlib
 
 from access_control.authorization import authorization
+from access_control.project_access import require_project_manager
 from access_control.identity import resolve_principal
 from core.feature_flags import flag_set
 from core.filters import ListFilter
@@ -737,6 +738,7 @@ class ProjectSummaryResetAPI(GetParentObjectMixin, generics.CreateAPIView):
     @extend_schema(exclude=True)
     def post(self, *args, **kwargs):
         project = self.parent_object
+        require_project_manager(self.request, project)
         summary = project.summary
         start_job_async_or_sync(
             recalculate_created_annotations_and_labels_from_scratch,
@@ -1045,6 +1047,7 @@ class ProjectModelVersions(generics.RetrieveAPIView):
 
     def delete(self, request, *args, **kwargs):
         project = self.get_object()
+        require_project_manager(request, project)
         model_version = request.data.get('model_version', None)
 
         if not model_version:
