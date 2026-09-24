@@ -25,7 +25,7 @@ from rest_framework.fields import SkipField
 from rest_framework.serializers import ModelSerializer
 from rest_framework.settings import api_settings
 from tasks.exceptions import AnnotationDuplicateError
-from tasks.models import Annotation, AnnotationDraft, Prediction, PredictionMeta, Task, TaskAssignment
+from tasks.models import Annotation, AnnotationDraft, Prediction, PredictionMeta, ReviewDecision, Submission, Task, TaskAssignment
 from tasks.validation import TaskValidator
 from users.models import User
 from users.serializers import UserSerializer
@@ -178,6 +178,46 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class ReviewDecisionSerializer(serializers.ModelSerializer):
+    reviewer = UserSerializer(read_only=True)
+
+    class Meta:
+        model = ReviewDecision
+        fields = ['id', 'decision', 'reason', 'reviewer', 'created_at']
+        read_only_fields = fields
+
+
+class SubmissionSerializer(serializers.ModelSerializer):
+    submitted_by = UserSerializer(read_only=True)
+    review = ReviewDecisionSerializer(read_only=True)
+
+    class Meta:
+        model = Submission
+        fields = [
+            'id',
+            'assignment',
+            'annotation',
+            'revision',
+            'result_snapshot',
+            'result_hash',
+            'submitted_by',
+            'submitted_at',
+            'status',
+            'review',
+        ]
+        read_only_fields = fields
+
+
+class ReviewSubmissionSerializer(serializers.Serializer):
+    decision = serializers.ChoiceField(choices=ReviewDecision.Decision.choices)
+    reason = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate(self, attrs):
+        if attrs['decision'] == ReviewDecision.Decision.REJECTED and not attrs.get('reason', '').strip():
+            raise ValidationError({'reason': 'A rejection reason is required.'})
+        return attrs
+
+
 class ListAnnotationSerializer(serializers.ListSerializer):
     pass
 
@@ -206,10 +246,12 @@ class AnnotationSerializer(FlexFieldsModelSerializer):
     unique_id = serializers.CharField(required=False, write_only=True)
     assignment_id = serializers.IntegerField(required=False, write_only=True)
     assignment_version = serializers.IntegerField(required=False, write_only=True)
+    submit_for_review = serializers.BooleanField(required=False, default=False, write_only=True)
 
     def create(self, validated_data):
         validated_data.pop('assignment_id', None)
         validated_data.pop('assignment_version', None)
+        validated_data.pop('submit_for_review', None)
         try:
             return super().create(validated_data)
         except IntegrityError as e:
@@ -229,6 +271,7 @@ class AnnotationSerializer(FlexFieldsModelSerializer):
         validated_data.pop('updated_by', None)
         validated_data.pop('assignment_id', None)
         validated_data.pop('assignment_version', None)
+        validated_data.pop('submit_for_review', None)
         return super().update(instance, validated_data)
 
     def validate_result(self, value):

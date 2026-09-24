@@ -30,6 +30,13 @@ _api_assignments_urlpatterns = [
     path('<int:pk>/', api.TaskAssignmentAPI.as_view(), name='assignment-detail'),
 ]
 
+_api_submissions_urlpatterns = [
+    path('', api.SubmissionListAPI.as_view(), name='submission-list'),
+    path('<int:pk>/', api.SubmissionAPI.as_view(), name='submission-detail'),
+    path('<int:pk>/review/', api.SubmissionReviewAPI.as_view(), name='submission-review'),
+    path('<int:pk>/release/', api.SubmissionReleaseAPI.as_view(), name='submission-release'),
+]
+
 _api_annotations_urlpatterns = [
     path('<int:pk>/', api.AnnotationAPI.as_view(), name='annotation-detail'),
     path('<int:pk>/convert-to-draft', api.AnnotationConvertAPI.as_view(), name='annotation-convert-to-draft'),
@@ -48,5 +55,6 @@ urlpatterns = [
     path('api/annotations/', include((_api_annotations_urlpatterns, app_name), namespace='api-annotations')),
     path('api/drafts/', include((_api_drafts_urlpatterns, app_name), namespace='api-drafts')),
     path('api/task-assignments/', include((_api_assignments_urlpatterns, app_name), namespace='api-assignments')),
+    path('api/submissions/', include((_api_submissions_urlpatterns, app_name), namespace='api-submissions')),
     path('api/', include((_api_predictions_urlpatterns, app_name), namespace='api-predictions')),
 ]

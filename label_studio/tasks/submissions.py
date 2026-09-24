@@ -1,0 +1,114 @@
+"""Immutable annotation submission and review services."""
+
+import hashlib
+import json
+
+from django.db import transaction
+from django.db.models import Max
+from rest_framework.exceptions import ValidationError
+
+from tasks.models import ReviewDecision, Submission, TaskAssignment
+
+
+def _canonical_snapshot(annotation):
+    task = annotation.task
+    project = annotation.project
+
+    return {
+        'annotation': {
+            'id': annotation.id,
+            'result': annotation.result or [],
+            'was_cancelled': annotation.was_cancelled,
+            'ground_truth': annotation.ground_truth,
+            'lead_time': annotation.lead_time,
+        },
+        'task': {
+            'id': task.id if task else None,
+            'data': task.data if task else None,
+            'meta': task.meta if task else None,
+        },
+        'project': {
+            'id': project.id if project else None,
+            'label_config_hash': project.label_config_hash if project else None,
+        },
+    }
+
+
+def _snapshot_hash(snapshot):
+    canonical = json.dumps(snapshot, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+
+
+@transaction.atomic
+def create_submission(*, assignment, annotation, actor):
+    """Create the next immutable revision for an assignment.
+
+    Pending older revisions become superseded. Previously approved/rejected
+    revisions remain immutable historical evidence.
+    """
+
+    assignment = (
+        TaskAssignment.objects.select_for_update()
+        .select_related('task', 'project', 'assignee', 'annotation')
+        .get(pk=assignment.pk)
+    )
+
+    if assignment.assignee_id != actor.id:
+        raise ValidationError({'detail': 'Only the assignment owner can submit this annotation.'})
+    if assignment.annotation_id != annotation.id:
+        raise ValidationError({'detail': 'Annotation does not belong to this assignment.'})
+
+    last_revision = (
+        Submission.objects.filter(assignment=assignment).aggregate(max_revision=Max('revision'))['max_revision'] or 0
+    )
+    revision = last_revision + 1
+
+    Submission.objects.filter(
+        assignment=assignment,
+        status=Submission.Status.PENDING,
+    ).update(status=Submission.Status.SUPERSEDED)
+
+    snapshot = _canonical_snapshot(annotation)
+    submission = Submission.objects.create(
+        assignment=assignment,
+        annotation=annotation,
+        revision=revision,
+        result_snapshot=snapshot,
+        result_hash=_snapshot_hash(snapshot),
+        submitted_by=actor,
+    )
+
+    # Bump the optimistic-lock token so another tab holding the pre-submit
+    # assignment version cannot overwrite this newly submitted revision.
+    assignment.version += 1
+    assignment.save(update_fields=['version', 'updated_at'])
+
+    return submission
+
+
+@transaction.atomic
+def review_submission(*, submission, reviewer, decision, reason=''):
+    submission = Submission.objects.select_for_update().select_related('assignment', 'submitted_by').get(
+        pk=submission.pk
+    )
+
+    if submission.status != Submission.Status.PENDING:
+        raise ValidationError({'detail': 'Only pending submissions can be reviewed.'})
+    if submission.submitted_by_id == reviewer.id:
+        raise ValidationError({'detail': 'A user cannot review their own submission.'})
+    if decision == ReviewDecision.Decision.REJECTED and not reason.strip():
+        raise ValidationError({'reason': 'A rejection reason is required.'})
+
+    review = ReviewDecision.objects.create(
+        submission=submission,
+        reviewer=reviewer,
+        decision=decision,
+        reason=reason.strip(),
+    )
+    submission.status = (
+        Submission.Status.APPROVED
+        if decision == ReviewDecision.Decision.APPROVED
+        else Submission.Status.REJECTED
+    )
+    submission.save(update_fields=['status'])
+    return review

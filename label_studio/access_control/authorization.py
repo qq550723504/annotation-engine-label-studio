@@ -102,9 +102,16 @@ class AuthorizationService:
         assignment = cls.active_task_assignment(principal, annotation.task)
         return assignment is not None and assignment.annotation_id == annotation.id
 
-    @staticmethod
-    def can_review_submission(principal: Principal, submission) -> bool:
-        return False
+    @classmethod
+    def can_review_submission(cls, principal: Principal, submission) -> bool:
+        from projects.models import ProjectMember
+
+        project = submission.assignment.project
+        return cls.project_role(principal, project) == ProjectMember.Role.REVIEWER
+
+    @classmethod
+    def can_release_submission(cls, principal: Principal, submission) -> bool:
+        return cls.can_manage_project(principal, submission.assignment.project) and submission.is_releasable
 
     @staticmethod
     def require(allowed: bool, message: str = "You do not have permission to perform this action.") -> None:

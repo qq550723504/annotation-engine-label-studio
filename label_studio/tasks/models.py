@@ -651,6 +651,90 @@ class TaskAssignment(models.Model):
             self.save(update_fields=['status', 'version', 'updated_at'])
 
 
+class Submission(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'pending', _('Pending')
+        APPROVED = 'approved', _('Approved')
+        REJECTED = 'rejected', _('Rejected')
+        SUPERSEDED = 'superseded', _('Superseded')
+
+    assignment = models.ForeignKey(
+        'tasks.TaskAssignment',
+        on_delete=models.CASCADE,
+        related_name='submissions',
+    )
+    annotation = models.ForeignKey(
+        'tasks.Annotation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='submissions',
+    )
+    revision = models.PositiveIntegerField()
+    result_snapshot = models.JSONField()
+    result_hash = models.CharField(max_length=64, db_index=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='annotation_submissions',
+    )
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['assignment', 'revision'],
+                name='unique_assignment_submission_revision',
+            ),
+        ]
+
+    def has_permission(self, user):
+        if user is None or not getattr(user, 'is_authenticated', False):
+            return False
+        if self.assignment.assignee_id == user.id:
+            return True
+        project = self.assignment.project
+        if project.created_by_id == user.id:
+            return True
+        return project.members.filter(
+            user=user,
+            enabled=True,
+            role__in=['manager', 'reviewer'],
+        ).exists()
+
+    @property
+    def is_releasable(self):
+        return self.status == self.Status.APPROVED
+
+
+class ReviewDecision(models.Model):
+    class Decision(models.TextChoices):
+        APPROVED = 'approved', _('Approved')
+        REJECTED = 'rejected', _('Rejected')
+
+    submission = models.OneToOneField(
+        'tasks.Submission',
+        on_delete=models.CASCADE,
+        related_name='review',
+    )
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='annotation_review_decisions',
+    )
+    decision = models.CharField(max_length=16, choices=Decision.choices)
+    reason = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 pre_bulk_create = Signal()   # providing args 'objs' and 'batch_size'
 post_bulk_create = Signal()   # providing args 'objs' and 'batch_size'
 
