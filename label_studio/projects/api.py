@@ -469,6 +469,8 @@ class ProjectNextTaskAPI(generics.RetrieveAPIView):
         project = self.get_object()
         dm_queue = filters_ordering_selected_items_exist(request.data)
         prepared_tasks = get_prepared_queryset(request, project)
+        allowed_task_ids = Task.objects.for_user(request.user).filter(project=project).values_list('id', flat=True)
+        prepared_tasks = prepared_tasks.filter(id__in=allowed_task_ids)
 
         next_task, queue_info = get_next_task(request.user, prepared_tasks, project, dm_queue)
 
@@ -766,7 +768,7 @@ class ProjectTaskListAPI(GetParentObjectMixin, generics.ListCreateAPIView, gener
     def filter_queryset(self, queryset):
         project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs.get('pk', 0))
         # ordering is deprecated here
-        tasks = Task.objects.filter(project=project).order_by('-updated_at')
+        tasks = Task.objects.for_user(self.request.user).filter(project=project).order_by('-updated_at')
         page = paginator(tasks, self.request)
         if page:
             return page
@@ -775,6 +777,11 @@ class ProjectTaskListAPI(GetParentObjectMixin, generics.ListCreateAPIView, gener
 
     def delete(self, request, *args, **kwargs):
         project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
+        principal = resolve_principal(request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to delete project tasks.',
+        )
         task_ids = list(Task.objects.filter(project=project).values('id'))
         Task.delete_tasks_without_signals(Task.objects.filter(project=project))
         logger.info(f'calling reset project_id={project.id} ProjectTaskListAPI.delete()')
@@ -796,6 +803,11 @@ class ProjectTaskListAPI(GetParentObjectMixin, generics.ListCreateAPIView, gener
 
     def perform_create(self, serializer):
         project = self.parent_object
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to create project tasks.',
+        )
         instance = serializer.save(project=project)
         emit_webhooks_for_instance(
             self.request.user.active_organization, project, WebhookAction.TASKS_CREATED, [instance]
