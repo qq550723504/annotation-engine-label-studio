@@ -6,7 +6,7 @@ from rest_framework.exceptions import NotAuthenticated
 from users.tests.factories import UserFactory
 
 from access_control.authorization import AuthorizationService
-from access_control.identity import LOCAL_IDENTITY_SOURCE, LocalIdentityProvider
+from access_control.identity import LOCAL_IDENTITY_SOURCE, LocalIdentityProvider, get_identity_provider
 
 
 class TestLocalIdentityProvider(TestCase):
@@ -39,3 +39,9 @@ class TestLocalIdentityProvider(TestCase):
         assert authorization.can_label_task(principal, object()) is False
         assert authorization.can_update_annotation(principal, object()) is False
         assert authorization.can_review_submission(principal, object()) is False
+
+
+    def test_configured_provider_defaults_to_local_provider(self):
+        get_identity_provider.cache_clear()
+        provider = get_identity_provider()
+        assert isinstance(provider, LocalIdentityProvider)
