@@ -22,21 +22,14 @@ describe("project member and role management UI", () => {
     });
   });
 
-  const dataPage = () => `/projects/${fixture.project_id}/data`;
-  const settingsPage = () => `/projects/${fixture.project_id}/settings`;
-  const membersPage = () => `${settingsPage()}/members`;
-
-  const loginToProject = (email: string) => {
-    cy.loginAs(email, fixture.password, dataPage());
-    cy.visit(dataPage());
-    cy.location("pathname", { timeout: 30000 }).should("eq", dataPage());
-    cy.get("body").should("be.visible");
-  };
+  const settingsPage = () => `/projects/${fixture.project_id}/settings/`;
+  const membersPage = () => `/projects/${fixture.project_id}/settings/members`;
 
   const openProjectSettings = (email: string) => {
-    loginToProject(email);
-    cy.contains("a", "Settings", { timeout: 30000 }).should("be.visible").click();
+    cy.loginAs(email, fixture.password, settingsPage());
+    cy.visit(settingsPage());
     cy.location("pathname", { timeout: 30000 }).should("eq", settingsPage());
+    cy.get("body").should("be.visible");
   };
 
   const openAsManager = () => {
