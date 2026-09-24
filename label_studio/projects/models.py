@@ -1432,6 +1432,18 @@ class ProjectMember(models.Model):
             models.UniqueConstraint(fields=['user', 'project'], name='unique_project_member'),
         ]
 
+    def has_permission(self, user):
+        """Project-member records are manageable only by an effective project manager."""
+        if user is None or not getattr(user, 'is_authenticated', False):
+            return False
+        if self.project.created_by_id == user.id:
+            return True
+        return self.project.members.filter(
+            user=user,
+            enabled=True,
+            role=self.Role.MANAGER,
+        ).exists()
+
 
 class ProjectSummary(models.Model):
 

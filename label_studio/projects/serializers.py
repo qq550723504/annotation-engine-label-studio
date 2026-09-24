@@ -29,11 +29,13 @@ from label_studio_sdk.label_interface.control_tags import (
     TimeSeriesLabelsTag,
     VideoRectangleTag,
 )
-from projects.models import Project, ProjectImport, ProjectOnboarding, ProjectReimport, ProjectSummary
+from organizations.models import OrganizationMember
+from projects.models import Project, ProjectImport, ProjectMember, ProjectOnboarding, ProjectReimport, ProjectSummary
 from rest_flex_fields import FlexFieldsModelSerializer
 from rest_framework import serializers
 from rest_framework.serializers import SerializerMethodField
 from tasks.models import Task
+from users.models import User
 from users.serializers import UserSimpleSerializer
 
 
@@ -45,6 +47,48 @@ class OpenApiObjectJSONField(serializers.JSONField):
     drf-spectacular may otherwise produce a schema with only metadata (e.g. nullable/readOnly/description)
     and omit `type`/`$ref`, which breaks some OpenAPI doc renderers.
     """
+
+
+class ProjectMemberSerializer(serializers.ModelSerializer):
+    user = UserSimpleSerializer(read_only=True)
+    user_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        source='user',
+        write_only=True,
+    )
+
+    class Meta:
+        model = ProjectMember
+        fields = ['id', 'project', 'user', 'user_id', 'role', 'enabled', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'project', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        project = self.context.get('project')
+        user = attrs.get('user') or getattr(self.instance, 'user', None)
+        if project is None or user is None:
+            return attrs
+
+        belongs_to_org = OrganizationMember.objects.filter(
+            organization=project.organization,
+            user=user,
+            deleted_at__isnull=True,
+        ).exists()
+        if not belongs_to_org:
+            raise serializers.ValidationError({'user_id': 'User must be an active member of the project organization.'})
+
+        duplicate = ProjectMember.objects.filter(project=project, user=user)
+        if self.instance is not None:
+            duplicate = duplicate.exclude(pk=self.instance.pk)
+        if duplicate.exists():
+            raise serializers.ValidationError({'user_id': 'User is already a member of this project.'})
+
+        if project.created_by_id == user.id:
+            requested_role = attrs.get('role', getattr(self.instance, 'role', ProjectMember.Role.MANAGER))
+            requested_enabled = attrs.get('enabled', getattr(self.instance, 'enabled', True))
+            if requested_role != ProjectMember.Role.MANAGER or not requested_enabled:
+                raise serializers.ValidationError({'user_id': 'Project creator must remain an enabled manager.'})
+
+        return attrs
 
 
 class CreatedByFromContext:

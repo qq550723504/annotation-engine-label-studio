@@ -19,7 +19,7 @@ from core.utils.io import find_dir, find_file, read_yaml
 from core.utils.serializer_to_openapi_params import serializer_to_openapi_params
 from data_manager.functions import filters_ordering_selected_items_exist, get_prepared_queryset
 from django.conf import settings
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.http import Http404
 from django.utils.decorators import method_decorator
@@ -29,6 +29,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
 from label_studio_sdk.label_interface.interface import LabelInterface
 from ml.serializers import MLBackendSerializer
+from organizations.models import OrganizationMember
 from projects.functions.next_task import get_next_task
 from projects.functions.stream_history import get_label_stream_history
 from projects.functions.utils import recalculate_created_annotations_and_labels_from_scratch
@@ -39,6 +40,7 @@ from projects.serializers import (
     ProjectImportSerializer,
     ProjectLabelConfigSerializer,
     ProjectModelVersionExtendedSerializer,
+    ProjectMemberSerializer,
     ProjectModelVersionParamsSerializer,
     ProjectReimportSerializer,
     ProjectSerializer,
@@ -53,7 +55,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.views import exception_handler
-from tasks.models import Annotation, Task
+from tasks.models import Annotation, Task, TaskAssignment
 from tasks.serializers import (
     NextTaskSerializer,
     TaskSerializer,
@@ -242,6 +244,131 @@ class ProjectListAPI(generics.ListCreateAPIView):
         },
     ),
 )
+class ProjectMemberListCreateAPI(generics.ListCreateAPIView):
+    serializer_class = ProjectMemberSerializer
+    permission_required = all_permissions.projects_view
+
+    def _project(self):
+        project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to manage project members.',
+        )
+        return project
+
+    def get_queryset(self):
+        project = self._project()
+        return ProjectMember.objects.filter(project=project).select_related('user').order_by('id')
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['project'] = self._project()
+        return context
+
+    def perform_create(self, serializer):
+        project = self._project()
+        serializer.save(project=project)
+
+
+class ProjectMemberAPI(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ProjectMemberSerializer
+    permission_required = all_permissions.projects_view
+    lookup_url_kwarg = 'member_pk'
+
+    @staticmethod
+    def _has_other_effective_manager(project, excluding_user_id):
+        creator_is_active = (
+            project.created_by_id is not None
+            and project.created_by_id != excluding_user_id
+            and OrganizationMember.objects.filter(
+                organization=project.organization,
+                user_id=project.created_by_id,
+                deleted_at__isnull=True,
+            ).exists()
+        )
+        if creator_is_active:
+            return True
+
+        return ProjectMember.objects.filter(
+            project=project,
+            enabled=True,
+            role=ProjectMember.Role.MANAGER,
+        ).exclude(user_id=excluding_user_id).exists()
+
+    def _project(self):
+        project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to manage project members.',
+        )
+        return project
+
+    def get_queryset(self):
+        project = self._project()
+        return ProjectMember.objects.filter(project=project).select_related('user')
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['project'] = self._project()
+        return context
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        membership = self.get_object()
+        old_role = membership.role
+        old_enabled = membership.enabled
+
+        requested_role = serializer.validated_data.get('role', old_role)
+        requested_enabled = serializer.validated_data.get('enabled', old_enabled)
+        removes_manager = (
+            old_enabled
+            and old_role == ProjectMember.Role.MANAGER
+            and (not requested_enabled or requested_role != ProjectMember.Role.MANAGER)
+        )
+        if removes_manager and not self._has_other_effective_manager(membership.project, membership.user_id):
+            raise RestValidationError({'detail': 'Project must retain at least one effective manager.'})
+
+        updated = serializer.save()
+
+        lost_label_access = (
+            old_enabled
+            and old_role in (ProjectMember.Role.ANNOTATOR, ProjectMember.Role.MANAGER)
+            and (
+                not updated.enabled
+                or updated.role not in (ProjectMember.Role.ANNOTATOR, ProjectMember.Role.MANAGER)
+            )
+        )
+        if lost_label_access:
+            assignments = TaskAssignment.objects.select_for_update().filter(
+                project=updated.project,
+                assignee=updated.user,
+                status__in=TaskAssignment.ACTIVE_STATUSES,
+            )
+            for assignment in assignments:
+                assignment.cancel()
+
+    @transaction.atomic
+    def perform_destroy(self, membership):
+        project = membership.project
+        if project.created_by_id == membership.user_id:
+            raise RestValidationError({'detail': 'Project creator membership cannot be removed.'})
+        if (
+            membership.enabled
+            and membership.role == ProjectMember.Role.MANAGER
+            and not self._has_other_effective_manager(project, membership.user_id)
+        ):
+            raise RestValidationError({'detail': 'Project must retain at least one effective manager.'})
+
+        TaskAssignment.objects.select_for_update().filter(
+            project=project,
+            assignee=membership.user,
+            status__in=TaskAssignment.ACTIVE_STATUSES,
+        ).update(status=TaskAssignment.Status.CANCELLED, version=F('version') + 1)
+        membership.delete()
+
+
 class ProjectCountsListAPI(generics.ListAPIView):
     serializer_class = ProjectCountsSerializer
     filterset_class = ProjectFilterSet
