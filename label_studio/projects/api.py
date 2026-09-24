@@ -4,6 +4,8 @@ import logging
 import os
 import pathlib
 
+from access_control.authorization import authorization
+from access_control.identity import resolve_principal
 from core.feature_flags import flag_set
 from core.filters import ListFilter
 from core.label_config import config_essential_data_has_changed
@@ -30,7 +32,7 @@ from ml.serializers import MLBackendSerializer
 from projects.functions.next_task import get_next_task
 from projects.functions.stream_history import get_label_stream_history
 from projects.functions.utils import recalculate_created_annotations_and_labels_from_scratch
-from projects.models import Project, ProjectImport, ProjectManager, ProjectReimport, ProjectSummary
+from projects.models import Project, ProjectImport, ProjectManager, ProjectMember, ProjectReimport, ProjectSummary
 from projects.serializers import (
     GetFieldsSerializer,
     ProjectCountsSerializer,
@@ -180,7 +182,7 @@ class ProjectListAPI(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
         filter = serializer.validated_data.get('filter')
-        projects = Project.objects.filter(organization=self.request.user.active_organization).order_by(
+        projects = Project.objects.for_user(self.request.user).order_by(
             F('pinned_at').desc(nulls_last=True), '-created_at'
         )
         if filter in ['pinned_only', 'exclude_pinned']:
@@ -202,7 +204,12 @@ class ProjectListAPI(generics.ListCreateAPIView):
 
     def perform_create(self, ser):
         try:
-            ser.save(organization=self.request.user.active_organization)
+            project = ser.save(organization=self.request.user.active_organization)
+            ProjectMember.objects.update_or_create(
+                user=self.request.user,
+                project=project,
+                defaults={'role': ProjectMember.Role.MANAGER, 'enabled': True},
+            )
         except IntegrityError as e:
             if str(e) == 'UNIQUE constraint failed: project.title, project.created_by_id':
                 raise ProjectExistException(
@@ -247,8 +254,9 @@ class ProjectCountsListAPI(generics.ListAPIView):
         serializer = GetFieldsSerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
-        projects = Project.objects.with_counts(fields=fields).filter(
-            organization=self.request.user.active_organization
+        projects = ProjectManager.with_counts_annotate(
+            Project.objects.for_user(self.request.user),
+            fields=fields,
         )
 
         # Only annotate FSM state for UI/API consumption when both feature flags are enabled
@@ -381,8 +389,9 @@ class ProjectAPI(generics.RetrieveUpdateDestroyAPIView):
         serializer = GetFieldsSerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
-        projects = Project.objects.with_counts(fields=fields).filter(
-            organization=self.request.user.active_organization
+        projects = ProjectManager.with_counts_annotate(
+            Project.objects.for_user(self.request.user),
+            fields=fields,
         )
 
         # Only annotate FSM state for UI/API consumption when both feature flags are enabled
@@ -396,13 +405,22 @@ class ProjectAPI(generics.RetrieveUpdateDestroyAPIView):
     def get(self, request, *args, **kwargs):
         return super(ProjectAPI, self).get(request, *args, **kwargs)
 
+    def _require_manager(self, request, project):
+        principal = resolve_principal(request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required for this operation.',
+        )
+
     @api_webhook_for_delete(WebhookAction.PROJECT_DELETED)
     def delete(self, request, *args, **kwargs):
+        self._require_manager(request, self.get_object())
         return super(ProjectAPI, self).delete(request, *args, **kwargs)
 
     @api_webhook(WebhookAction.PROJECT_UPDATED)
     def patch(self, request, *args, **kwargs):
         project = self.get_object()
+        self._require_manager(request, project)
         label_config = self.request.data.get('label_config')
 
         # config changes can break view, so we need to reset them
@@ -422,6 +440,7 @@ class ProjectAPI(generics.RetrieveUpdateDestroyAPIView):
     @extend_schema(exclude=True)
     @api_webhook(WebhookAction.PROJECT_UPDATED)
     def put(self, request, *args, **kwargs):
+        self._require_manager(request, self.get_object())
         return super(ProjectAPI, self).put(request, *args, **kwargs)
 
 
