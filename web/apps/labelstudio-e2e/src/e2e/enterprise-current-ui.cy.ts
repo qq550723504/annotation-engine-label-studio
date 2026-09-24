@@ -27,8 +27,8 @@ describe('enterprise collaboration - currently available UI', () => {
   const dataPage = () => `/projects/${fixture.project_id}/data`;
 
   const expectDataManagerTaskIds = (expectedIds: number[]) => {
-    cy.window({ timeout: 30000 }).its('dataManager').should('exist');
-    cy.window({ timeout: 30000 }).should((win) => {
+    cy.window().its('dataManager', { timeout: 30000 }).should('exist');
+    cy.window().should((win) => {
       const list = win.dataManager?.store?.taskStore?.list ?? [];
       const ids = Array.from(list, (task: { id: number }) => task.id).sort((a, b) => a - b);
       expect(ids).to.deep.equal([...expectedIds].sort((a, b) => a - b));
