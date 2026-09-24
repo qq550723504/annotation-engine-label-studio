@@ -162,6 +162,14 @@ class AnnotationSerializer(FlexFieldsModelSerializer):
                 raise AnnotationDuplicateError()
             raise
 
+    def update(self, instance, validated_data):
+        # Annotation authorship is immutable through the generic update API.
+        # updated_by is controlled by the authenticated server-side actor in
+        # AnnotationAPI.update.
+        validated_data.pop('completed_by', None)
+        validated_data.pop('updated_by', None)
+        return super().update(instance, validated_data)
+
     def validate_result(self, value):
         data = value
         # convert from str to json if need
