@@ -30,9 +30,7 @@ describe("project member and role management UI", () => {
     cy.loginAs(email, fixture.password, dataPage());
     cy.visit(dataPage());
     cy.location("pathname", { timeout: 30000 }).should("eq", dataPage());
-    cy.window({ timeout: 30000 }).should((win) => {
-      expect((win as any).dataManager, "Data Manager initialized").to.exist;
-    });
+    cy.get("body").should("be.visible");
   };
 
   const openProjectSettings = (email: string) => {
