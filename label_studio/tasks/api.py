@@ -27,7 +27,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from tasks.exceptions import AssignmentConflictError
-from tasks.models import Annotation, AnnotationDraft, Prediction, Task, TaskAssignment
+from tasks.models import Annotation, AnnotationDraft, Prediction, Submission, Task, TaskAssignment
 from tasks.openapi_schema import (
     annotation_request_schema,
     annotation_response_example,
@@ -41,10 +41,13 @@ from tasks.serializers import (
     AnnotationDraftSerializer,
     AnnotationSerializer,
     PredictionSerializer,
+    ReviewSubmissionSerializer,
+    SubmissionSerializer,
     TaskAssignmentSerializer,
     TaskSerializer,
     TaskSimpleSerializer,
 )
+from tasks.submissions import create_submission, review_submission
 from webhooks.models import WebhookAction
 from webhooks.utils import (
     api_webhook,
@@ -699,6 +702,7 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
         )
         annotation.delete()
 
+    @transaction.atomic
     def update(self, request, *args, **kwargs):
         # Resolve the trusted server-side actor before touching audit fields.
         principal = resolve_principal(request)
@@ -721,7 +725,12 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
         task.update_is_labeled()
         task.save()  # refresh task metrics
 
+        submit_for_review = bool(request.data.get('submit_for_review', False))
         result = super(AnnotationAPI, self).update(request, *args, **kwargs)
+
+        if submit_for_review:
+            annotation.refresh_from_db()
+            create_submission(assignment=assignment, annotation=annotation, actor=user)
 
         task.update_is_labeled()
         task.save(update_fields=['updated_at'])  # refresh task metrics
@@ -918,10 +927,14 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
 
         # create annotation
         logger.debug(f'User={self.request.user}: save annotation')
+        submit_for_review = bool(ser.validated_data.get('submit_for_review', False))
         annotation = ser.save(**extra_args)
         assignment.annotation = annotation
         assignment.status = TaskAssignment.Status.IN_PROGRESS
         assignment.save(update_fields=['annotation', 'status', 'updated_at'])
+
+        if submit_for_review:
+            create_submission(assignment=assignment, annotation=annotation, actor=user)
 
         logger.debug(f'Save activity for user={self.request.user}')
         self.request.user.activity_at = timezone.now()
@@ -1010,6 +1023,115 @@ class AnnotationDraftAPI(generics.RetrieveUpdateDestroyAPIView):
             raise AssignmentConflictError()
         require_assignment_token(request, assignment)
         return super().update(request, *args, **kwargs)
+
+
+class SubmissionListAPI(generics.ListAPIView):
+    serializer_class = SubmissionSerializer
+    permission_required = all_permissions.annotations_view
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Submission.objects.filter(assignment__project__organization=user.active_organization)
+        queryset = queryset.filter(
+            Q(assignment__assignee=user)
+            | Q(assignment__project__created_by=user)
+            | Q(
+                assignment__project__members__user=user,
+                assignment__project__members__enabled=True,
+                assignment__project__members__role__in=['manager', 'reviewer'],
+            )
+        ).distinct()
+
+        project_id = self.request.query_params.get('project')
+        status_value = self.request.query_params.get('status')
+        if project_id:
+            queryset = queryset.filter(assignment__project_id=project_id)
+        if status_value:
+            queryset = queryset.filter(status=status_value)
+
+        return queryset.select_related(
+            'assignment',
+            'assignment__project',
+            'assignment__assignee',
+            'annotation',
+            'submitted_by',
+        ).order_by('-submitted_at', '-id')
+
+
+class SubmissionAPI(generics.RetrieveAPIView):
+    serializer_class = SubmissionSerializer
+    permission_required = all_permissions.annotations_view
+
+    def get_queryset(self):
+        user = self.request.user
+        return (
+            Submission.objects.filter(assignment__project__organization=user.active_organization)
+            .filter(
+                Q(assignment__assignee=user)
+                | Q(assignment__project__created_by=user)
+                | Q(
+                    assignment__project__members__user=user,
+                    assignment__project__members__enabled=True,
+                    assignment__project__members__role__in=['manager', 'reviewer'],
+                )
+            )
+            .distinct()
+        )
+
+
+class SubmissionReviewAPI(generics.GenericAPIView):
+    serializer_class = ReviewSubmissionSerializer
+    permission_required = all_permissions.annotations_view
+    queryset = Submission.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        submission = generics.get_object_or_404(
+            Submission.objects.select_related('assignment__project', 'submitted_by'),
+            pk=self.kwargs['pk'],
+        )
+        principal = resolve_principal(request)
+        authorization.require(
+            authorization.can_review_submission(principal, submission),
+            'Project reviewer role is required to review this submission.',
+        )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        review_submission(
+            submission=submission,
+            reviewer=request.user,
+            decision=serializer.validated_data['decision'],
+            reason=serializer.validated_data.get('reason', ''),
+        )
+        submission.refresh_from_db()
+        return Response(SubmissionSerializer(submission, context={'request': request}).data)
+
+
+class SubmissionReleaseAPI(generics.GenericAPIView):
+    permission_required = all_permissions.annotations_view
+    queryset = Submission.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        submission = generics.get_object_or_404(
+            Submission.objects.select_related('assignment__project'),
+            pk=self.kwargs['pk'],
+        )
+        principal = resolve_principal(request)
+        authorization.require(
+            authorization.can_manage_project(principal, submission.assignment.project),
+            'Project manager role is required to release a submission.',
+        )
+        if not submission.is_releasable:
+            raise ValidationError({'detail': 'Only approved submissions can be released.'})
+
+        return Response(
+            {
+                'submission_id': submission.id,
+                'revision': submission.revision,
+                'result_hash': submission.result_hash,
+                'result_snapshot': submission.result_snapshot,
+            }
+        )
 
 
 class TaskAssignmentListCreateAPI(generics.ListCreateAPIView):
