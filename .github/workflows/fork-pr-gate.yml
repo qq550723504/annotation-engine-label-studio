@@ -63,12 +63,17 @@ jobs:
       - name: Generate version file
         run: poetry run python label_studio/core/version.py
 
-      - name: Run identity and actor security tests
+      - name: Check migrations are in sync
+        run: |
+          poetry run python label_studio/manage.py makemigrations --check --dry-run
+
+      - name: Run authorization regression tests
         working-directory: label_studio
         run: |
           poetry run pytest -v \
             access_control/tests/test_identity.py \
-            tasks/tests/test_annotation_actor_security.py
+            tasks/tests/test_annotation_actor_security.py \
+            projects/tests/test_project_authorization.py
 
       - name: Run annotation/task API smoke tests
         working-directory: label_studio
