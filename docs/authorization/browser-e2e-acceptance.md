@@ -47,7 +47,7 @@ yarn cypress run \
 | Existing editor explicit Submit creates immutable Submission | GAP | Backend/API contract is verified, but the current Data Manager UI does not expose a labeling entry action for these assignment-scoped annotator sessions, so the editor Submit button cannot be reached through current UI. |
 | Membership revocation invalidates backend access | PASS | A logged-in annotator loses task API access immediately after out-of-band membership disablement. |
 | Stale already-open editor Save/Submit after revocation | GAP | Current UI cannot reach/open the assignment-scoped editor from Data Manager for these users, so the stale-open-editor browser interaction cannot yet be exercised. Backend stale-token behavior remains covered by API acceptance tests. |
-| Project member/role management through browser UI | GAP | Backend exists; UI tracked in #17. |
+| Project member/role management through browser UI | IMPLEMENTED | #17 adds the project Settings → Members workflow; CI must pass before this row is promoted to PASS. |
 | Task assignment administration through browser UI | GAP | Backend exists; UI tracked in #18. |
 | Reviewer pending queue / immutable snapshot review UI | GAP | Backend exists; UI tracked in #19. |
 | Approve / Reject browser controls | GAP | Backend exists; UI tracked in #19. |
@@ -89,12 +89,35 @@ The supported programmatic action used by the current UI to open a task is Data 
 
 The following backend capabilities deliberately have no current product UI in this milestone:
 
-- project member / role management — #17;
+- project member / role management — implemented in #17; pending browser CI verification;
 - task assignment management — #18;
 - Reviewer workspace and approve/reject — #19;
 - submission history and approved release — #20.
 
 #16 must not implement those workflows.
+
+## Project member management UI (#17)
+
+Route:
+
+```text
+/projects/{project_id}/settings/members
+```
+
+The Members settings entry is exposed only after the existing project-members endpoint confirms manager capability. The backend remains authoritative; direct non-manager access receives 403 and the UI returns to project Settings.
+
+Focused browser command:
+
+```bash
+cd web
+yarn cypress run \
+  --project apps/labelstudio-e2e \
+  --config-file cypress.config.ts \
+  --config baseUrl=http://localhost:8080,video=true \
+  --spec apps/labelstudio-e2e/src/e2e/project-members.cy.ts
+```
+
+The browser coverage exercises add, role change, disable/re-enable, remove, non-manager denial, and real backend validation rendering.
 
 ## CI
 
