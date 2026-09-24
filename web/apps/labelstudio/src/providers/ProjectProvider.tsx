@@ -62,10 +62,8 @@ export const ProjectProvider: React.FunctionComponent = ({ children }) => {
 
       if (!result || result?.$meta?.ok === false) {
         projectCache.delete(finalProjectId);
-        if (projectData?.id === finalProjectId) {
-          setProjectData({});
-          updateStore({ project: {} });
-        }
+        setProjectData({});
+        updateStore({ project: {} });
         return;
       }
 
