@@ -42,10 +42,11 @@ yarn cypress run \
 | Scenario | Status | Evidence / notes |
 |---|---|---|
 | Four distinct identities can authenticate with isolated sessions | PASS | Browser uses the real `/user/login/` form for each role. |
-| Annotator task scope is enforced by the backend from the browser session | PASS | Assigned task returns 200; another annotator's task returns 404. Browser test also inspects Data Manager task state. |
+| Annotator task scope is enforced by the backend from the browser session | PASS | From a real logged-in browser session, assigned task returns 200 and another annotator's task returns 404. |
 | Reviewer project visibility does not grant labeling/task access | PASS | Reviewer session cannot retrieve assigned annotator task; Browser E2E passed this scenario. |
-| Existing editor explicit Submit creates immutable Submission | IN VALIDATION | Browser test now opens the task through the real Data Manager `startLabeling` action and clicks the existing `bottombar-submit-button`. |
-| Membership revocation invalidates already-open page writes | IN VALIDATION | Browser keeps the annotator editor open while a test-side fixture command disables membership and cancels assignments, then clicks Submit from the stale page. |
+| Existing editor explicit Submit creates immutable Submission | GAP | Backend/API contract is verified, but the current Data Manager UI does not expose a labeling entry action for these assignment-scoped annotator sessions, so the editor Submit button cannot be reached through current UI. |
+| Membership revocation invalidates backend access | PASS | A logged-in annotator loses task API access immediately after out-of-band membership disablement. |
+| Stale already-open editor Save/Submit after revocation | GAP | Current UI cannot reach/open the assignment-scoped editor from Data Manager for these users, so the stale-open-editor browser interaction cannot yet be exercised. Backend stale-token behavior remains covered by API acceptance tests. |
 | Project member/role management through browser UI | GAP | Backend exists; UI tracked in #17. |
 | Task assignment administration through browser UI | GAP | Backend exists; UI tracked in #18. |
 | Reviewer pending queue / immutable snapshot review UI | GAP | Backend exists; UI tracked in #19. |
@@ -68,6 +69,17 @@ The initial E2E harness exposed several CI/runtime assumptions that were not par
 These were fixed in the E2E workflow rather than suppressing browser exceptions.
 
 ### UI contract findings
+
+Browser execution confirmed a new current-UI gap:
+
+- the annotator can authenticate and the assigned Task API returns 200;
+- another annotator's Task API returns 404;
+- the Data Manager route loads successfully;
+- Data Manager configuration still includes the native `label-button` instrument and the `labelButton` interface is enabled;
+- nevertheless the current UI does not render a usable **Label All Tasks** entry action for the assignment-scoped annotator session.
+
+Therefore #16 does not implement or synthesize a labeling entry UI. The missing projection/navigation is a product UI gap and belongs with the task-assignment UI work in #18.
+
 
 The Data Manager explorer does not guarantee that raw `task.data.text` is rendered as visible table text in the default view. Therefore task isolation is validated from the actual Data Manager task store plus the authenticated API response, not by assuming a particular default column configuration.
 
@@ -103,4 +115,4 @@ Only executed browser scenarios may be marked PASS.
 
 GAP means that the backend contract exists but the corresponding product UI is not yet implemented.
 
-The full workflow must not be declared browser-complete until #21 passes after #17–#20 are implemented.
+The full workflow must not be declared browser-complete until #21 passes after #17–#20 are implemented. In particular, #18 must provide a browser-reachable assignment-to-labeling workflow before Submit and stale-open-editor scenarios can move from GAP to PASS.
