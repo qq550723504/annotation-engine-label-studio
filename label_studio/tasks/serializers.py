@@ -963,12 +963,36 @@ class AnnotationDraftSerializer(ModelSerializer):
 
 class TaskWithAnnotationsAndPredictionsAndDraftsSerializer(TaskSerializer):
     predictions = serializers.SerializerMethodField(default=[], read_only=True)
+    assignment_id = serializers.SerializerMethodField(read_only=True)
+    assignment_version = serializers.SerializerMethodField(read_only=True)
     annotations = serializers.SerializerMethodField(default=[], read_only=True)
     drafts = serializers.SerializerMethodField(default=[], read_only=True)
     updated_by = serializers.SerializerMethodField(default=[], read_only=True)
 
     def get_updated_by(self, task):
         return [{'user_id': task.updated_by_id}] if task.updated_by_id else []
+
+    def _get_assignment(self, task):
+        user = self._get_user()
+        if user is None:
+            return None
+        return (
+            TaskAssignment.objects.filter(
+                task=task,
+                assignee=user,
+                status__in=TaskAssignment.ACTIVE_STATUSES,
+            )
+            .order_by('-assigned_at', '-id')
+            .first()
+        )
+
+    def get_assignment_id(self, task):
+        assignment = self._get_assignment(task)
+        return assignment.id if assignment else None
+
+    def get_assignment_version(self, task):
+        assignment = self._get_assignment(task)
+        return assignment.version if assignment else None
 
     def _get_user(self):
         if 'request' in self.context and hasattr(self.context['request'], 'user'):
