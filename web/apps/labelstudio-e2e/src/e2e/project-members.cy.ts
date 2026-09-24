@@ -101,7 +101,11 @@ describe("project member and role management UI", () => {
         .should("be.visible")
         .and("contain.text", "already a member");
 
-      cy.contains("tr", fixture.users.candidate_annotator.email).should("not.exist");
+      // The failed duplicate mutation must not report success, but the roster
+      // still reflects the authoritative server state created out-of-band.
+      cy.contains("tr", fixture.users.candidate_annotator.email)
+        .should("be.visible")
+        .and("contain.text", "Enabled");
 
       cy.request(
         "DELETE",
