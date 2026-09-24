@@ -360,10 +360,8 @@ class Task(TaskMixin, FsmHistoryStateModel):
                 return getattr(self, link_name).key
 
     def has_permission(self, user: 'User') -> bool:  # noqa: F821
-        mixin_has_permission = cast(bool, super().has_permission(user))
-
         user.project = self.project  # link for activity log
-        return mixin_has_permission and self.project.has_permission(user)
+        return Task.objects.for_user(user).filter(pk=self.pk).exists()
 
     def clear_expired_locks(self):
         self.locks.filter(expire_at__lt=now()).delete()
@@ -566,6 +564,82 @@ class Task(TaskMixin, FsmHistoryStateModel):
         return result
 
 
+class TaskAssignment(models.Model):
+    class Status(models.TextChoices):
+        ASSIGNED = 'assigned', _('Assigned')
+        IN_PROGRESS = 'in_progress', _('In progress')
+        CANCELLED = 'cancelled', _('Cancelled')
+
+    ACTIVE_STATUSES = (Status.ASSIGNED, Status.IN_PROGRESS)
+
+    task = models.ForeignKey(
+        'tasks.Task',
+        on_delete=models.CASCADE,
+        related_name='assignments',
+    )
+    project = models.ForeignKey(
+        'projects.Project',
+        on_delete=models.CASCADE,
+        related_name='task_assignments',
+    )
+    assignee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='task_assignments',
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_task_assignments',
+    )
+    annotation = models.OneToOneField(
+        'tasks.Annotation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='task_assignment',
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.ASSIGNED,
+        db_index=True,
+    )
+    version = models.PositiveIntegerField(default=1)
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['project', 'assignee', 'status']),
+            models.Index(fields=['task', 'assignee', 'status']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['task', 'assignee'],
+                condition=Q(status__in=['assigned', 'in_progress']),
+                name='unique_active_task_assignee',
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.task_id:
+            task_project_id = self.task.project_id
+            if self.project_id is None:
+                self.project_id = task_project_id
+            elif self.project_id != task_project_id:
+                raise ValidationError('Task assignment project must match the task project.')
+        return super().save(*args, **kwargs)
+
+    def cancel(self):
+        if self.status != self.Status.CANCELLED:
+            self.status = self.Status.CANCELLED
+            self.version += 1
+            self.save(update_fields=['status', 'version', 'updated_at'])
+
+
 pre_bulk_create = Signal()   # providing args 'objs' and 'batch_size'
 post_bulk_create = Signal()   # providing args 'objs' and 'batch_size'
 
@@ -754,10 +828,16 @@ class Annotation(AnnotationMixin, FsmHistoryStateModel):
         return len(res)
 
     def has_permission(self, user: 'User') -> bool:  # noqa: F821
-        mixin_has_permission = cast(bool, super().has_permission(user))
-
         user.project = self.project  # link for activity log
-        return mixin_has_permission and self.project.has_permission(user)
+        if self.project.created_by_id == user.id:
+            return True
+        if self.project.members.filter(user=user, enabled=True, role='manager').exists():
+            return True
+        return TaskAssignment.objects.filter(
+            annotation=self,
+            assignee=user,
+            status__in=TaskAssignment.ACTIVE_STATUSES,
+        ).exists()
 
     def increase_project_summary_counters(self):
         if hasattr(self.project, 'summary'):
@@ -960,7 +1040,7 @@ class AnnotationDraft(FsmHistoryStateModel):
 
     def has_permission(self, user):
         user.project = self.task.project  # link for activity log
-        return self.task.project.has_permission(user)
+        return self.user_id == user.id and self.task.has_permission(user)
 
     def save(self, *args, **kwargs):
         with transaction.atomic():
