@@ -32,10 +32,12 @@ type UpdateProjectOptions = {
 export const ProjectProvider: React.FunctionComponent = ({ children }) => {
   const api = useAPI();
   const params = useParams();
+  const pathnameProjectId = window.location.pathname.match(/\/projects\/(\d+)(?:\/|$)/)?.[1];
+  const routeProjectId = params.id ?? pathnameProjectId;
   const { user } = useAuth();
   const { update: updateStore } = useAppStore();
   // @todo use null for missed project data
-  const [projectData, _setProjectData] = useState<APIProject | Empty>(projectCache.get(+params.id) ?? {});
+  const [projectData, _setProjectData] = useState<APIProject | Empty>(projectCache.get(+routeProjectId) ?? {});
   const setProject = useSetAtom(projectAtom);
 
   const setProjectData = (project: APIProject | Empty) => {
@@ -45,7 +47,7 @@ export const ProjectProvider: React.FunctionComponent = ({ children }) => {
 
   const fetchProject: Context["fetchProject"] = useCallback(
     async (id, force = false) => {
-      const finalProjectId = +(id ?? params.id);
+      const finalProjectId = +(id ?? routeProjectId);
 
       if (isNaN(finalProjectId)) return;
 
@@ -72,7 +74,7 @@ export const ProjectProvider: React.FunctionComponent = ({ children }) => {
 
       return projectInfo;
     },
-    [params],
+    [routeProjectId],
   );
 
   const updateProject: Context["updateProject"] = useCallback(
@@ -104,11 +106,11 @@ export const ProjectProvider: React.FunctionComponent = ({ children }) => {
   );
 
   useEffect(() => {
-    if (+params.id !== projectData?.id) {
+    if (+routeProjectId !== projectData?.id) {
       setProjectData({});
     }
     fetchProject();
-  }, [params]);
+  }, [routeProjectId]);
 
   useEffect(() => {
     return () => projectCache.clear();
