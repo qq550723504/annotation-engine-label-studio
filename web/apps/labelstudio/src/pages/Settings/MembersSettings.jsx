@@ -48,7 +48,7 @@ export const MembersSettings = () => {
 
     const result = await api.callApi("projectMembers", {
       params: { pk: project.id },
-      errorFilter: (apiError) => apiError?.status === 403,
+      errorFilter: (apiError) => [403, 404].includes(apiError?.status),
     });
 
     if ([403, 404].includes(result?.status) || [403, 404].includes(result?.$meta?.status)) {
