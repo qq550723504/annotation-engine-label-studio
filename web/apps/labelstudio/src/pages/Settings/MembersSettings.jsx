@@ -117,6 +117,15 @@ export const MembersSettings = () => {
         errorFilter: () => true,
       });
 
+      const status = result?.status ?? result?.$meta?.status;
+      if (status === 403) {
+        setMembers([]);
+        setOrganizationUsers([]);
+        setProcessing(null);
+        history.replace(`/projects/${project.id}/settings`);
+        return false;
+      }
+
       if (!result || result?.error || result?.$meta?.ok === false) {
         setError(errorMessage(result, "The requested member change could not be completed."));
         setProcessing(null);
@@ -130,7 +139,7 @@ export const MembersSettings = () => {
       setProcessing(null);
       return true;
     },
-    [api, loadMembers, loadOrganizationUsers],
+    [api, history, loadMembers, loadOrganizationUsers, project.id],
   );
 
   const addMember = async (event) => {
@@ -155,7 +164,28 @@ export const MembersSettings = () => {
     }
   };
 
+  const confirmAssignmentImpact = (message) =>
+    window.confirm(
+      `${message}\n\nThis can cancel the member's active task assignments. Restoring the role or re-enabling the member will not restore cancelled assignments. Continue?`,
+    );
+
   const updateMember = async (member, body, action) => {
+    const losesLabelAccess =
+      member.enabled &&
+      ["annotator", "manager"].includes(member.role) &&
+      ((body.role && body.role === "reviewer") || body.enabled === false);
+
+    if (
+      losesLabelAccess &&
+      !confirmAssignmentImpact(
+        body.enabled === false
+          ? `Disable ${member.user?.email || "this member"}?`
+          : `Change ${member.user?.email || "this member"} to Reviewer?`,
+      )
+    ) {
+      return;
+    }
+
     await runMutation(`${action}-${member.id}`, "updateProjectMember", {
       params: { pk: project.id, memberPk: member.id },
       body,
@@ -163,6 +193,14 @@ export const MembersSettings = () => {
   };
 
   const removeMember = async (member) => {
+    if (
+      !confirmAssignmentImpact(
+        `Remove ${member.user?.email || "this member"} from the project? This membership removal cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
     await runMutation(`remove-${member.id}`, "deleteProjectMember", {
       params: { pk: project.id, memberPk: member.id },
     });
