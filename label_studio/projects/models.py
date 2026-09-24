@@ -111,7 +111,15 @@ class ProjectManager(models.Manager):
         return ProjectQuerySetWithFSM(self.model, using=self._db)
 
     def for_user(self, user):
-        return self.get_queryset().filter(organization=user.active_organization)
+        if user is None or not getattr(user, 'is_authenticated', False) or user.active_organization_id is None:
+            return self.get_queryset().none()
+
+        return (
+            self.get_queryset()
+            .filter(organization=user.active_organization)
+            .filter(Q(created_by=user) | Q(members__user=user, members__enabled=True))
+            .distinct()
+        )
 
     def with_state(self):
         """
@@ -494,6 +502,16 @@ class Project(ProjectMixin, FsmHistoryStateModel):
     def has_collaborator_enabled(self, user):
         membership = ProjectMember.objects.filter(user=user, project=self)
         return membership.exists() and membership.first().enabled
+
+    def has_permission(self, user):
+        """Project visibility check used by Label Studio object permissions."""
+        if user is None or not getattr(user, 'is_authenticated', False):
+            return False
+        if user.active_organization_id != self.organization_id:
+            return False
+        if self.created_by_id == user.id:
+            return True
+        return self.members.filter(user=user, enabled=True).exists()
 
     def _update_tasks_states(
         self, maximum_annotations_changed, overlap_cohort_percentage_changed, tasks_number_changed
@@ -1395,14 +1413,24 @@ class LabelStreamHistory(models.Model):
 
 
 class ProjectMember(models.Model):
+    class Role(models.TextChoices):
+        MANAGER = 'manager', _('Manager')
+        ANNOTATOR = 'annotator', _('Annotator')
+        REVIEWER = 'reviewer', _('Reviewer')
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='project_memberships', help_text='User ID'
     )
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='members', help_text='Project ID')
+    role = models.CharField(max_length=16, choices=Role.choices, default=Role.ANNOTATOR, db_index=True)
     enabled = models.BooleanField(default=True, help_text='Project member is enabled')
     created_at = models.DateTimeField(_('created at'), auto_now_add=True)
     updated_at = models.DateTimeField(_('updated at'), auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'project'], name='unique_project_member'),
+        ]
 
 
 class ProjectSummary(models.Model):
