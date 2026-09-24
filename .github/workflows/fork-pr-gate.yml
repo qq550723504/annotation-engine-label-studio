@@ -75,6 +75,7 @@ jobs:
             tasks/tests/test_annotation_actor_security.py \
             projects/tests/test_project_authorization.py \
             projects/tests/test_project_member_management.py \
+            projects/tests/test_project_write_surface_hardening.py \
             tasks/tests/test_task_assignment_authorization.py \
             tasks/tests/test_submission_review_workflow.py
 
