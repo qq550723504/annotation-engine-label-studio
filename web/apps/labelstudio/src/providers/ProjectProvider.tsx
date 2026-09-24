@@ -60,6 +60,10 @@ export const ProjectProvider: React.FunctionComponent = ({ children }) => {
         errorFilter: () => false,
       });
 
+      if (!result || result?.$meta?.ok === false) {
+        return;
+      }
+
       const projectInfo = result as unknown as APIProject;
 
       if (shallowEqualObjects(projectData, projectInfo) === false) {
