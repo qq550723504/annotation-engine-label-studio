@@ -7,6 +7,7 @@ on:
     paths:
       - "label_studio/access_control/**"
       - "label_studio/projects/**"
+      - "label_studio/organizations/**"
       - "label_studio/tasks/**"
       - "label_studio/data_manager/**"
       - "web/apps/labelstudio/**"
