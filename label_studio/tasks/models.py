@@ -1028,6 +1028,14 @@ class AnnotationDraft(FsmHistoryStateModel):
         on_delete=models.CASCADE,
         help_text='User who created this draft',
     )
+    assignment = models.ForeignKey(
+        'tasks.TaskAssignment',
+        related_name='drafts',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text='Task assignment lifecycle that owns this draft',
+    )
     was_postponed = models.BooleanField(
         _('was postponed'),
         default=False,
@@ -1051,7 +1059,13 @@ class AnnotationDraft(FsmHistoryStateModel):
 
     def has_permission(self, user):
         user.project = self.task.project  # link for activity log
-        return self.user_id == user.id and self.task.has_permission(user)
+        if self.user_id != user.id or self.assignment_id is None:
+            return False
+        return (
+            self.assignment.assignee_id == user.id
+            and self.assignment.status in TaskAssignment.ACTIVE_STATUSES
+            and self.assignment.task_id == self.task_id
+        )
 
     def save(self, *args, **kwargs):
         with transaction.atomic():
