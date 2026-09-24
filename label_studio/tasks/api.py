@@ -2,6 +2,7 @@
 
 import logging
 
+from access_control.authorization import authorization
 from access_control.identity import resolve_principal
 from core.feature_flags import flag_set
 from core.mixins import GetParentObjectMixin
@@ -25,7 +26,7 @@ from rest_framework import generics, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
-from tasks.models import Annotation, AnnotationDraft, Prediction, Task
+from tasks.models import Annotation, AnnotationDraft, Prediction, Task, TaskAssignment
 from tasks.openapi_schema import (
     annotation_request_schema,
     annotation_response_example,
@@ -39,6 +40,7 @@ from tasks.serializers import (
     AnnotationDraftSerializer,
     AnnotationSerializer,
     PredictionSerializer,
+    TaskAssignmentSerializer,
     TaskSerializer,
     TaskSimpleSerializer,
 )
@@ -187,18 +189,30 @@ class TaskListAPI(DMTaskListAPI):
 
     def filter_queryset(self, queryset):
         queryset = super().filter_queryset(queryset)
-        return queryset.filter(project__organization=self.request.user.active_organization)
+        allowed_task_ids = Task.objects.for_user(self.request.user).values_list('id', flat=True)
+        return queryset.filter(id__in=allowed_task_ids)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
         project_id = self.request.data.get('project')
         if project_id:
-            context['project'] = generics.get_object_or_404(Project, pk=project_id)
+            project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=project_id)
+            principal = resolve_principal(self.request)
+            authorization.require(
+                authorization.can_manage_project(principal, project),
+                'Project manager role is required to create tasks.',
+            )
+            context['project'] = project
         return context
 
     def perform_create(self, serializer):
         project_id = self.request.data.get('project')
-        project = generics.get_object_or_404(Project, pk=project_id)
+        project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=project_id)
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to create tasks.',
+        )
         instance = serializer.save(project=project)
         emit_webhooks_for_instance(
             self.request.user.active_organization, project, WebhookAction.TASKS_CREATED, [instance]
@@ -354,7 +368,7 @@ class TaskAPI(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         task_id = self.request.parser_context['kwargs'].get('pk')
-        task = generics.get_object_or_404(Task, pk=task_id)
+        task = generics.get_object_or_404(Task.objects.for_user(self.request.user), pk=task_id)
         review = bool_from_request(self.request.GET, 'review', False)
         selected = {'all': False, 'included': [self.kwargs.get('pk')]}
         if review:
@@ -385,7 +399,7 @@ class TaskAPI(generics.RetrieveUpdateDestroyAPIView):
         # First check permissions using a lightweight query
         # select_related('project') avoids extra query when permission check accesses task.project
         lean_task = generics.get_object_or_404(
-            Task.objects.filter(project__organization=self.request.user.active_organization).select_related('project'),
+            Task.objects.for_user(self.request.user).select_related('project'),
             pk=task_id,
         )
         self.check_object_permissions(self.request, lean_task)
@@ -403,15 +417,25 @@ class TaskAPI(generics.RetrieveUpdateDestroyAPIView):
         else:
             return TaskSimpleSerializer
 
+    def _require_manager(self, request):
+        principal = resolve_principal(request)
+        authorization.require(
+            authorization.can_manage_task(principal, self.task),
+            'Project manager role is required to modify tasks.',
+        )
+
     def patch(self, request, *args, **kwargs):
+        self._require_manager(request)
         return super(TaskAPI, self).patch(request, *args, **kwargs)
 
     @api_webhook_for_delete(WebhookAction.TASKS_DELETED)
     def delete(self, request, *args, **kwargs):
+        self._require_manager(request)
         return super(TaskAPI, self).delete(request, *args, **kwargs)
 
     @extend_schema(exclude=True)
     def put(self, request, *args, **kwargs):
+        self._require_manager(request)
         return super(TaskAPI, self).put(request, *args, **kwargs)
 
 
@@ -646,15 +670,24 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
     queryset = Annotation.objects.all()
 
     def perform_destroy(self, annotation):
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_update_annotation(principal, annotation),
+            'Only the active assignment owner can delete this annotation.',
+        )
         annotation.delete()
 
     def update(self, request, *args, **kwargs):
         # Resolve the trusted server-side actor before touching audit fields.
-        resolve_principal(request)
+        principal = resolve_principal(request)
         user = request.user
 
         # save user history with annotator_id, time & annotation result
         annotation = self.get_object()
+        authorization.require(
+            authorization.can_update_annotation(principal, annotation),
+            'Only the active assignment owner can modify this annotation.',
+        )
         # use updated instead of save to avoid duplicated signals
         Annotation.objects.filter(id=annotation.id).update(updated_by=user)
 
@@ -775,7 +808,14 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
 
     def get_queryset(self):
         task = generics.get_object_or_404(Task.objects.for_user(self.request.user), pk=self.kwargs.get('pk', 0))
-        return Annotation.objects.filter(Q(task=task) & Q(was_cancelled=False)).order_by('pk')
+        annotations = Annotation.objects.filter(Q(task=task) & Q(was_cancelled=False))
+        principal = resolve_principal(self.request)
+        if not authorization.can_manage_project(principal, task.project):
+            annotations = annotations.filter(
+                task_assignment__assignee=self.request.user,
+                task_assignment__status__in=TaskAssignment.ACTIVE_STATUSES,
+            )
+        return annotations.order_by('pk')
 
     def delete_draft(self, draft_id, annotation_id):
         try:
@@ -788,10 +828,19 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         except AnnotationDraft.DoesNotExist:
             pass
 
+    @transaction.atomic
     def perform_create(self, ser):
         task = self.parent_object
-        # Resolve the trusted actor once. Authorization policy is layered on in later milestones.
-        resolve_principal(self.request)
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_label_task(principal, task),
+            'An active task assignment is required to create an annotation.',
+        )
+        assignment = authorization.active_task_assignment(principal, task)
+        assignment = TaskAssignment.objects.select_for_update().get(pk=assignment.pk)
+        if assignment.annotation_id is not None:
+            raise ValidationError({'detail': 'This assignment already owns an annotation; update it instead.'})
+
         # annotator has write access only to annotations and it can't be checked it after serializer.save()
         user = self.request.user
 
@@ -845,6 +894,9 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         # create annotation
         logger.debug(f'User={self.request.user}: save annotation')
         annotation = ser.save(**extra_args)
+        assignment.annotation = annotation
+        assignment.status = TaskAssignment.Status.IN_PROGRESS
+        assignment.save(update_fields=['annotation', 'status', 'updated_at'])
 
         logger.debug(f'Save activity for user={self.request.user}')
         self.request.user.activity_at = timezone.now()
@@ -879,10 +931,17 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
 
     def filter_queryset(self, queryset):
         task_id = self.kwargs['pk']
-        return queryset.filter(task_id=task_id)
+        generics.get_object_or_404(Task.objects.for_user(self.request.user), pk=task_id)
+        return queryset.filter(task_id=task_id, user=self.request.user)
 
     def perform_create(self, serializer):
         task_id = self.kwargs['pk']
+        task = generics.get_object_or_404(Task.objects.for_user(self.request.user), pk=task_id)
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_label_task(principal, task),
+            'An active task assignment is required to create a draft.',
+        )
         annotation_id = self.kwargs.get('annotation_id')
         user = self.request.user
         logger.debug(f'User {user} is going to create draft for task={task_id}, annotation={annotation_id}')
@@ -900,6 +959,74 @@ class AnnotationDraftAPI(generics.RetrieveUpdateDestroyAPIView):
         PATCH=all_permissions.annotations_change,
         DELETE=all_permissions.annotations_delete,
     )
+
+
+class TaskAssignmentListCreateAPI(generics.ListCreateAPIView):
+    serializer_class = TaskAssignmentSerializer
+    permission_required = ViewClassPermission(
+        GET=all_permissions.tasks_view,
+        POST=all_permissions.tasks_change,
+    )
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = TaskAssignment.objects.filter(project__organization=user.active_organization)
+        queryset = queryset.filter(
+            Q(project__created_by=user)
+            | Q(
+                project__members__user=user,
+                project__members__enabled=True,
+                project__members__role='manager',
+            )
+        ).distinct()
+
+        project_id = self.request.query_params.get('project')
+        task_id = self.request.query_params.get('task')
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+        if task_id:
+            queryset = queryset.filter(task_id=task_id)
+        return queryset.select_related('task', 'project', 'assignee', 'assigned_by', 'annotation')
+
+    def perform_create(self, serializer):
+        task = serializer.validated_data['task']
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_task(principal, task),
+            'Project manager role is required to assign tasks.',
+        )
+        serializer.save(project=task.project, assigned_by=self.request.user)
+
+
+class TaskAssignmentAPI(generics.RetrieveDestroyAPIView):
+    serializer_class = TaskAssignmentSerializer
+    permission_required = ViewClassPermission(
+        GET=all_permissions.tasks_view,
+        DELETE=all_permissions.tasks_change,
+    )
+
+    def get_queryset(self):
+        user = self.request.user
+        return (
+            TaskAssignment.objects.filter(project__organization=user.active_organization)
+            .filter(
+                Q(project__created_by=user)
+                | Q(
+                    project__members__user=user,
+                    project__members__enabled=True,
+                    project__members__role='manager',
+                )
+            )
+            .distinct()
+        )
+
+    def perform_destroy(self, instance):
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_task(principal, instance.task),
+            'Project manager role is required to cancel task assignments.',
+        )
+        instance.cancel()
 
 
 @method_decorator(
