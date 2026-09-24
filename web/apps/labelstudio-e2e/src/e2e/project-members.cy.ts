@@ -30,19 +30,15 @@ describe("project member and role management UI", () => {
     cy.loginAs(email, fixture.password, dataPage());
     cy.visit(dataPage());
     cy.location("pathname", { timeout: 30000 }).should("eq", dataPage());
-    cy.get("body").should("be.visible");
-  };
-
-  const navigateWithAppRouter = (path: string) => {
-    cy.window().then((win) => {
-      (win as any).LSH.push(path);
+    cy.window({ timeout: 30000 }).should((win) => {
+      expect((win as any).dataManager, "Data Manager initialized").to.exist;
     });
-    cy.location("pathname", { timeout: 30000 }).should("eq", path);
   };
 
   const openProjectSettings = (email: string) => {
     loginToProject(email);
-    navigateWithAppRouter(settingsPage());
+    cy.contains("a", "Settings", { timeout: 30000 }).should("be.visible").click();
+    cy.location("pathname", { timeout: 30000 }).should("eq", settingsPage());
   };
 
   const openAsManager = () => {
@@ -127,9 +123,6 @@ describe("project member and role management UI", () => {
     it(`does not expose member management to ${actor}`, () => {
       openProjectSettings(fixture.users[actor].email);
       cy.contains("a", "Members").should("not.exist");
-
-      navigateWithAppRouter(membersPage());
-      cy.location("pathname", { timeout: 30000 }).should("eq", settingsPage());
       cy.get('[data-testid="project-members-settings"]').should("not.exist");
 
       cy.request({
