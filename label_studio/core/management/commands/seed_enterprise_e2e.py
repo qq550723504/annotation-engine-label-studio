@@ -1,0 +1,152 @@
+import json
+from pathlib import Path
+
+from django.core.management.base import BaseCommand
+from django.db import transaction
+
+from organizations.models import Organization
+from projects.models import Project, ProjectMember
+from tasks.models import Submission, Task, TaskAssignment
+from users.models import User
+
+
+PASSWORD = 'EnterpriseE2E!12345'
+EMAILS = {
+    'manager': 'e2e-manager@example.com',
+    'annotator_a': 'e2e-annotator-a@example.com',
+    'annotator_b': 'e2e-annotator-b@example.com',
+    'reviewer': 'e2e-reviewer@example.com',
+}
+
+
+class Command(BaseCommand):
+    help = 'Create deterministic enterprise collaboration browser-E2E fixtures.'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--output',
+            default='web/apps/labelstudio-e2e/.enterprise-e2e.json',
+            help='JSON file written with IDs and test credentials.',
+        )
+
+    @transaction.atomic
+    def handle(self, *args, **options):
+        # Remove prior deterministic fixture users; cascades clean their owned test data.
+        User.objects.filter(email__in=EMAILS.values()).delete()
+
+        manager = User.objects.create_user(
+            EMAILS['manager'],
+            PASSWORD,
+            username='e2e-manager',
+            first_name='E2E',
+            last_name='Manager',
+        )
+        organization = Organization.create_organization(
+            created_by=manager,
+            title='Enterprise E2E Organization',
+        )
+        manager.active_organization = organization
+        manager.save(update_fields=['active_organization'])
+
+        users = {'manager': manager}
+        for key in ('annotator_a', 'annotator_b', 'reviewer'):
+            user = User.objects.create_user(
+                EMAILS[key],
+                PASSWORD,
+                username=f'e2e-{key.replace("_", "-")}',
+                first_name='E2E',
+                last_name=key.replace('_', ' ').title(),
+                active_organization=organization,
+            )
+            organization.add_user(user)
+            users[key] = user
+
+        label_config = (
+            '<View>'
+            '<Text name="text" value="$text"/>'
+            '<Choices name="sentiment" toName="text">'
+            '<Choice value="Positive"/><Choice value="Negative"/>'
+            '</Choices>'
+            '</View>'
+        )
+        project = Project.objects.create(
+            title='Enterprise Browser E2E',
+            description='Deterministic project for browser-level authorization acceptance.',
+            organization=organization,
+            created_by=manager,
+            is_published=True,
+            enable_empty_annotation=True,
+            label_config=label_config,
+        )
+        ProjectMember.objects.create(
+            project=project,
+            user=manager,
+            role=ProjectMember.Role.MANAGER,
+            enabled=True,
+        )
+        ProjectMember.objects.create(
+            project=project,
+            user=users['annotator_a'],
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+        ProjectMember.objects.create(
+            project=project,
+            user=users['annotator_b'],
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+        ProjectMember.objects.create(
+            project=project,
+            user=users['reviewer'],
+            role=ProjectMember.Role.REVIEWER,
+            enabled=True,
+        )
+
+        task_a = Task.objects.create(
+            project=project,
+            data={'text': 'Annotator A browser acceptance task'},
+            overlap=1,
+        )
+        task_b = Task.objects.create(
+            project=project,
+            data={'text': 'Annotator B browser acceptance task'},
+            overlap=1,
+        )
+        assignment_a = TaskAssignment.objects.create(
+            project=project,
+            task=task_a,
+            assignee=users['annotator_a'],
+            assigned_by=manager,
+        )
+        assignment_b = TaskAssignment.objects.create(
+            project=project,
+            task=task_b,
+            assignee=users['annotator_b'],
+            assigned_by=manager,
+        )
+
+        # Mirror the data-column bookkeeping performed by normal import flows so
+        # Data Manager treats the deterministic fixtures like real imported tasks.
+        project.summary.update_data_columns([task_a, task_b])
+
+        payload = {
+            'password': PASSWORD,
+            'project_id': project.id,
+            'users': {
+                key: {'id': user.id, 'email': user.email}
+                for key, user in users.items()
+            },
+            'tasks': {
+                'a': {'id': task_a.id, 'assignment_id': assignment_a.id},
+                'b': {'id': task_b.id, 'assignment_id': assignment_b.id},
+            },
+            'submission_count': Submission.objects.filter(
+                assignment__project=project
+            ).count(),
+        }
+
+        output = Path(options['output'])
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(payload, indent=2), encoding='utf-8')
+        self.stdout.write(self.style.SUCCESS(f'Wrote enterprise E2E fixture to {output}'))
