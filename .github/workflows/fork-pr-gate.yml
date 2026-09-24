@@ -73,7 +73,8 @@ jobs:
           poetry run pytest -v \
             access_control/tests/test_identity.py \
             tasks/tests/test_annotation_actor_security.py \
-            projects/tests/test_project_authorization.py
+            projects/tests/test_project_authorization.py \
+            tasks/tests/test_task_assignment_authorization.py
 
       - name: Run annotation/task API smoke tests
         working-directory: label_studio
