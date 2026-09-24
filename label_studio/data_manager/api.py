@@ -3,6 +3,7 @@
 import logging
 
 from asgiref.sync import async_to_sync, sync_to_async
+from access_control.project_access import get_visible_project_or_404, require_project_manager
 from core.feature_flags import flag_set
 from core.permissions import ViewClassPermission, all_permissions
 from core.utils.common import int_from_request, load_func
@@ -685,14 +686,13 @@ class ProjectActionsAPI(APIView):
 
     def get(self, request):
         pk = int_from_request(request.GET, 'project', 0)
-        project = generics.get_object_or_404(Project, pk=pk)
-        self.check_object_permissions(request, project)
+        project = get_visible_project_or_404(request, pk)
         return Response(get_all_actions(request.user, project))
 
     def post(self, request):
         pk = int_from_request(request.GET, 'project', 0)
-        project = generics.get_object_or_404(Project, pk=pk)
-        self.check_object_permissions(request, project)
+        project = get_visible_project_or_404(request, pk)
+        require_project_manager(request, project)
 
         # keep ordering only when needed, otherwise drop to avoid expensive sorts/annotations
         action_id = request.GET.get('id', None)
@@ -755,8 +755,7 @@ class ProjectActionsFormAPI(APIView):
 
     def get(self, request, action_id):
         pk = int_from_request(request.GET, 'project', 0)
-        project = generics.get_object_or_404(Project, pk=pk)
-        self.check_object_permissions(request, project)
+        project = get_visible_project_or_404(request, pk)
 
         form = get_action_form(action_id, project, request.user)
         return Response(form)
