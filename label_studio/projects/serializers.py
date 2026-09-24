@@ -29,11 +29,13 @@ from label_studio_sdk.label_interface.control_tags import (
     TimeSeriesLabelsTag,
     VideoRectangleTag,
 )
-from projects.models import Project, ProjectImport, ProjectOnboarding, ProjectReimport, ProjectSummary
+from organizations.models import OrganizationMember
+from projects.models import Project, ProjectImport, ProjectMember, ProjectOnboarding, ProjectReimport, ProjectSummary
 from rest_flex_fields import FlexFieldsModelSerializer
 from rest_framework import serializers
 from rest_framework.serializers import SerializerMethodField
 from tasks.models import Task
+from users.models import User
 from users.serializers import UserSimpleSerializer
 
 
@@ -52,6 +54,56 @@ class CreatedByFromContext:
 
     def __call__(self, serializer_field):
         return serializer_field.context.get('created_by')
+
+
+class ProjectMemberSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    user_details = UserSimpleSerializer(source='user', read_only=True)
+
+    class Meta:
+        model = ProjectMember
+        fields = [
+            'id',
+            'project',
+            'user',
+            'user_details',
+            'role',
+            'enabled',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['project', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        project = self.context['project']
+        user = attrs.get('user', getattr(self.instance, 'user', None))
+
+        if user is None:
+            raise serializers.ValidationError({'user': 'User is required.'})
+
+        in_organization = OrganizationMember.objects.filter(
+            organization=project.organization,
+            user=user,
+            deleted_at__isnull=True,
+        ).exists()
+        if not in_organization:
+            raise serializers.ValidationError({'user': 'User must be an active member of the project organization.'})
+
+        if self.instance is None and ProjectMember.objects.filter(project=project, user=user).exists():
+            raise serializers.ValidationError({'user': 'User is already a member of this project.'})
+
+        if self.instance is not None and user.id != self.instance.user_id:
+            raise serializers.ValidationError({'user': 'Project membership user cannot be changed.'})
+
+        if project.created_by_id == user.id:
+            role = attrs.get('role', self.instance.role if self.instance else ProjectMember.Role.MANAGER)
+            enabled = attrs.get('enabled', self.instance.enabled if self.instance else True)
+            if role != ProjectMember.Role.MANAGER or not enabled:
+                raise serializers.ValidationError(
+                    {'detail': 'The project creator must remain an enabled manager.'}
+                )
+
+        return attrs
 
 
 @extend_schema_serializer(deprecate_fields=['show_ground_truth_first'])
