@@ -33,6 +33,8 @@ export const create = (columns) => {
     overlap_reached: types.maybeNull(types.boolean),
     overlap_reached_message: types.maybeNull(types.string),
     assigned_task: false,
+    assignment_id: types.optional(types.maybeNull(types.number), null),
+    assignment_version: types.optional(types.maybeNull(types.number), null),
     queue: types.optional(types.maybeNull(types.string), null),
     // annotation to select on rejected queue
     default_selected_annotation: types.maybeNull(types.number),
