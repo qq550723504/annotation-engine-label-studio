@@ -5,8 +5,11 @@ integration should add another provider instead of rewriting authorization rules
 """
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Optional, Protocol
 
+from django.conf import settings
+from django.utils.module_loading import import_string
 from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated
 
 
@@ -56,7 +59,21 @@ class LocalIdentityProvider:
         )
 
 
-_default_identity_provider: IdentityProvider = LocalIdentityProvider()
+@lru_cache(maxsize=1)
+def get_identity_provider() -> IdentityProvider:
+    """Load the configured identity provider.
+
+    The local provider remains the default so the fork is independently usable
+    before the host platform has an IAM. Future platform integration only needs
+    to point ANNOTATION_IDENTITY_PROVIDER at another provider class.
+    """
+
+    provider_path = getattr(settings, "ANNOTATION_IDENTITY_PROVIDER", None)
+    if not provider_path:
+        return LocalIdentityProvider()
+
+    provider_class = import_string(provider_path)
+    return provider_class()
 
 
 def resolve_principal(request, provider: Optional[IdentityProvider] = None) -> Principal:
@@ -67,4 +84,4 @@ def resolve_principal(request, provider: Optional[IdentityProvider] = None) -> P
     OIDC/JWT authentication without changing project/task/review policy code.
     """
 
-    return (provider or _default_identity_provider).resolve(request)
+    return (provider or get_identity_provider()).resolve(request)
