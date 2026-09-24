@@ -30,9 +30,8 @@ env:
   COLLECT_ANALYTICS: "false"
   SENTRY_RATE: "0"
   JSON_LOG: "0"
-  FRONTEND_HMR: "true"
-  FRONTEND_HOSTNAME: "http://localhost:8010"
-  DJANGO_HOSTNAME: "http://localhost:8080"
+  FRONTEND_HMR: "false"
+  FRONTEND_HOSTNAME: "http://localhost:8080"
 
 jobs:
   current-ui-validation:
@@ -83,33 +82,31 @@ jobs:
         working-directory: web
         run: yarn install --frozen-lockfile
 
+      - name: Build frontend
+        working-directory: web
+        run: yarn ls:build
+
       - name: Start Django
         run: |
           nohup poetry run python label_studio/manage.py runserver 0.0.0.0:8080 > /tmp/label-studio-django.log 2>&1 &
           echo $! > /tmp/label-studio-django.pid
 
-      - name: Start frontend HMR
-        working-directory: web
-        run: |
-          nohup yarn ls:dev > /tmp/label-studio-frontend.log 2>&1 &
-          echo $! > /tmp/label-studio-frontend.pid
-
       - name: Wait for application
         run: |
           for i in {1..90}; do
             if curl --fail --silent http://localhost:8080/health/ >/dev/null \
-              && curl --fail --silent http://localhost:8010/react-app/runtime.js >/dev/null \
-              && curl --fail --silent http://localhost:8010/react-app/vendor.js >/dev/null \
-              && curl --fail --silent http://localhost:8010/react-app/main.js >/dev/null; then
-              echo "Django and all React HMR bundles are ready."
+              && curl --fail --silent http://localhost:8080/react-app/runtime.js >/dev/null \
+              && curl --fail --silent http://localhost:8080/react-app/vendor.js >/dev/null \
+              && curl --fail --silent http://localhost:8080/react-app/main.js >/dev/null; then
+              echo "Django and same-origin React bundles are ready."
               exit 0
             fi
             sleep 2
           done
           echo "Django log:"
           tail -200 /tmp/label-studio-django.log || true
-          echo "Frontend log:"
-          tail -200 /tmp/label-studio-frontend.log || true
+          echo "Built React assets:"
+          ls -la web/dist/apps/labelstudio || true
           exit 1
 
       - name: Run enterprise UI Cypress specs
@@ -126,8 +123,8 @@ jobs:
         run: |
           echo "===== Django log ====="
           tail -200 /tmp/label-studio-django.log || true
-          echo "===== Frontend log ====="
-          tail -300 /tmp/label-studio-frontend.log || true
+          echo "===== Built React assets ====="
+          ls -la web/dist/apps/labelstudio || true
 
       - name: Upload browser failure artifacts
         if: failure()
@@ -139,4 +136,4 @@ jobs:
             web/dist/cypress/apps/labelstudio-e2e/screenshots/**
             web/dist/cypress/apps/labelstudio-e2e/videos/**
             /tmp/label-studio-django.log
-            /tmp/label-studio-frontend.log
+            web/dist/apps/labelstudio/**
