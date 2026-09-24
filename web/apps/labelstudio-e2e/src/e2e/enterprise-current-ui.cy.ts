@@ -35,13 +35,16 @@ describe('enterprise collaboration - currently available UI', () => {
     cy.visit(dataPage());
     cy.location('pathname', { timeout: 30000 }).should('eq', dataPage());
 
+    // ProjectProvider must resolve the project before DataManagerPage mounts and
+    // dynamically imports @humansignal/editor / @humansignal/datamanager.
+    cy.wait('@projectDetail', { timeout: 30000 }).its('response.statusCode').should('eq', 200);
+
     cy.window({ timeout: 30000 }).should((win) => {
       expect(win.APP_SETTINGS, 'APP_SETTINGS').to.exist;
-      expect(win.LabelStudio, 'LabelStudio global').to.exist;
-      expect(win.DataManager, 'DataManager global').to.exist;
+      expect(win.LabelStudio, 'LabelStudio global after DataManager route mount').to.exist;
+      expect(win.DataManager, 'DataManager global after DataManager route mount').to.exist;
     });
 
-    cy.wait('@projectDetail', { timeout: 30000 }).its('response.statusCode').should('eq', 200);
     cy.wait('@dmProject', { timeout: 30000 }).its('response.statusCode').should('eq', 200);
   };
 
