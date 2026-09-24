@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import path from 'node:path';
+import { resolve } from 'node:path';
 import { defineConfig } from 'cypress';
 import { nxE2EPreset } from '@nx/cypress/plugins/cypress-preset';
 
@@ -11,7 +11,7 @@ export default defineConfig({
     setupNodeEvents(on, config) {
       on('task', {
         setEnterpriseE2EMember({ actor, enabled }: { actor: string; enabled: boolean }) {
-          const repoRoot = path.resolve(__dirname, '../../..');
+          const repoRoot = resolve(__dirname, '../../..');
           execFileSync(
             'poetry',
             [
