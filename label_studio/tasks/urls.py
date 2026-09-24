@@ -25,6 +25,11 @@ _api_urlpatterns = [
     path('<int:pk>/agreement/', api.TaskAgreementAPI.as_view(), name='task-agreement'),
 ]
 
+_api_assignments_urlpatterns = [
+    path('', api.TaskAssignmentListCreateAPI.as_view(), name='assignment-list'),
+    path('<int:pk>/', api.TaskAssignmentAPI.as_view(), name='assignment-detail'),
+]
+
 _api_annotations_urlpatterns = [
     path('<int:pk>/', api.AnnotationAPI.as_view(), name='annotation-detail'),
     path('<int:pk>/convert-to-draft', api.AnnotationConvertAPI.as_view(), name='annotation-convert-to-draft'),
@@ -42,5 +47,6 @@ urlpatterns = [
     # TODO: these should be moved to the separate apps
     path('api/annotations/', include((_api_annotations_urlpatterns, app_name), namespace='api-annotations')),
     path('api/drafts/', include((_api_drafts_urlpatterns, app_name), namespace='api-drafts')),
+    path('api/task-assignments/', include((_api_assignments_urlpatterns, app_name), namespace='api-assignments')),
     path('api/', include((_api_predictions_urlpatterns, app_name), namespace='api-predictions')),
 ]
