@@ -76,6 +76,12 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         if not belongs_to_org:
             raise serializers.ValidationError({'user_id': 'User must be an active member of the project organization.'})
 
+        duplicate = ProjectMember.objects.filter(project=project, user=user)
+        if self.instance is not None:
+            duplicate = duplicate.exclude(pk=self.instance.pk)
+        if duplicate.exists():
+            raise serializers.ValidationError({'user_id': 'User is already a member of this project.'})
+
         if project.created_by_id == user.id:
             requested_role = attrs.get('role', getattr(self.instance, 'role', ProjectMember.Role.MANAGER))
             requested_enabled = attrs.get('enabled', getattr(self.instance, 'enabled', True))
