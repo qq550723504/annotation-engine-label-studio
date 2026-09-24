@@ -19,7 +19,7 @@ from core.utils.io import find_dir, find_file, read_yaml
 from core.utils.serializer_to_openapi_params import serializer_to_openapi_params
 from data_manager.functions import filters_ordering_selected_items_exist, get_prepared_queryset
 from django.conf import settings
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.http import Http404
 from django.utils.decorators import method_decorator
@@ -29,6 +29,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
 from label_studio_sdk.label_interface.interface import LabelInterface
 from ml.serializers import MLBackendSerializer
+from organizations.models import OrganizationMember
 from projects.functions.next_task import get_next_task
 from projects.functions.stream_history import get_label_stream_history
 from projects.functions.utils import recalculate_created_annotations_and_labels_from_scratch
@@ -275,6 +276,26 @@ class ProjectMemberAPI(generics.RetrieveUpdateDestroyAPIView):
     permission_required = all_permissions.projects_view
     lookup_url_kwarg = 'member_pk'
 
+    @staticmethod
+    def _has_other_effective_manager(project, excluding_user_id):
+        creator_is_active = (
+            project.created_by_id is not None
+            and project.created_by_id != excluding_user_id
+            and OrganizationMember.objects.filter(
+                organization=project.organization,
+                user_id=project.created_by_id,
+                deleted_at__isnull=True,
+            ).exists()
+        )
+        if creator_is_active:
+            return True
+
+        return ProjectMember.objects.filter(
+            project=project,
+            enabled=True,
+            role=ProjectMember.Role.MANAGER,
+        ).exclude(user_id=excluding_user_id).exists()
+
     def _project(self):
         project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
         principal = resolve_principal(self.request)
@@ -298,6 +319,17 @@ class ProjectMemberAPI(generics.RetrieveUpdateDestroyAPIView):
         membership = self.get_object()
         old_role = membership.role
         old_enabled = membership.enabled
+
+        requested_role = serializer.validated_data.get('role', old_role)
+        requested_enabled = serializer.validated_data.get('enabled', old_enabled)
+        removes_manager = (
+            old_enabled
+            and old_role == ProjectMember.Role.MANAGER
+            and (not requested_enabled or requested_role != ProjectMember.Role.MANAGER)
+        )
+        if removes_manager and not self._has_other_effective_manager(membership.project, membership.user_id):
+            raise RestValidationError({'detail': 'Project must retain at least one effective manager.'})
+
         updated = serializer.save()
 
         lost_label_access = (
@@ -322,6 +354,12 @@ class ProjectMemberAPI(generics.RetrieveUpdateDestroyAPIView):
         project = membership.project
         if project.created_by_id == membership.user_id:
             raise RestValidationError({'detail': 'Project creator membership cannot be removed.'})
+        if (
+            membership.enabled
+            and membership.role == ProjectMember.Role.MANAGER
+            and not self._has_other_effective_manager(project, membership.user_id)
+        ):
+            raise RestValidationError({'detail': 'Project must retain at least one effective manager.'})
 
         TaskAssignment.objects.select_for_update().filter(
             project=project,
