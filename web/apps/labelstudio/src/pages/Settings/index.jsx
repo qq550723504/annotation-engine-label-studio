@@ -20,6 +20,7 @@ export const MenuLayout = ({ children, ...routeProps }) => {
 
   useEffect(() => {
     let active = true;
+    setCanManageMembers(false);
 
     const probeMemberManagement = async () => {
       if (!project?.id) return;
@@ -39,7 +40,7 @@ export const MenuLayout = ({ children, ...routeProps }) => {
     return () => {
       active = false;
     };
-  }, [api, project?.id]);
+  }, [api, project?.id, routeProps.location?.pathname]);
 
   return (
     <SidebarMenu
