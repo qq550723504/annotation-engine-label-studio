@@ -49,13 +49,58 @@ class AuthorizationService:
 
         return cls.project_role(principal, project) == ProjectMember.Role.MANAGER
 
-    @staticmethod
-    def can_label_task(principal: Principal, task) -> bool:
-        return False
+    @classmethod
+    def active_task_assignment(cls, principal: Principal, task):
+        """Return the principal's active assignment for a task, if any."""
+        if principal.local_user_id is None:
+            return None
 
-    @staticmethod
-    def can_update_annotation(principal: Principal, annotation) -> bool:
-        return False
+        from tasks.models import TaskAssignment
+
+        return (
+            TaskAssignment.objects.filter(
+                task=task,
+                assignee_id=principal.local_user_id,
+                status__in=TaskAssignment.ACTIVE_STATUSES,
+            )
+            .order_by('-assigned_at', '-id')
+            .first()
+        )
+
+    @classmethod
+    def can_view_task(cls, principal: Principal, task) -> bool:
+        if cls.can_manage_project(principal, task.project):
+            return True
+        return cls.active_task_assignment(principal, task) is not None
+
+    @classmethod
+    def can_manage_task(cls, principal: Principal, task) -> bool:
+        return cls.can_manage_project(principal, task.project)
+
+    @classmethod
+    def can_label_task(cls, principal: Principal, task) -> bool:
+        from projects.models import ProjectMember
+
+        role = cls.project_role(principal, task.project)
+        if role not in (ProjectMember.Role.ANNOTATOR, ProjectMember.Role.MANAGER):
+            return False
+        return cls.active_task_assignment(principal, task) is not None
+
+    @classmethod
+    def can_view_annotation(cls, principal: Principal, annotation) -> bool:
+        if annotation.task_id is None:
+            return False
+        if cls.can_manage_project(principal, annotation.project):
+            return True
+        assignment = cls.active_task_assignment(principal, annotation.task)
+        return assignment is not None and assignment.annotation_id == annotation.id
+
+    @classmethod
+    def can_update_annotation(cls, principal: Principal, annotation) -> bool:
+        if annotation.task_id is None:
+            return False
+        assignment = cls.active_task_assignment(principal, annotation.task)
+        return assignment is not None and assignment.annotation_id == annotation.id
 
     @staticmethod
     def can_review_submission(principal: Principal, submission) -> bool:
