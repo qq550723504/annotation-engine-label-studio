@@ -23,7 +23,7 @@ from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiRespo
 from projects.functions.stream_history import fill_history_annotation
 from projects.models import Project
 from rest_framework import generics, viewsets
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from tasks.models import Annotation, AnnotationDraft, Prediction, Task, TaskAssignment
@@ -52,6 +52,25 @@ from webhooks.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class AssignmentConflict(APIException):
+    status_code = 409
+    default_detail = 'Task assignment changed; reload the task before saving.'
+    default_code = 'assignment_conflict'
+
+
+def require_assignment_token(request, assignment):
+    assignment_id = request.data.get('assignment_id')
+    assignment_version = request.data.get('assignment_version')
+
+    if (
+        assignment_id is None
+        or assignment_version is None
+        or str(assignment_id) != str(assignment.id)
+        or str(assignment_version) != str(assignment.version)
+    ):
+        raise AssignmentConflict()
 
 
 # TODO: fix after switch to api/tasks from api/dm/tasks
@@ -696,6 +715,8 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
             authorization.can_update_annotation(principal, annotation),
             'Only the active assignment owner can modify this annotation.',
         )
+        assignment = authorization.active_task_assignment(principal, annotation.task)
+        require_assignment_token(request, assignment)
         # use updated instead of save to avoid duplicated signals
         Annotation.objects.filter(id=annotation.id).update(updated_by=user)
 
@@ -846,6 +867,7 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         )
         assignment = authorization.active_task_assignment(principal, task)
         assignment = TaskAssignment.objects.select_for_update().get(pk=assignment.pk)
+        require_assignment_token(self.request, assignment)
         if assignment.annotation_id is not None:
             raise ValidationError({'detail': 'This assignment already owns an annotation; update it instead.'})
 
@@ -939,8 +961,12 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
 
     def filter_queryset(self, queryset):
         task_id = self.kwargs['pk']
-        generics.get_object_or_404(Task.objects.for_user(self.request.user), pk=task_id)
-        return queryset.filter(task_id=task_id, user=self.request.user)
+        task = generics.get_object_or_404(Task.objects.for_user(self.request.user), pk=task_id)
+        principal = resolve_principal(self.request)
+        assignment = authorization.active_task_assignment(principal, task)
+        if assignment is None:
+            return queryset.none()
+        return queryset.filter(task_id=task_id, user=self.request.user, assignment=assignment)
 
     def perform_create(self, serializer):
         task_id = self.kwargs['pk']
@@ -950,6 +976,8 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
             authorization.can_label_task(principal, task),
             'An active task assignment is required to create a draft.',
         )
+        assignment = authorization.active_task_assignment(principal, task)
+        require_assignment_token(self.request, assignment)
         annotation_id = self.kwargs.get('annotation_id')
         user = self.request.user
         if annotation_id is not None:
@@ -959,7 +987,12 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
                 'Only the active assignment owner can draft changes for this annotation.',
             )
         logger.debug(f'User {user} is going to create draft for task={task_id}, annotation={annotation_id}')
-        serializer.save(task_id=self.kwargs['pk'], annotation_id=annotation_id, user=self.request.user)
+        serializer.save(
+            task_id=self.kwargs['pk'],
+            annotation_id=annotation_id,
+            user=self.request.user,
+            assignment=assignment,
+        )
 
 
 @extend_schema(exclude=True)
@@ -973,6 +1006,15 @@ class AnnotationDraftAPI(generics.RetrieveUpdateDestroyAPIView):
         PATCH=all_permissions.annotations_change,
         DELETE=all_permissions.annotations_delete,
     )
+
+    def update(self, request, *args, **kwargs):
+        draft = self.get_object()
+        principal = resolve_principal(request)
+        assignment = authorization.active_task_assignment(principal, draft.task)
+        if assignment is None or draft.assignment_id != assignment.id:
+            raise AssignmentConflict()
+        require_assignment_token(request, assignment)
+        return super().update(request, *args, **kwargs)
 
 
 class TaskAssignmentListCreateAPI(generics.ListCreateAPIView):
