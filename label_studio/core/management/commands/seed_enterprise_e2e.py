@@ -126,6 +126,10 @@ class Command(BaseCommand):
             assigned_by=manager,
         )
 
+        # Mirror the data-column bookkeeping performed by normal import flows so
+        # Data Manager treats the deterministic fixtures like real imported tasks.
+        project.summary.update_data_columns([task_a, task_b])
+
         payload = {
             'password': PASSWORD,
             'project_id': project.id,
