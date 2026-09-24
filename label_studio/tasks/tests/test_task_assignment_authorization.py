@@ -56,10 +56,19 @@ class TestTaskAssignmentAuthorization(APITestCase):
         )
 
     def _create_annotation(self, user, task):
+        assignment = TaskAssignment.objects.get(
+            task=task,
+            assignee=user,
+            status__in=TaskAssignment.ACTIVE_STATUSES,
+        )
         self.client.force_authenticate(user=user)
         response = self.client.post(
             f'/api/tasks/{task.id}/annotations/',
-            data={'result': []},
+            data={
+                'result': [],
+                'assignment_id': assignment.id,
+                'assignment_version': assignment.version,
+            },
             format='json',
         )
         assert response.status_code == 201, response.json()
@@ -72,6 +81,8 @@ class TestTaskAssignmentAuthorization(APITestCase):
         unassigned = self.client.get(f'/api/tasks/{self.other_task.id}/')
 
         assert assigned.status_code == 200
+        assert assigned.json()['assignment_id'] == self.assignment_a.id
+        assert assigned.json()['assignment_version'] == self.assignment_a.version
         assert unassigned.status_code == 404
 
     def test_reviewer_project_membership_does_not_grant_task_access(self):
@@ -147,12 +158,53 @@ class TestTaskAssignmentAuthorization(APITestCase):
         self.client.force_authenticate(user=self.annotator_a)
         stale_write = self.client.post(
             f'/api/tasks/{self.shared_task.id}/annotations/',
-            data={'result': []},
+            data={
+                'result': [],
+                'assignment_id': self.assignment_a.id,
+                'assignment_version': 1,
+            },
             format='json',
         )
 
         assert stale_write.status_code in (403, 404)
         assert not Annotation.objects.filter(task=self.shared_task, completed_by=self.annotator_a).exists()
+
+    def test_old_assignment_token_is_rejected_after_same_user_is_reassigned(self):
+        old_assignment = self.assignment_a
+
+        self.client.force_authenticate(user=self.manager)
+        cancel_response = self.client.delete(f'/api/task-assignments/{old_assignment.id}/')
+        assert cancel_response.status_code == 204
+
+        new_assignment = TaskAssignment.objects.create(
+            task=self.shared_task,
+            project=self.project,
+            assignee=self.annotator_a,
+            assigned_by=self.manager,
+        )
+
+        self.client.force_authenticate(user=self.annotator_a)
+        stale_response = self.client.post(
+            f'/api/tasks/{self.shared_task.id}/annotations/',
+            data={
+                'result': [],
+                'assignment_id': old_assignment.id,
+                'assignment_version': 1,
+            },
+            format='json',
+        )
+        assert stale_response.status_code == 409
+
+        fresh_response = self.client.post(
+            f'/api/tasks/{self.shared_task.id}/annotations/',
+            data={
+                'result': [],
+                'assignment_id': new_assignment.id,
+                'assignment_version': new_assignment.version,
+            },
+            format='json',
+        )
+        assert fresh_response.status_code == 201
 
     def test_manager_can_assign_active_annotator(self):
         new_task = TaskFactory(project=self.project)
