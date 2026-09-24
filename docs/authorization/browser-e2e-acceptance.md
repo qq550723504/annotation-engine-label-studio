@@ -74,9 +74,9 @@ Browser execution confirmed a new current-UI gap:
 
 - the annotator can authenticate and the assigned Task API returns 200;
 - another annotator's Task API returns 404;
-- the Data Manager route loads successfully;
-- Data Manager configuration still includes the native `label-button` instrument and the `labelButton` interface is enabled;
-- nevertheless the current UI does not render a usable **Label All Tasks** entry action for the assignment-scoped annotator session.
+- the project Data Manager route loads successfully;
+- the same authenticated browser session can access its assigned Task API and is denied another annotator's Task API;
+- the current rendered UI does not expose a usable **Label All Tasks** entry action for the assignment-scoped annotator session.
 
 Therefore #16 does not implement or synthesize a labeling entry UI. The missing projection/navigation is a product UI gap and belongs with the task-assignment UI work in #18.
 
