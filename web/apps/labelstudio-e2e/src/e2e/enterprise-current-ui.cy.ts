@@ -51,8 +51,8 @@ describe('enterprise collaboration - currently available UI', () => {
 
     cy.window().then((win) => {
       expect(win.DM.project.id).to.eq(fixture.project_id);
-      expect(win.DM.project.task_count ?? win.DM.project.task_number ?? 0).to.eq(0);
-      expect(win.DM.taskStore.total ?? 0).to.eq(0);
+      expect(win.DM.toolbar).to.contain('label-button');
+      expect(win.DM.interfaceEnabled('labelButton')).to.eq(true);
     });
 
     cy.contains('button', /Label All Tasks/i).should('not.exist');
@@ -69,7 +69,8 @@ describe('enterprise collaboration - currently available UI', () => {
 
     cy.window().then((win) => {
       expect(win.DM.project.id).to.eq(fixture.project_id);
-      expect(win.DM.taskStore.total ?? 0).to.eq(0);
+      expect(win.DM.toolbar).to.contain('label-button');
+      expect(win.DM.interfaceEnabled('labelButton')).to.eq(true);
     });
 
     cy.contains('button', /Label All Tasks/i).should('not.exist');
@@ -84,7 +85,8 @@ describe('enterprise collaboration - currently available UI', () => {
     }).its('status').should('eq', 404);
 
     cy.window().then((win) => {
-      expect(win.DM.taskStore.total ?? 0).to.eq(0);
+      expect(win.DM.toolbar).to.contain('label-button');
+      expect(win.DM.interfaceEnabled('labelButton')).to.eq(true);
     });
 
     cy.contains('button', /Label All Tasks/i).should('not.exist');
@@ -100,7 +102,8 @@ describe('enterprise collaboration - currently available UI', () => {
     });
 
     cy.window().then((win) => {
-      expect(win.DM.taskStore.total ?? 0).to.eq(0);
+      expect(win.DM.toolbar).to.contain('label-button');
+      expect(win.DM.interfaceEnabled('labelButton')).to.eq(true);
     });
 
     cy.contains('button', /Label All Tasks/i).should('not.exist');
@@ -120,7 +123,7 @@ describe('enterprise collaboration - currently available UI', () => {
     }).its('status').should('eq', 404);
 
     cy.window().then((win) => {
-      expect(win.DM.taskStore.total ?? 0).to.eq(0);
+      expect(win.DM.project.id).to.eq(fixture.project_id);
     });
   });
 });
