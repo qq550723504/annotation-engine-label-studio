@@ -867,7 +867,7 @@ export class LSFWrapper {
   /** @private */
   onUpdateAnnotation = async (ls, annotation, extraData) => {
     const { task } = this;
-    const serializedAnnotation = this.prepareData(annotation);
+    const serializedAnnotation = this.prepareData(annotation, { submitForReview: true });
     const exitStream = this.shouldExitStream();
 
     Object.assign(serializedAnnotation, extraData);
@@ -1305,7 +1305,7 @@ export class LSFWrapper {
   async submitCurrentAnnotation(eventName, submit, includeId = false, loadNext = true) {
     const { taskID, currentAnnotation } = this;
     const unique_id = this.task.unique_lock_id;
-    const serializedAnnotation = this.prepareData(currentAnnotation, { includeId });
+    const serializedAnnotation = this.prepareData(currentAnnotation, { includeId, submitForReview: true });
 
     if (unique_id) {
       serializedAnnotation.unique_id = unique_id;
@@ -1397,7 +1397,7 @@ export class LSFWrapper {
    * @returns {Object} The prepared data.
    * @private
    */
-  prepareData(annotation, { includeId, isNewDraft } = {}) {
+  prepareData(annotation, { includeId, isNewDraft, submitForReview = false } = {}) {
     const userGenerate = !annotation.userGenerate || annotation.sentUserGenerate;
     const currentDraft = this.findActiveDraft(annotation);
     const sessionTime = (Date.now() - annotation.loadedDate.getTime()) / 1000;
@@ -1418,6 +1418,10 @@ export class LSFWrapper {
     if (this.task?.assignment_id != null && this.task?.assignment_version != null) {
       result.assignment_id = this.task.assignment_id;
       result.assignment_version = this.task.assignment_version;
+    }
+
+    if (submitForReview) {
+      result.submit_for_review = true;
     }
 
     if (includeId && userGenerate) {
