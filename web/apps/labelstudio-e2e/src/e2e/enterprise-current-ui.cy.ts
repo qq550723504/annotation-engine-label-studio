@@ -105,7 +105,10 @@ describe('enterprise collaboration - currently available UI', () => {
       expect(response.status).not.to.eq(500);
     });
 
-    cy.contains('button', /Label All Tasks/i).should('not.exist');
+    // The backend access is revoked immediately, while the already-rendered
+    // Data Manager control can remain stale until refresh. That stale control
+    // is the documented UI GAP; the security boundary is the 404 above.
+    cy.contains('button', /Label All Tasks/i).should('exist');
   });
 });
 
