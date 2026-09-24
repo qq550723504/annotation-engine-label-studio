@@ -1,7 +1,7 @@
 from organizations.tests.factories import OrganizationFactory
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
-from tasks.models import Annotation
+from tasks.models import Annotation, TaskAssignment
 from tasks.tests.factories import AnnotationFactory, TaskFactory
 from users.tests.factories import UserFactory
 
@@ -20,12 +20,21 @@ class TestAnnotationActorSecurity(APITestCase):
     def test_create_annotation_ignores_spoofed_completed_by(self):
         task = TaskFactory(project=self.project)
 
+        assignment = TaskAssignment.objects.create(
+            task=task,
+            project=self.project,
+            assignee=self.actor,
+            assigned_by=self.actor,
+        )
+
         response = self.client.post(
             f"/api/tasks/{task.id}/annotations/",
             data={
                 "result": [],
                 "completed_by": self.other_user.id,
                 "updated_by": self.other_user.id,
+                "assignment_id": assignment.id,
+                "assignment_version": assignment.version,
             },
             format="json",
         )
@@ -44,6 +53,14 @@ class TestAnnotationActorSecurity(APITestCase):
             updated_by=self.actor,
             result=[],
         )
+        assignment = TaskAssignment.objects.create(
+            task=task,
+            project=self.project,
+            assignee=self.actor,
+            assigned_by=self.actor,
+            annotation=annotation,
+            status=TaskAssignment.Status.IN_PROGRESS,
+        )
 
         response = self.client.patch(
             f"/api/annotations/{annotation.id}/",
@@ -51,6 +68,8 @@ class TestAnnotationActorSecurity(APITestCase):
                 "result": [],
                 "completed_by": self.other_user.id,
                 "updated_by": self.other_user.id,
+                "assignment_id": assignment.id,
+                "assignment_version": assignment.version,
             },
             format="json",
         )
