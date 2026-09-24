@@ -23,9 +23,10 @@ from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiRespo
 from projects.functions.stream_history import fill_history_annotation
 from projects.models import Project
 from rest_framework import generics, viewsets
-from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
+from tasks.exceptions import AssignmentConflictError
 from tasks.models import Annotation, AnnotationDraft, Prediction, Task, TaskAssignment
 from tasks.openapi_schema import (
     annotation_request_schema,
@@ -54,12 +55,6 @@ from webhooks.utils import (
 logger = logging.getLogger(__name__)
 
 
-class AssignmentConflict(APIException):
-    status_code = 409
-    default_detail = 'Task assignment changed; reload the task before saving.'
-    default_code = 'assignment_conflict'
-
-
 def require_assignment_token(request, assignment):
     assignment_id = request.data.get('assignment_id')
     assignment_version = request.data.get('assignment_version')
@@ -70,7 +65,7 @@ def require_assignment_token(request, assignment):
         or str(assignment_id) != str(assignment.id)
         or str(assignment_version) != str(assignment.version)
     ):
-        raise AssignmentConflict()
+        raise AssignmentConflictError()
 
 
 # TODO: fix after switch to api/tasks from api/dm/tasks
@@ -1012,7 +1007,7 @@ class AnnotationDraftAPI(generics.RetrieveUpdateDestroyAPIView):
         principal = resolve_principal(request)
         assignment = authorization.active_task_assignment(principal, draft.task)
         if assignment is None or draft.assignment_id != assignment.id:
-            raise AssignmentConflict()
+            raise AssignmentConflictError()
         require_assignment_token(request, assignment)
         return super().update(request, *args, **kwargs)
 
