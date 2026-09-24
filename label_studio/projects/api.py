@@ -39,6 +39,7 @@ from projects.serializers import (
     ProjectImportSerializer,
     ProjectLabelConfigSerializer,
     ProjectModelVersionExtendedSerializer,
+    ProjectMemberSerializer,
     ProjectModelVersionParamsSerializer,
     ProjectReimportSerializer,
     ProjectSerializer,
@@ -266,6 +267,59 @@ class ProjectCountsListAPI(generics.ListAPIView):
             projects = projects.with_state()
 
         return projects
+
+
+class ProjectMemberListCreateAPI(generics.ListCreateAPIView):
+    serializer_class = ProjectMemberSerializer
+    permission_required = all_permissions.projects_view
+
+    def get_project(self):
+        project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to manage project members.',
+        )
+        return project
+
+    def get_queryset(self):
+        return ProjectMember.objects.filter(project=self.get_project()).select_related('user').order_by('id')
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['project'] = self.get_project()
+        return context
+
+    def perform_create(self, serializer):
+        serializer.save(project=self.get_project())
+
+
+class ProjectMemberAPI(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ProjectMemberSerializer
+    permission_required = all_permissions.projects_view
+    lookup_url_kwarg = 'member_pk'
+
+    def get_project(self):
+        project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to manage project members.',
+        )
+        return project
+
+    def get_queryset(self):
+        return ProjectMember.objects.filter(project=self.get_project()).select_related('user')
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['project'] = self.get_project()
+        return context
+
+    def perform_destroy(self, instance):
+        if instance.project.created_by_id == instance.user_id:
+            raise RestValidationError({'detail': 'The project creator membership cannot be removed.'})
+        instance.delete()
 
 
 @method_decorator(
