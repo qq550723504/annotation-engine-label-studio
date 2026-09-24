@@ -694,10 +694,6 @@ class Submission(models.Model):
                 name='unique_assignment_submission_revision',
             ),
         ]
-        indexes = [
-            models.Index(fields=['assignment', '-revision']),
-            models.Index(fields=['status', 'submitted_at']),
-        ]
 
     def has_permission(self, user):
         if user is None or not getattr(user, 'is_authenticated', False):
