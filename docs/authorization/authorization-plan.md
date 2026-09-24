@@ -138,3 +138,8 @@ Do not block the first secure collaboration loop on:
 - support for multiple annotation engines.
 
 The first milestone is a secure flow for two annotators and one reviewer: assign → annotate → submit → review/reject → revise → approve → release.
+
+### Organization membership candidate contract
+
+Project member administration depends on `GET /api/organizations/{org_id}/memberships?active=true` returning only non-deleted organization memberships. In this fork, `active=true` is therefore treated as a stable authorization-adjacent contract and filters `deleted_at IS NULL` regardless of the upstream feature-flag rollout state. This prevents soft-deleted organization users from being offered as project-member candidates. Preserve this behavior across upstream rebases unless the project-member UI is migrated to another server-filtered candidate source.
+
