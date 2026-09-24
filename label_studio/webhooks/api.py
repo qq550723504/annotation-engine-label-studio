@@ -1,5 +1,8 @@
 import django_filters
+from access_control.authorization import authorization
+from access_control.identity import resolve_principal
 from core.permissions import ViewClassPermission, all_permissions
+from django.db.models import Q
 from django.utils.decorators import method_decorator
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
@@ -13,6 +16,22 @@ from rest_framework.views import APIView
 
 from .models import Webhook, WebhookAction
 from .serializers import WebhookSerializer, WebhookSerializerForUpdate
+
+
+def _manageable_webhooks(request):
+    organization = request.user.active_organization
+    principal = resolve_principal(request)
+    project_ids = [
+        project.id
+        for project in organization.projects.all().only('id', 'created_by_id')
+        if authorization.can_manage_project(principal, project)
+    ]
+    queryset = Webhook.objects.filter(organization=organization, project_id__in=project_ids)
+    if organization.created_by_id == request.user.id:
+        queryset = Webhook.objects.filter(organization=organization).filter(
+            Q(project_id__in=project_ids) | Q(project__isnull=True)
+        )
+    return queryset
 
 
 class WebhookFilterSet(django_filters.FilterSet):
@@ -67,12 +86,17 @@ class WebhookListAPI(generics.ListCreateAPIView):
     )
 
     def get_queryset(self):
-        return Webhook.objects.filter(organization=self.request.user.active_organization)
+        return _manageable_webhooks(self.request)
 
     def perform_create(self, serializer):
         project = serializer.validated_data.get('project')
         if project is None or project.organization_id != self.request.user.active_organization.id:
             raise NotFound('Project not found.')
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to manage webhooks.',
+        )
         serializer.save(organization=self.request.user.active_organization)
 
 
@@ -141,7 +165,7 @@ class WebhookAPI(generics.RetrieveUpdateDestroyAPIView):
         return super().get_serializer_class()
 
     def get_queryset(self):
-        return Webhook.objects.filter(organization=self.request.user.active_organization)
+        return _manageable_webhooks(self.request)
 
 
 @method_decorator(
