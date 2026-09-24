@@ -37,6 +37,9 @@ export const MembersSettings = () => {
   const { project } = useProject();
   const [members, setMembers] = useState([]);
   const [organizationUsers, setOrganizationUsers] = useState([]);
+  const [organizationPage, setOrganizationPage] = useState(1);
+  const [organizationHasNext, setOrganizationHasNext] = useState(false);
+  const [organizationHasPrevious, setOrganizationHasPrevious] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedRole, setSelectedRole] = useState("annotator");
   const [loading, setLoading] = useState(true);
@@ -62,25 +65,30 @@ export const MembersSettings = () => {
     return true;
   }, [api, history, project?.id]);
 
-  const loadOrganizationUsers = useCallback(async () => {
-    if (!project?.organization) return;
+  const loadOrganizationUsers = useCallback(
+    async (page = organizationPage) => {
+      if (!project?.organization) return;
 
-    const result = await api.callApi("memberships", {
-      params: {
-        pk: project.organization,
-        active: true,
-        page_size: -1,
-      },
-    });
+      const result = await api.callApi("memberships", {
+        params: {
+          pk: project.organization,
+          active: true,
+          page,
+          page_size: 50,
+        },
+      });
 
-    if (result) {
-      setOrganizationUsers(responseItems(result).map((membership) => membership.user).filter(Boolean));
-    }
-  }, [api, project?.organization]);
+      if (result) {
+        setOrganizationUsers(responseItems(result).map((membership) => membership.user).filter(Boolean));
+        setOrganizationHasNext(Boolean(result.next));
+        setOrganizationHasPrevious(Boolean(result.previous));
+      }
+    },
+    [api, organizationPage, project?.organization],
+  );
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    setError("");
     const allowed = await loadMembers();
 
     if (allowed) {
@@ -94,7 +102,28 @@ export const MembersSettings = () => {
     if (project?.id) refresh();
   }, [project?.id, refresh]);
 
-  const existingUserIds = useMemo(() => new Set(members.map((member) => member.user?.id)), [members]);
+  const effectiveMembers = useMemo(() => {
+    const creatorId = project.created_by?.id;
+    if (!creatorId || members.some((member) => member.user?.id === creatorId)) {
+      return members;
+    }
+
+    return [
+      {
+        id: `creator-${creatorId}`,
+        user: project.created_by,
+        role: "manager",
+        enabled: true,
+        implicitCreator: true,
+      },
+      ...members,
+    ];
+  }, [members, project.created_by]);
+
+  const existingUserIds = useMemo(
+    () => new Set(effectiveMembers.map((member) => member.user?.id)),
+    [effectiveMembers],
+  );
 
   const availableUsers = useMemo(
     () => organizationUsers.filter((user) => !existingUserIds.has(user.id)),
@@ -268,6 +297,36 @@ export const MembersSettings = () => {
         </Button>
       </form>
 
+      <div className={cn("members-settings").elem("directory-pagination").toClassName()}>
+        <Button
+          size="small"
+          look="outlined"
+          disabled={!organizationHasPrevious || processing !== null}
+          onClick={async () => {
+            const nextPage = Math.max(1, organizationPage - 1);
+            setOrganizationPage(nextPage);
+            setSelectedUserId("");
+            await loadOrganizationUsers(nextPage);
+          }}
+        >
+          Previous users
+        </Button>
+        <span>Organization users page {organizationPage}</span>
+        <Button
+          size="small"
+          look="outlined"
+          disabled={!organizationHasNext || processing !== null}
+          onClick={async () => {
+            const nextPage = organizationPage + 1;
+            setOrganizationPage(nextPage);
+            setSelectedUserId("");
+            await loadOrganizationUsers(nextPage);
+          }}
+        >
+          Next users
+        </Button>
+      </div>
+
       <div className={cn("members-settings").elem("table-wrapper").toClassName()}>
         <table>
           <thead>
@@ -279,7 +338,7 @@ export const MembersSettings = () => {
             </tr>
           </thead>
           <tbody>
-            {members.map((member) => {
+            {effectiveMembers.map((member) => {
               const isCreator = member.user?.id === project.created_by?.id;
               const busy = processing?.endsWith(`-${member.id}`);
 
