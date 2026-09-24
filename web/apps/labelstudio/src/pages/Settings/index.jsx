@@ -1,21 +1,53 @@
+import { useEffect, useState } from "react";
 import { SidebarMenu } from "../../components/SidebarMenu/SidebarMenu";
+import { useAPI } from "../../providers/ApiProvider";
+import { useProject } from "../../providers/ProjectProvider";
 import { WebhookPage } from "../WebhookPage/WebhookPage";
 import { DangerZone } from "./DangerZone";
 import { GeneralSettings } from "./GeneralSettings";
 import { AnnotationSettings } from "./AnnotationSettings";
 import { LabelingSettings } from "./LabelingSettings";
 import { MachineLearningSettings } from "./MachineLearningSettings/MachineLearningSettings";
+import { MembersSettings } from "./MembersSettings";
 import { PredictionsSettings } from "./PredictionsSettings/PredictionsSettings";
 import { StorageSettings } from "./StorageSettings/StorageSettings";
 import "./settings.scss";
 
 export const MenuLayout = ({ children, ...routeProps }) => {
+  const api = useAPI();
+  const { project } = useProject();
+  const [canManageMembers, setCanManageMembers] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const probeMemberManagement = async () => {
+      if (!project?.id) return;
+
+      const result = await api.callApi("projectMembers", {
+        params: { pk: project.id },
+        errorFilter: (apiError) => apiError?.status === 403,
+      });
+
+      if (!active) return;
+
+      setCanManageMembers(Boolean(result && !result.error && result?.$meta?.status !== 403));
+    };
+
+    probeMemberManagement();
+
+    return () => {
+      active = false;
+    };
+  }, [api, project?.id]);
+
   return (
     <SidebarMenu
       menuItems={[
         GeneralSettings,
         LabelingSettings,
         AnnotationSettings,
+        canManageMembers && MembersSettings,
         MachineLearningSettings,
         PredictionsSettings,
         StorageSettings,
@@ -31,6 +63,7 @@ export const MenuLayout = ({ children, ...routeProps }) => {
 const pages = {
   AnnotationSettings,
   LabelingSettings,
+  MembersSettings,
   MachineLearningSettings,
   PredictionsSettings,
   StorageSettings,
