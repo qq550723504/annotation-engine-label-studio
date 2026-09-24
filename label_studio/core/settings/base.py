@@ -308,6 +308,9 @@ ALLOWED_HOSTS = get_env_list('ALLOWED_HOSTS', default=['*'])
 
 # Auth modules
 AUTH_USER_MODEL = 'users.User'
+ANNOTATION_IDENTITY_PROVIDER = get_env(
+    'ANNOTATION_IDENTITY_PROVIDER', 'access_control.identity.LocalIdentityProvider'
+)
 AUTHENTICATION_BACKENDS = [
     'rules.permissions.ObjectPermissionBackend',
     'django.contrib.auth.backends.ModelBackend',
