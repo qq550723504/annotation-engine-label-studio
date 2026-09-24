@@ -119,12 +119,7 @@ describe("project member and role management UI", () => {
 
     cy.task("setEnterpriseE2EMember", { actor: "manager", enabled: false });
 
-    cy.get('[data-testid^="member-role-"]').first().then(($select) => {
-      const currentValue = String($select.val());
-      const nextValue = currentValue === "reviewer" ? "annotator" : "reviewer";
-
-      cy.wrap($select).select(nextValue);
-    });
+    cy.get(`[data-testid="member-role-${fixture.users.annotator_a.id}"]`).select("reviewer");
 
     cy.location("pathname", { timeout: 30000 }).should("eq", "/projects");
     cy.get('[data-testid="project-members-settings"]').should("not.exist");
