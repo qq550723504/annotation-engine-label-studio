@@ -204,10 +204,14 @@ class AnnotationSerializer(FlexFieldsModelSerializer):
     created_ago = serializers.CharField(default='', read_only=True, help_text='Time delta from creation time')
     completed_by = serializers.PrimaryKeyRelatedField(required=False, queryset=User.objects.all())
     unique_id = serializers.CharField(required=False, write_only=True)
+    assignment_id = serializers.IntegerField(required=False, write_only=True)
+    assignment_version = serializers.IntegerField(required=False, write_only=True)
 
-    def create(self, *args, **kwargs):
+    def create(self, validated_data):
+        validated_data.pop('assignment_id', None)
+        validated_data.pop('assignment_version', None)
         try:
-            return super().create(*args, **kwargs)
+            return super().create(validated_data)
         except IntegrityError as e:
             errors = [
                 'UNIQUE constraint failed: task_completion.unique_id',
@@ -223,6 +227,8 @@ class AnnotationSerializer(FlexFieldsModelSerializer):
         # AnnotationAPI.update.
         validated_data.pop('completed_by', None)
         validated_data.pop('updated_by', None)
+        validated_data.pop('assignment_id', None)
+        validated_data.pop('assignment_version', None)
         return super().update(instance, validated_data)
 
     def validate_result(self, value):
@@ -912,8 +918,20 @@ class AnnotationDraftSerializer(ModelSerializer):
 
     state = FSMStateField(read_only=True)  # FSM state - automatically uses annotation if present
     user = serializers.CharField(default=serializers.CurrentUserDefault())
+    assignment_id = serializers.IntegerField(required=False, write_only=True)
+    assignment_version = serializers.IntegerField(required=False, write_only=True)
     created_username = serializers.SerializerMethodField(default='', read_only=True, help_text='User name string')
     created_ago = serializers.CharField(default='', read_only=True, help_text='Delta time from creation time')
+
+    def create(self, validated_data):
+        validated_data.pop('assignment_id', None)
+        validated_data.pop('assignment_version', None)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        validated_data.pop('assignment_id', None)
+        validated_data.pop('assignment_version', None)
+        return super().update(instance, validated_data)
 
     def get_created_username(self, draft):
         user = draft.user
