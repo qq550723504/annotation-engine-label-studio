@@ -99,7 +99,9 @@ jobs:
           for i in {1..90}; do
             if curl --fail --silent http://localhost:8080/health/ >/dev/null \
               && curl --fail --silent http://localhost:8010/react-app/runtime.js >/dev/null \
+              && curl --fail --silent http://localhost:8010/react-app/vendor.js >/dev/null \
               && curl --fail --silent http://localhost:8010/react-app/main.js >/dev/null; then
+              echo "Django and all React HMR bundles are ready."
               exit 0
             fi
             sleep 2
