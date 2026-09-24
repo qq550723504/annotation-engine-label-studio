@@ -1415,6 +1415,11 @@ export class LSFWrapper {
       started_at: startedAt.toISOString(),
     };
 
+    if (this.task?.assignment_id != null && this.task?.assignment_version != null) {
+      result.assignment_id = this.task.assignment_id;
+      result.assignment_version = this.task.assignment_version;
+    }
+
     if (includeId && userGenerate) {
       result.id = Number.parseInt(annotation.pk);
     }
