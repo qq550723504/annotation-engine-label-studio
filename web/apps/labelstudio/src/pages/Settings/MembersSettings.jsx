@@ -123,8 +123,10 @@ export const MembersSettings = () => {
         return false;
       }
 
-      await loadMembers();
-      await loadOrganizationUsers();
+      const stillAllowed = await loadMembers();
+      if (stillAllowed) {
+        await loadOrganizationUsers();
+      }
       setProcessing(null);
       return true;
     },
@@ -296,6 +298,7 @@ export const MembersSettings = () => {
   );
 };
 
+MembersSettings.title = "Members";
 MembersSettings.menuItem = "Members";
 MembersSettings.path = "/members";
 MembersSettings.exact = true;
