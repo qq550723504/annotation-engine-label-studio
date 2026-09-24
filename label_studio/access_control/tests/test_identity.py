@@ -30,12 +30,13 @@ class TestLocalIdentityProvider(TestCase):
         with self.assertRaises(NotAuthenticated):
             self.provider.resolve(SimpleNamespace(user=AnonymousUser()))
 
-    def test_resource_authorization_defaults_deny(self):
+    def test_unimplemented_resource_authorization_defaults_deny(self):
         user = UserFactory()
         principal = self.provider.resolve(SimpleNamespace(user=user))
         authorization = AuthorizationService()
 
-        assert authorization.can_view_project(principal, object()) is False
+        # Project visibility is implemented by the project-RBAC milestone.
+        # Task, annotation ownership, and review authorization remain deny-by-default.
         assert authorization.can_label_task(principal, object()) is False
         assert authorization.can_update_annotation(principal, object()) is False
         assert authorization.can_review_submission(principal, object()) is False
