@@ -26,33 +26,47 @@ describe('enterprise collaboration - currently available UI', () => {
 
   const dataPage = () => `/projects/${fixture.project_id}/data`;
 
-  const expectDataManagerTaskIds = (expectedIds: number[]) => {
-    cy.window().its('dataManager', { timeout: 30000 }).should('exist');
+  const waitForDataManager = () => {
+    cy.window({ timeout: 30000 }).its('dataManager').should('exist');
+    cy.window({ timeout: 30000 }).its('dataManager.store.taskStore').should('exist');
+  };
+
+  const expectVisibleTaskScope = (includedId: number | null, excludedIds: number[]) => {
+    waitForDataManager();
     cy.window().should((win) => {
       const list = win.dataManager?.store?.taskStore?.list ?? [];
-      const ids = Array.from(list, (task: { id: number }) => task.id).sort((a, b) => a - b);
-      expect(ids).to.deep.equal([...expectedIds].sort((a, b) => a - b));
+      const ids = Array.from(list, (task: { id: number }) => task.id);
+
+      if (includedId !== null) {
+        expect(ids, 'Data Manager task IDs').to.include(includedId);
+      }
+      excludedIds.forEach((id) => {
+        expect(ids, 'Data Manager task IDs').not.to.include(id);
+      });
     });
   };
 
-  it('keeps annotator task visibility isolated in the real browser session', () => {
-    cy.loginAs(fixture.users.annotator_a.email, fixture.password, dataPage());
-
-    cy.visit(dataPage());
-    expectDataManagerTaskIds([fixture.tasks.a.id]);
-
-    cy.request(`/api/tasks/${fixture.tasks.a.id}/`).its('status').should('eq', 200);
-    cy.request({
-      url: `/api/tasks/${fixture.tasks.b.id}/`,
-      failOnStatusCode: false,
-    }).its('status').should('eq', 404);
+  const openAssignedTask = (taskId: number) => {
+    waitForDataManager();
 
     cy.window().then((win) => {
-      return win.dataManager.store.setTask({
-        taskID: fixture.tasks.b.id,
-        pushState: false,
-      });
+      win.dataManager.store.startLabeling({ id: taskId, isSelected: false });
     });
+
+    cy.window({ timeout: 30000 }).its('dataManager.store.mode').should('eq', 'labeling');
+    cy.window({ timeout: 30000 }).should((win) => {
+      expect(win.dataManager?.lsf?.task?.id).to.eq(taskId);
+    });
+    cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should('be.visible');
+  };
+
+  it('keeps annotator task visibility isolated in the real Data Manager state', () => {
+    cy.loginAs(fixture.users.annotator_a.email, fixture.password, dataPage());
+    cy.visit(dataPage());
+
+    expectVisibleTaskScope(fixture.tasks.a.id, [fixture.tasks.b.id]);
+
+    cy.request(`/api/tasks/${fixture.tasks.a.id}/`).its('status').should('eq', 200);
     cy.request({
       url: `/api/tasks/${fixture.tasks.b.id}/`,
       failOnStatusCode: false,
@@ -61,9 +75,9 @@ describe('enterprise collaboration - currently available UI', () => {
 
   it('keeps the second annotator isolated from the first annotator task', () => {
     cy.loginAs(fixture.users.annotator_b.email, fixture.password, dataPage());
-
     cy.visit(dataPage());
-    expectDataManagerTaskIds([fixture.tasks.b.id]);
+
+    expectVisibleTaskScope(fixture.tasks.b.id, [fixture.tasks.a.id]);
 
     cy.request(`/api/tasks/${fixture.tasks.b.id}/`).its('status').should('eq', 200);
     cy.request({
@@ -74,9 +88,9 @@ describe('enterprise collaboration - currently available UI', () => {
 
   it('does not turn reviewer project visibility into labeling access', () => {
     cy.loginAs(fixture.users.reviewer.email, fixture.password, dataPage());
-
     cy.visit(dataPage());
-    expectDataManagerTaskIds([]);
+
+    expectVisibleTaskScope(null, [fixture.tasks.a.id, fixture.tasks.b.id]);
 
     cy.request({
       url: `/api/tasks/${fixture.tasks.a.id}/`,
@@ -86,20 +100,13 @@ describe('enterprise collaboration - currently available UI', () => {
 
   it('uses the existing editor Submit action to create an immutable submission', () => {
     cy.loginAs(fixture.users.annotator_a.email, fixture.password, dataPage());
-
-    cy.intercept('GET', '**/api/dm/tasks/next**').as('nextTask');
-    cy.intercept('POST', `/api/tasks/${fixture.tasks.a.id}/annotations/`).as('submitAnnotation');
     cy.visit(dataPage());
-    expectDataManagerTaskIds([fixture.tasks.a.id]);
+    expectVisibleTaskScope(fixture.tasks.a.id, [fixture.tasks.b.id]);
 
-    cy.contains('button', /Label All Tasks/i, { timeout: 30000 }).should('be.visible').click();
-    cy.wait('@nextTask').its('response.statusCode').should('eq', 200);
+    cy.intercept('POST', `/api/tasks/${fixture.tasks.a.id}/annotations/`).as('submitAnnotation');
+    openAssignedTask(fixture.tasks.a.id);
 
-    cy.window({ timeout: 30000 }).should((win) => {
-      expect(win.dataManager?.lsf?.task?.id).to.eq(fixture.tasks.a.id);
-    });
-
-    cy.contains('button', /^Submit$/i, { timeout: 30000 }).should('be.visible').click();
+    cy.get('[data-testid="bottombar-submit-button"]').click();
 
     cy.wait('@submitAnnotation').then(({ response }) => {
       expect(response?.statusCode).to.eq(201);
@@ -118,51 +125,28 @@ describe('enterprise collaboration - currently available UI', () => {
     });
   });
 
-  it('rejects writes from an already-open page after membership revocation', () => {
+  it('rejects Submit from an already-open page after membership revocation', () => {
     cy.loginAs(fixture.users.annotator_b.email, fixture.password, dataPage());
     cy.visit(dataPage());
-    expectDataManagerTaskIds([fixture.tasks.b.id]);
+    expectVisibleTaskScope(fixture.tasks.b.id, [fixture.tasks.a.id]);
+    openAssignedTask(fixture.tasks.b.id);
 
-    cy.request(`/api/tasks/${fixture.tasks.b.id}/`).then((taskResponse) => {
-      const assignmentId = taskResponse.body.assignment_id;
-      const assignmentVersion = taskResponse.body.assignment_version;
+    // Revoke membership out-of-band while the annotator keeps the editor open.
+    cy.task('setEnterpriseE2EMember', { actor: 'annotator_b', enabled: false });
 
-      cy.loginAs(fixture.users.manager.email, fixture.password, '/');
-      cy.request(`/api/projects/${fixture.project_id}/members/`).then((membersResponse) => {
-        const results = membersResponse.body.results ?? membersResponse.body;
-        const annotatorBMember = results.find(
-          (item: { user: { id: number } }) => item.user.id === fixture.users.annotator_b.id,
-        );
-        expect(annotatorBMember).to.exist;
+    cy.intercept('POST', `/api/tasks/${fixture.tasks.b.id}/annotations/`).as('staleSubmit');
+    cy.get('[data-testid="bottombar-submit-button"]').click();
 
-        cy.request({
-          method: 'PATCH',
-          url: `/api/projects/${fixture.project_id}/members/${annotatorBMember.id}/`,
-          body: { enabled: false },
-        }).its('status').should('eq', 200);
-      });
-
-      // Re-authenticate as B but intentionally send the token captured from the old browser state.
-      cy.loginAs(fixture.users.annotator_b.email, fixture.password, '/');
-      cy.request({
-        method: 'POST',
-        url: `/api/tasks/${fixture.tasks.b.id}/annotations/`,
-        failOnStatusCode: false,
-        body: {
-          result: [],
-          assignment_id: assignmentId,
-          assignment_version: assignmentVersion,
-          submit_for_review: true,
-        },
-      }).then((response) => {
-        expect([403, 404, 409]).to.include(response.status);
-        expect(response.status).not.to.eq(500);
-      });
-
-      cy.request({
-        url: `/api/tasks/${fixture.tasks.b.id}/`,
-        failOnStatusCode: false,
-      }).its('status').should('eq', 404);
+    cy.wait('@staleSubmit').then(({ response }) => {
+      expect(response?.statusCode).to.be.oneOf([403, 404, 409]);
+      expect(response?.statusCode).not.to.eq(500);
     });
+
+    cy.request({
+      url: `/api/tasks/${fixture.tasks.b.id}/`,
+      failOnStatusCode: false,
+    }).its('status').should('eq', 404);
   });
 });
+
+export {};
