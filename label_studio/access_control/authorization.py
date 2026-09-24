@@ -18,8 +18,36 @@ class AuthorizationService:
         return principal
 
     @staticmethod
-    def can_view_project(principal: Principal, project) -> bool:
-        return False
+    def project_role(principal: Principal, project):
+        """Return the effective project-scoped role for a principal."""
+        if principal.local_user_id is None:
+            return None
+
+        from projects.models import ProjectMember
+
+        if project.created_by_id == principal.local_user_id:
+            return ProjectMember.Role.MANAGER
+
+        membership = (
+            ProjectMember.objects.filter(
+                project=project,
+                user_id=principal.local_user_id,
+                enabled=True,
+            )
+            .only('role')
+            .first()
+        )
+        return membership.role if membership else None
+
+    @classmethod
+    def can_view_project(cls, principal: Principal, project) -> bool:
+        return cls.project_role(principal, project) is not None
+
+    @classmethod
+    def can_manage_project(cls, principal: Principal, project) -> bool:
+        from projects.models import ProjectMember
+
+        return cls.project_role(principal, project) == ProjectMember.Role.MANAGER
 
     @staticmethod
     def can_label_task(principal: Principal, task) -> bool:
