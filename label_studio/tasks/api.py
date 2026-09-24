@@ -489,13 +489,15 @@ class TaskAgreementAPI(generics.RetrieveAPIView):
             raise PermissionDenied('Feature not enabled')
 
         try:
-            task = Task.objects.get(pk=pk)
+            task = Task.objects.for_user(request.user).get(pk=pk)
         except Task.DoesNotExist:
             return Response({'error': 'Task not found'}, status=404)
 
-        # Check project access using LSO's native permission check
-        if not task.project.has_permission(request.user):
-            raise PermissionDenied('You do not have permission to view this task')
+        principal = resolve_principal(request)
+        authorization.require(
+            authorization.can_manage_project(principal, task.project),
+            'Project manager role is required to view annotation agreement.',
+        )
 
         # Get all annotations for this task with their results in a single query
         annotations = Annotation.objects.filter(
@@ -944,6 +946,12 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
         )
         annotation_id = self.kwargs.get('annotation_id')
         user = self.request.user
+        if annotation_id is not None:
+            annotation = generics.get_object_or_404(Annotation, pk=annotation_id, task=task)
+            authorization.require(
+                authorization.can_update_annotation(principal, annotation),
+                'Only the active assignment owner can draft changes for this annotation.',
+            )
         logger.debug(f'User {user} is going to create draft for task={task_id}, annotation={annotation_id}')
         serializer.save(task_id=self.kwargs['pk'], annotation_id=annotation_id, user=self.request.user)
 
