@@ -355,10 +355,16 @@ class TaskAPI(generics.RetrieveUpdateDestroyAPIView):
             # refresh task from db with prefetches
             self.task = self.get_object()
 
-        # Don't use expand for annotations when using stub mode (FIT-720)
-        # The expand mechanism would override get_annotations and use AnnotationSerializer
-        # instead of AnnotationStubSerializer
-        expand = [] if context.get('annotations_stub') else ['annotations.completed_by']
+        # Expansion bypasses DataManagerTaskSerializer.get_annotations(). Only managers
+        # may use the unfiltered expandable relation. Assignees must go through
+        # get_annotations(), which scopes results to their assignment.
+        principal = resolve_principal(request)
+        is_manager = authorization.can_manage_project(principal, project)
+        expand = (
+            ['annotations.completed_by']
+            if is_manager and not context.get('annotations_stub')
+            else []
+        )
         serializer = self.get_serializer_class()(self.task, many=False, context=context, expand=expand)
         data = serializer.data
         return Response(data)
