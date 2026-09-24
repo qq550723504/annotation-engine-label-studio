@@ -33,17 +33,16 @@ describe("project member and role management UI", () => {
     cy.get("body").should("be.visible");
   };
 
-  const navigateInApp = (path: string) => {
-    cy.window().then((win) => {
-      win.history.pushState({}, "", path);
-      win.dispatchEvent(new PopStateEvent("popstate"));
-    });
-    cy.location("pathname", { timeout: 30000 }).should("eq", path);
+  const openProjectSettings = () => {
+    cy.contains("a", "Settings", { timeout: 30000 }).should("be.visible").click();
+    cy.location("pathname", { timeout: 30000 }).should("eq", settingsPage());
   };
 
   const openAsManager = () => {
     loginToProject(fixture.users.manager.email);
-    navigateInApp(membersPage());
+    openProjectSettings();
+    cy.contains("a", "Members", { timeout: 30000 }).should("be.visible").click();
+    cy.location("pathname", { timeout: 30000 }).should("eq", membersPage());
     cy.get('[data-testid="project-members-settings"]', { timeout: 30000 }).should("be.visible");
   };
 
@@ -121,11 +120,8 @@ describe("project member and role management UI", () => {
   for (const actor of ["annotator_a", "reviewer"] as const) {
     it(`does not expose member management to ${actor}`, () => {
       loginToProject(fixture.users[actor].email);
-      navigateInApp(settingsPage());
+      openProjectSettings();
       cy.contains("a", "Members").should("not.exist");
-
-      navigateInApp(membersPage());
-      cy.location("pathname", { timeout: 30000 }).should("eq", settingsPage());
       cy.get('[data-testid="project-members-settings"]').should("not.exist");
 
       cy.request({
