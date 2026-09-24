@@ -116,3 +116,13 @@ Only executed browser scenarios may be marked PASS.
 GAP means that the backend contract exists but the corresponding product UI is not yet implemented.
 
 The full workflow must not be declared browser-complete until #21 passes after #17–#20 are implemented. In particular, #18 must provide a browser-reachable assignment-to-labeling workflow before Submit and stale-open-editor scenarios can move from GAP to PASS.
+
+
+## Final CI result
+
+- Fork PR Gate: PASS
+- Enterprise Browser E2E: PASS
+- PR: #22
+- Merge commit: `7f99a7dad88340c148a3dae0f2190683f548dd00`
+
+The current-UI validation milestone is complete. Remaining GAP items are intentionally tracked in #17–#20 and are not failures of #16.
