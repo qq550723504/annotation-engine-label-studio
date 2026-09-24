@@ -22,25 +22,18 @@ describe("project member and role management UI", () => {
     });
   });
 
-  const dataPage = () => `/projects/${fixture.project_id}/data`;
-  const settingsPage = () => `/projects/${fixture.project_id}/settings`;
-  const membersPage = () => `${settingsPage()}/members`;
+  const settingsPage = () => `/projects/${fixture.project_id}/settings/`;
+  const membersPage = () => `/projects/${fixture.project_id}/settings/members`;
 
-  const loginToProject = (email: string) => {
-    cy.loginAs(email, fixture.password, dataPage());
-    cy.visit(dataPage());
-    cy.location("pathname", { timeout: 30000 }).should("eq", dataPage());
+  const openProjectSettings = (email: string) => {
+    cy.loginAs(email, fixture.password, settingsPage());
+    cy.visit(settingsPage());
+    cy.location("pathname", { timeout: 30000 }).should("eq", settingsPage());
     cy.get("body").should("be.visible");
   };
 
-  const openProjectSettings = () => {
-    cy.contains("a", "Settings", { timeout: 30000 }).should("be.visible").click();
-    cy.location("pathname", { timeout: 30000 }).should("eq", settingsPage());
-  };
-
   const openAsManager = () => {
-    loginToProject(fixture.users.manager.email);
-    openProjectSettings();
+    openProjectSettings(fixture.users.manager.email);
     cy.contains("a", "Members", { timeout: 30000 }).should("be.visible").click();
     cy.location("pathname", { timeout: 30000 }).should("eq", membersPage());
     cy.get('[data-testid="project-members-settings"]', { timeout: 30000 }).should("be.visible");
@@ -119,8 +112,7 @@ describe("project member and role management UI", () => {
 
   for (const actor of ["annotator_a", "reviewer"] as const) {
     it(`does not expose member management to ${actor}`, () => {
-      loginToProject(fixture.users[actor].email);
-      openProjectSettings();
+      openProjectSettings(fixture.users[actor].email);
       cy.contains("a", "Members").should("not.exist");
       cy.get('[data-testid="project-members-settings"]').should("not.exist");
 
