@@ -998,6 +998,13 @@ class TaskWithAnnotationsAndPredictionsAndDraftsSerializer(TaskSerializer):
         if 'request' in self.context and hasattr(self.context['request'], 'user'):
             return self.context['request'].user
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if ret.get('assignment_id') is None:
+            ret.pop('assignment_id', None)
+            ret.pop('assignment_version', None)
+        return ret
+
     def get_predictions(self, task):
         predictions = task.predictions
         user = self._get_user()
