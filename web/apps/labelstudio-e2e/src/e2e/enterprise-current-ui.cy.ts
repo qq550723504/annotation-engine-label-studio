@@ -25,14 +25,21 @@ describe('enterprise collaboration - currently available UI', () => {
   });
 
   const dataPage = () => `/projects/${fixture.project_id}/data`;
-  const taskPage = (taskId: number) => `${dataPage()}?task=${taskId}`;
+
+  const expectDataManagerTaskIds = (expectedIds: number[]) => {
+    cy.window({ timeout: 30000 }).its('dataManager').should('exist');
+    cy.window({ timeout: 30000 }).should((win) => {
+      const list = win.dataManager?.store?.taskStore?.list ?? [];
+      const ids = Array.from(list, (task: { id: number }) => task.id).sort((a, b) => a - b);
+      expect(ids).to.deep.equal([...expectedIds].sort((a, b) => a - b));
+    });
+  };
 
   it('keeps annotator task visibility isolated in the real browser session', () => {
     cy.loginAs(fixture.users.annotator_a.email, fixture.password, dataPage());
 
     cy.visit(dataPage());
-    cy.contains('Annotator A browser acceptance task', { timeout: 30000 }).should('be.visible');
-    cy.contains('Annotator B browser acceptance task').should('not.exist');
+    expectDataManagerTaskIds([fixture.tasks.a.id]);
 
     cy.request(`/api/tasks/${fixture.tasks.a.id}/`).its('status').should('eq', 200);
     cy.request({
@@ -40,7 +47,12 @@ describe('enterprise collaboration - currently available UI', () => {
       failOnStatusCode: false,
     }).its('status').should('eq', 404);
 
-    cy.visit(taskPage(fixture.tasks.b.id), { failOnStatusCode: false });
+    cy.window().then((win) => {
+      return win.dataManager.store.setTask({
+        taskID: fixture.tasks.b.id,
+        pushState: false,
+      });
+    });
     cy.request({
       url: `/api/tasks/${fixture.tasks.b.id}/`,
       failOnStatusCode: false,
@@ -51,8 +63,7 @@ describe('enterprise collaboration - currently available UI', () => {
     cy.loginAs(fixture.users.annotator_b.email, fixture.password, dataPage());
 
     cy.visit(dataPage());
-    cy.contains('Annotator B browser acceptance task', { timeout: 30000 }).should('be.visible');
-    cy.contains('Annotator A browser acceptance task').should('not.exist');
+    expectDataManagerTaskIds([fixture.tasks.b.id]);
 
     cy.request(`/api/tasks/${fixture.tasks.b.id}/`).its('status').should('eq', 200);
     cy.request({
@@ -65,8 +76,7 @@ describe('enterprise collaboration - currently available UI', () => {
     cy.loginAs(fixture.users.reviewer.email, fixture.password, dataPage());
 
     cy.visit(dataPage());
-    cy.contains('Annotator A browser acceptance task').should('not.exist');
-    cy.contains('Annotator B browser acceptance task').should('not.exist');
+    expectDataManagerTaskIds([]);
 
     cy.request({
       url: `/api/tasks/${fixture.tasks.a.id}/`,
@@ -75,10 +85,19 @@ describe('enterprise collaboration - currently available UI', () => {
   });
 
   it('uses the existing editor Submit action to create an immutable submission', () => {
-    cy.loginAs(fixture.users.annotator_a.email, fixture.password, taskPage(fixture.tasks.a.id));
+    cy.loginAs(fixture.users.annotator_a.email, fixture.password, dataPage());
 
+    cy.intercept('GET', '**/api/dm/tasks/next**').as('nextTask');
     cy.intercept('POST', `/api/tasks/${fixture.tasks.a.id}/annotations/`).as('submitAnnotation');
-    cy.visit(taskPage(fixture.tasks.a.id));
+    cy.visit(dataPage());
+    expectDataManagerTaskIds([fixture.tasks.a.id]);
+
+    cy.contains('button', /Label All Tasks/i, { timeout: 30000 }).should('be.visible').click();
+    cy.wait('@nextTask').its('response.statusCode').should('eq', 200);
+
+    cy.window({ timeout: 30000 }).should((win) => {
+      expect(win.dataManager?.lsf?.task?.id).to.eq(fixture.tasks.a.id);
+    });
 
     cy.contains('button', /^Submit$/i, { timeout: 30000 }).should('be.visible').click();
 
@@ -100,8 +119,9 @@ describe('enterprise collaboration - currently available UI', () => {
   });
 
   it('rejects writes from an already-open page after membership revocation', () => {
-    cy.loginAs(fixture.users.annotator_b.email, fixture.password, taskPage(fixture.tasks.b.id));
-    cy.visit(taskPage(fixture.tasks.b.id));
+    cy.loginAs(fixture.users.annotator_b.email, fixture.password, dataPage());
+    cy.visit(dataPage());
+    expectDataManagerTaskIds([fixture.tasks.b.id]);
 
     cy.request(`/api/tasks/${fixture.tasks.b.id}/`).then((taskResponse) => {
       const assignmentId = taskResponse.body.assignment_id;
