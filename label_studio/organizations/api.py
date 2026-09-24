@@ -192,19 +192,18 @@ class OrganizationMemberListAPI(generics.ListAPIView):
 
     def get_queryset(self):
         org = generics.get_object_or_404(self.request.user.organizations, pk=self.kwargs[self.lookup_field])
-        if flag_set('fix_backend_dev_3134_exclude_deactivated_users', self.request.user):
-            serializer = OrganizationMemberListParamsSerializer(data=self.request.GET)
-            serializer.is_valid(raise_exception=True)
-            active = serializer.validated_data.get('active')
+        serializer = OrganizationMemberListParamsSerializer(data=self.request.GET)
+        serializer.is_valid(raise_exception=True)
+        active = serializer.validated_data.get('active')
 
-            # return only active users (exclude DISABLED and NOT_ACTIVATED)
-            if active:
-                return org.active_members.prefetch_related('user__om_through').order_by('user__username')
+        members = org.members
+        if active:
+            # active=true is a stable API contract used by project-member
+            # administration. Soft-deleted organization memberships must never
+            # be offered as selectable project-member candidates.
+            members = members.filter(deleted_at__isnull=True)
 
-            # organization page to show all members
-            return org.members.prefetch_related('user__om_through').order_by('user__username')
-        else:
-            return org.members.prefetch_related('user__om_through').order_by('user__username')
+        return members.prefetch_related('user__om_through').order_by('user__username')
 
     def list(self, request, *args, **kwargs):
         page = self.paginated_members   # Using cached property to avoid multiple queries
