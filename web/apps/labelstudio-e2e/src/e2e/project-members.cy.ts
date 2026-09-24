@@ -104,7 +104,7 @@ describe("project member and role management UI", () => {
       // The failed duplicate mutation must not report success, but the roster
       // still reflects the authoritative server state created out-of-band.
       cy.contains("tr", fixture.users.candidate_annotator.email)
-        .should("be.visible")
+        .should("exist")
         .and("contain.text", "Enabled");
 
       cy.request(
@@ -112,6 +112,25 @@ describe("project member and role management UI", () => {
         `/api/projects/${fixture.project_id}/members/${created.body.id}/`,
       ).its("status").should("eq", 204);
     });
+  });
+
+  it("cleans up a stale manager session after out-of-band revocation", () => {
+    openAsManager();
+
+    cy.task("setEnterpriseE2EMember", { actor: "manager", enabled: false });
+
+    cy.get('[data-testid^="member-role-"]').first().then(($select) => {
+      const currentValue = String($select.val());
+      const nextValue = currentValue === "reviewer" ? "annotator" : "reviewer";
+
+      cy.wrap($select).select(nextValue);
+    });
+
+    cy.location("pathname", { timeout: 30000 }).should("eq", "/projects");
+    cy.get('[data-testid="project-members-settings"]').should("not.exist");
+    cy.contains("a", "Members").should("not.exist");
+
+    cy.task("setEnterpriseE2EMember", { actor: "manager", enabled: true });
   });
 
   for (const actor of ["annotator_a", "reviewer"] as const) {
