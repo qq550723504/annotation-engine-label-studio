@@ -2,6 +2,7 @@
 
 import logging
 
+from access_control.identity import resolve_principal
 from core.feature_flags import flag_set
 from core.mixins import GetParentObjectMixin
 from core.permissions import ViewClassPermission, all_permissions
@@ -648,10 +649,14 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
         annotation.delete()
 
     def update(self, request, *args, **kwargs):
+        # Resolve the trusted server-side actor before touching audit fields.
+        resolve_principal(request)
+        user = request.user
+
         # save user history with annotator_id, time & annotation result
         annotation = self.get_object()
         # use updated instead of save to avoid duplicated signals
-        Annotation.objects.filter(id=annotation.id).update(updated_by=request.user)
+        Annotation.objects.filter(id=annotation.id).update(updated_by=user)
 
         task = annotation.task
         if self.request.data.get('ground_truth'):
@@ -785,6 +790,8 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
 
     def perform_create(self, ser):
         task = self.parent_object
+        # Resolve the trusted actor once. Authorization policy is layered on in later milestones.
+        resolve_principal(self.request)
         # annotator has write access only to annotations and it can't be checked it after serializer.save()
         user = self.request.user
 
@@ -798,7 +805,15 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
 
         # updates history
         result = ser.validated_data.get('result')
-        extra_args = {'task_id': self.kwargs['pk'], 'project_id': task.project_id}
+        # Interactive annotation authorship always comes from the authenticated
+        # server-side actor. Client-supplied completed_by / updated_by cannot
+        # override these values.
+        extra_args = {
+            'task_id': self.kwargs['pk'],
+            'project_id': task.project_id,
+            'completed_by': user,
+            'updated_by': user,
+        }
 
         # save stats about how well annotator annotations coincide with current prediction
         # only for finished task annotations
@@ -815,9 +830,6 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
 
         if 'was_cancelled' in self.request.GET:
             extra_args['was_cancelled'] = bool_from_request(self.request.GET, 'was_cancelled', False)
-
-        if 'completed_by' not in ser.validated_data:
-            extra_args['completed_by'] = self.request.user
 
         draft_id = self.request.data.get('draft_id')
         draft = AnnotationDraft.objects.filter(id=draft_id).first()
