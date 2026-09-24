@@ -901,7 +901,13 @@ class TaskManager(models.Manager):
             .filter(
                 Q(project__created_by=user)
                 | Q(project__members__user=user, project__members__enabled=True, project__members__role='manager')
-                | Q(assignments__assignee=user, assignments__status__in=['assigned', 'in_progress'])
+                | Q(
+                    project__members__user=user,
+                    project__members__enabled=True,
+                    project__members__role='annotator',
+                    assignments__assignee=user,
+                    assignments__status__in=['assigned', 'in_progress'],
+                )
             )
             .distinct()
         )
