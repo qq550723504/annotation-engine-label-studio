@@ -66,9 +66,10 @@ jobs:
       - name: Generate version file
         run: poetry run python label_studio/core/version.py
 
-      - name: Migrate and seed enterprise E2E data
+      - name: Migrate, collect static files, and seed enterprise E2E data
         run: |
           poetry run python label_studio/manage.py migrate --noinput
+          poetry run python label_studio/manage.py collectstatic --noinput
           poetry run python label_studio/manage.py seed_enterprise_e2e
 
       - name: Set up Node
@@ -123,7 +124,7 @@ jobs:
           name: enterprise-browser-e2e-artifacts
           if-no-files-found: ignore
           path: |
-            web/apps/labelstudio-e2e/**/screenshots/**
-            web/apps/labelstudio-e2e/**/videos/**
+            web/dist/cypress/apps/labelstudio-e2e/screenshots/**
+            web/dist/cypress/apps/labelstudio-e2e/videos/**
             /tmp/label-studio-django.log
             /tmp/label-studio-frontend.log
