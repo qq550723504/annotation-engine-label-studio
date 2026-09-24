@@ -1,6 +1,5 @@
 name: Fork PR Gate
 
-# Fork-owned CI for pull requests targeting main.
 on:
   pull_request:
     branches:
