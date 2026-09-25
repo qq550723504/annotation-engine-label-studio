@@ -143,3 +143,5 @@ The first milestone is a secure flow for two annotators and one reviewer: assign
 
 Project member administration depends on `GET /api/organizations/{org_id}/memberships?active=true` returning only non-deleted organization memberships. In this fork, `active=true` is therefore treated as a stable authorization-adjacent contract and filters `deleted_at IS NULL` regardless of the upstream feature-flag rollout state. This prevents soft-deleted organization users from being offered as project-member candidates. Preserve this behavior across upstream rebases unless the project-member UI is migrated to another server-filtered candidate source.
 
+Project member administration uses a dedicated lightweight capability probe at `GET /api/projects/{project_id}/members/capability/`, enforced by the same server-side `authorization.can_manage_project(...)` check as member mutations. Settings navigation must use this endpoint rather than loading the roster. The actual member list at `GET /api/projects/{project_id}/members/` is paginated (limit/offset) to avoid unbounded serialization for large projects.
+
