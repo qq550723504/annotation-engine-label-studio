@@ -5,6 +5,7 @@ type Fixture = {
   project_id: number;
   users: {
     manager: { id: number; email: string };
+    manager_b: { id: number; email: string };
     annotator_a: { id: number; email: string };
     annotator_b: { id: number; email: string };
     reviewer: { id: number; email: string };
@@ -20,6 +21,12 @@ describe("project member and role management UI", () => {
     cy.readFile(".enterprise-e2e.json").then((data) => {
       fixture = data as Fixture;
     });
+  });
+
+  afterEach(() => {
+    if (fixture?.users?.manager_b) {
+      cy.task("setEnterpriseE2EMember", { actor: "manager_b", enabled: true });
+    }
   });
 
   const settingsPage = () => `/projects/${fixture.project_id}/settings/`;
@@ -115,9 +122,12 @@ describe("project member and role management UI", () => {
   });
 
   it("cleans up a stale manager session after out-of-band revocation", () => {
-    openAsManager();
+    openProjectSettings(fixture.users.manager_b.email);
+    cy.contains("a", "Members", { timeout: 30000 }).should("be.visible").click();
+    cy.location("pathname", { timeout: 30000 }).should("eq", membersPage());
+    cy.get('[data-testid="project-members-settings"]', { timeout: 30000 }).should("be.visible");
 
-    cy.task("setEnterpriseE2EMember", { actor: "manager", enabled: false });
+    cy.task("setEnterpriseE2EMember", { actor: "manager_b", enabled: false });
 
     cy.get(`[data-testid="member-role-${fixture.users.annotator_a.id}"]`).select("reviewer");
 
@@ -125,7 +135,6 @@ describe("project member and role management UI", () => {
     cy.get('[data-testid="project-members-settings"]').should("not.exist");
     cy.contains("a", "Members").should("not.exist");
 
-    cy.task("setEnterpriseE2EMember", { actor: "manager", enabled: true });
   });
 
   for (const actor of ["annotator_a", "reviewer"] as const) {
