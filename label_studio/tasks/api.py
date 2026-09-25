@@ -1215,7 +1215,7 @@ class TaskAssignmentEligibleAssigneeListAPI(generics.ListAPIView):
             user_id__in=eligible_user_ids,
         ).values_list('user_id', flat=True)
 
-        return User.objects.filter(id__in=active_org_user_ids).order_by('email', 'id')
+        return User.objects.filter(id__in=active_org_user_ids, is_active=True).order_by('email', 'id')
 
 
 class TaskAssignmentAPI(generics.RetrieveDestroyAPIView):
