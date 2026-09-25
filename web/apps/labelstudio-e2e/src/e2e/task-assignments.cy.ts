@@ -32,6 +32,7 @@ describe("task assignment management UI", () => {
   };
 
   const openAssignmentManager = () => {
+    cy.get("body").type("{esc}", { force: true });
     cy.get('[data-testid="manage-task-assignments"]', { timeout: 30000 })
       .should("be.visible")
       .and("not.be.disabled")
@@ -40,7 +41,7 @@ describe("task assignment management UI", () => {
     cy.get('[data-testid="assignment-manager"]', { timeout: 30000 }).should("exist");
   };
 
-  it("assigns, cancels, and reassigns a task through the manager UI", () => {
+  it("assigns, revokes a stale session, and reassigns a task", () => {
     openTaskAs(fixture.users.manager.email);
     openAssignmentManager();
 
@@ -62,17 +63,22 @@ describe("task assignment management UI", () => {
       expect(response.body).to.have.length(1);
       const oldAssignment = response.body[0];
 
-      cy.loginAs(fixture.users.annotator_a.email, fixture.password, dataPage());
+      openTaskAs(fixture.users.annotator_a.email);
       cy.request(`/api/tasks/${fixture.tasks.c.id}/`).its("status").should("eq", 200);
 
-      openTaskAs(fixture.users.manager.email);
-      openAssignmentManager();
-      cy.contains('[data-testid^="assignment-"]', fixture.users.annotator_a.email).within(() => {
-        cy.contains("button", "Cancel assignment").click();
+      // Preserve Annotator A's browser session while assignment state changes out of band.
+      cy.task("setEnterpriseE2EAssignment", {
+        action: "cancel",
+        taskId: fixture.tasks.c.id,
+        actor: "annotator_a",
       });
-      cy.get('[data-testid="assignment-empty"]').should("exist");
+      cy.task("setEnterpriseE2EAssignment", {
+        action: "assign",
+        taskId: fixture.tasks.c.id,
+        actor: "annotator_a",
+      });
 
-      cy.loginAs(fixture.users.annotator_a.email, fixture.password, dataPage());
+      // Same user was reassigned, so the stale assignment id/version must conflict.
       cy.request({
         url: `/api/tasks/${fixture.tasks.c.id}/annotations/`,
         method: "POST",
@@ -82,12 +88,18 @@ describe("task assignment management UI", () => {
           assignment_id: oldAssignment.id,
           assignment_version: oldAssignment.version,
         },
-      }).then((staleWrite) => {
-        expect([403, 404, 409]).to.include(staleWrite.status);
+      }).its("status").should("eq", 409);
+
+      // Cancel the fresh A assignment out of band, then reassign to B through the Manager UI.
+      cy.task("setEnterpriseE2EAssignment", {
+        action: "cancel",
+        taskId: fixture.tasks.c.id,
+        actor: "annotator_a",
       });
 
       openTaskAs(fixture.users.manager.email);
       openAssignmentManager();
+      cy.get('[data-testid="assignment-empty"]').should("exist");
       cy.get('[data-testid="assignment-assignee-select"]').select(String(fixture.users.annotator_b.id));
       cy.contains("button", "Assign").click();
       cy.contains('[data-testid^="assignment-"]', fixture.users.annotator_b.email).should("exist");
