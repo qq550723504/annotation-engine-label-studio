@@ -237,7 +237,7 @@ export const MembersSettings = () => {
       setProcessing(null);
       return true;
     },
-    [history, loadMembers, loadOrganizationUsers, project.id],
+    [history, loadMembers, loadOrganizationUsers, memberPage, project.id],
   );
 
   const addMember = async (event) => {
