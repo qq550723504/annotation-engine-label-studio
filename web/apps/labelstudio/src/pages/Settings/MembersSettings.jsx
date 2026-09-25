@@ -103,20 +103,19 @@ export const MembersSettings = () => {
   const loadOrganizationUsers = useCallback(
     async (
       page = organizationPage,
-      organizationId = project?.organization,
       projectId = activeProjectIdRef.current,
       refreshGeneration = null,
     ) => {
-      if (!organizationId || !projectId) return;
+      if (!projectId) return;
 
       const requestGeneration = ++organizationRequestGenerationRef.current;
-      const result = await callApiRef.current("memberships", {
+      const result = await callApiRef.current("projectMemberCandidates", {
         params: {
-          pk: organizationId,
-          active: true,
+          pk: projectId,
           page,
           page_size: 50,
         },
+        errorFilter: (apiError) => [403, 404].includes(apiError?.status),
       });
 
       if (
@@ -130,27 +129,25 @@ export const MembersSettings = () => {
         setOrganizationHasPrevious(Boolean(result.previous));
       }
     },
-    [organizationPage, project?.organization],
+    [organizationPage],
   );
 
   const refresh = useCallback(async () => {
     const generation = ++refreshGenerationRef.current;
     const projectId = project?.id;
-    const organizationId = project?.organization;
-
     if (!projectId) return;
 
     setLoading(true);
     const allowed = await loadMembers(memberPage, projectId, generation);
 
     if (allowed) {
-      await loadOrganizationUsers(organizationPage, organizationId, projectId, generation);
+      await loadOrganizationUsers(organizationPage, projectId, generation);
     }
 
     if (refreshGenerationRef.current === generation && activeProjectIdRef.current === projectId) {
       setLoading(false);
     }
-  }, [loadMembers, loadOrganizationUsers, memberPage, organizationPage, project?.id, project?.organization]);
+  }, [loadMembers, loadOrganizationUsers, memberPage, organizationPage, project?.id]);
 
   useEffect(() => {
     if (project?.id) refresh();
