@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHistory } from "react-router";
 import { Button, Typography } from "@humansignal/ui";
 import { Spinner } from "../../components/Spinner/Spinner";
@@ -33,6 +33,8 @@ const responseItems = (response) => {
 
 export const MembersSettings = () => {
   const api = useAPI();
+  const callApiRef = useRef(api.callApi);
+  callApiRef.current = api.callApi;
   const history = useHistory();
   const { project } = useProject();
   const [members, setMembers] = useState([]);
@@ -45,17 +47,24 @@ export const MembersSettings = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(null);
   const [error, setError] = useState("");
+  const activeProjectIdRef = useRef(project?.id);
+  const refreshGenerationRef = useRef(0);
+  activeProjectIdRef.current = project?.id;
 
-  const loadMembers = useCallback(async () => {
-    if (!project?.id) return false;
+  const loadMembers = useCallback(async (projectId = activeProjectIdRef.current, generation = null) => {
+    if (!projectId) return false;
 
-    const result = await api.callApi("projectMembers", {
-      params: { pk: project.id },
+    const result = await callApiRef.current("projectMembers", {
+      params: { pk: projectId },
       errorFilter: (apiError) => [403, 404].includes(apiError?.status),
     });
 
+    if (activeProjectIdRef.current !== projectId || (generation !== null && refreshGenerationRef.current !== generation)) {
+      return false;
+    }
+
     if ([403, 404].includes(result?.status) || [403, 404].includes(result?.$meta?.status)) {
-      history.replace(`/projects/${project.id}/settings`);
+      history.replace(`/projects/${projectId}/settings`);
       return false;
     }
 
@@ -63,40 +72,57 @@ export const MembersSettings = () => {
 
     setMembers(responseItems(result));
     return true;
-  }, [api, history, project?.id]);
+  }, [history]);
 
   const loadOrganizationUsers = useCallback(
-    async (page = organizationPage) => {
-      if (!project?.organization) return;
+    async (
+      page = organizationPage,
+      organizationId = project?.organization,
+      projectId = activeProjectIdRef.current,
+      generation = null,
+    ) => {
+      if (!organizationId || !projectId) return;
 
-      const result = await api.callApi("memberships", {
+      const result = await callApiRef.current("memberships", {
         params: {
-          pk: project.organization,
+          pk: organizationId,
           active: true,
           page,
           page_size: 50,
         },
       });
 
-      if (result) {
+      if (
+        result &&
+        activeProjectIdRef.current === projectId &&
+        (generation === null || refreshGenerationRef.current === generation)
+      ) {
         setOrganizationUsers(responseItems(result).map((membership) => membership.user).filter(Boolean));
         setOrganizationHasNext(Boolean(result.next));
         setOrganizationHasPrevious(Boolean(result.previous));
       }
     },
-    [api, organizationPage, project?.organization],
+    [organizationPage, project?.organization],
   );
 
   const refresh = useCallback(async () => {
+    const generation = ++refreshGenerationRef.current;
+    const projectId = project?.id;
+    const organizationId = project?.organization;
+
+    if (!projectId) return;
+
     setLoading(true);
-    const allowed = await loadMembers();
+    const allowed = await loadMembers(projectId, generation);
 
     if (allowed) {
-      await loadOrganizationUsers();
+      await loadOrganizationUsers(organizationPage, organizationId, projectId, generation);
     }
 
-    setLoading(false);
-  }, [loadMembers, loadOrganizationUsers]);
+    if (refreshGenerationRef.current === generation && activeProjectIdRef.current === projectId) {
+      setLoading(false);
+    }
+  }, [loadMembers, loadOrganizationUsers, organizationPage, project?.id, project?.organization]);
 
   useEffect(() => {
     if (project?.id) refresh();
@@ -104,9 +130,14 @@ export const MembersSettings = () => {
 
   const effectiveMembers = useMemo(() => {
     const creatorId = project.created_by?.id;
-    if (!creatorId || members.some((member) => member.user?.id === creatorId)) {
-      return members;
-    }
+    if (!creatorId) return members;
+
+    const hasCreator = members.some((member) => member.user?.id === creatorId);
+    const normalizedMembers = members.map((member) =>
+      member.user?.id === creatorId ? { ...member, role: "manager", enabled: true } : member,
+    );
+
+    if (hasCreator) return normalizedMembers;
 
     return [
       {
@@ -116,7 +147,7 @@ export const MembersSettings = () => {
         enabled: true,
         implicitCreator: true,
       },
-      ...members,
+      ...normalizedMembers,
     ];
   }, [members, project.created_by]);
 
@@ -141,10 +172,16 @@ export const MembersSettings = () => {
       setProcessing(label);
       setError("");
 
-      const result = await api.callApi(method, {
+      const mutationProjectId = project.id;
+      const result = await callApiRef.current(method, {
         ...options,
         errorFilter: () => true,
       });
+
+      if (activeProjectIdRef.current !== mutationProjectId) {
+        setProcessing(null);
+        return false;
+      }
 
       const status = result?.status ?? result?.$meta?.status;
       if ([403, 404].includes(status)) {
@@ -172,7 +209,7 @@ export const MembersSettings = () => {
       setProcessing(null);
       return true;
     },
-    [api, history, loadMembers, loadOrganizationUsers, project.id],
+    [history, loadMembers, loadOrganizationUsers, project.id],
   );
 
   const addMember = async (event) => {
