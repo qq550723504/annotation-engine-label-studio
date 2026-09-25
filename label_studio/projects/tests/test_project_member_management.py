@@ -61,6 +61,36 @@ class TestProjectMemberManagement(APITestCase):
         assert 'next' in payload
         assert 'previous' in payload
 
+    def test_member_candidates_exclude_existing_members_and_creator(self):
+        ProjectMember.objects.create(
+            project=self.project,
+            user=self.reviewer,
+            role=ProjectMember.Role.REVIEWER,
+        )
+
+        candidate = UserFactory(active_organization=self.organization)
+        self.organization.add_user(candidate)
+
+        response = self.client.get(f'/api/projects/{self.project.id}/members/candidates/?page_size=50')
+
+        assert response.status_code == 200
+        user_ids = {item['user']['id'] for item in response.json()['results']}
+        assert candidate.id in user_ids
+        assert self.reviewer.id not in user_ids
+        assert self.manager.id not in user_ids
+
+    def test_member_candidates_require_manager_role(self):
+        self.client.force_authenticate(user=self.annotator)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=self.annotator,
+            role=ProjectMember.Role.ANNOTATOR,
+        )
+
+        response = self.client.get(f'/api/projects/{self.project.id}/members/candidates/')
+
+        assert response.status_code == 403
+
     def test_manager_can_add_annotator(self):
         response = self.client.post(
             f'/api/projects/{self.project.id}/members/',
