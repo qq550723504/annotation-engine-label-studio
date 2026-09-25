@@ -239,13 +239,47 @@ class TestTaskAssignmentAuthorization(APITestCase):
         )
 
         assert response.status_code == 200
-        user_ids = {item['id'] for item in response.json()}
+        user_ids = {item['id'] for item in response.json()['results']}
         assert self.annotator_a.id in user_ids
         assert self.annotator_b.id in user_ids
         assert self.manager.id in user_ids
         assert self.reviewer.id not in user_ids
         assert disabled.id not in user_ids
         assert removed.id not in user_ids
+
+    def test_eligible_assignees_paginate_across_page_boundary(self):
+        bulk_users = []
+        for _ in range(55):
+            user = UserFactory(active_organization=self.organization)
+            self.organization.add_user(user)
+            ProjectMember.objects.create(
+                project=self.project,
+                user=user,
+                role=ProjectMember.Role.ANNOTATOR,
+                enabled=True,
+            )
+            bulk_users.append(user)
+
+        self.client.force_authenticate(user=self.manager)
+        first_response = self.client.get(
+            f'/api/task-assignments/eligible-assignees/?project={self.project.id}&page_size=50&page=1'
+        )
+        second_response = self.client.get(
+            f'/api/task-assignments/eligible-assignees/?project={self.project.id}&page_size=50&page=2'
+        )
+
+        assert first_response.status_code == 200
+        assert second_response.status_code == 200
+        first_page = first_response.json()
+        second_page = second_response.json()
+        assert first_page['next'] is not None
+        assert second_page['previous'] is not None
+
+        returned_ids = {
+            item['id']
+            for item in first_page['results'] + second_page['results']
+        }
+        assert {user.id for user in bulk_users}.issubset(returned_ids)
 
     def test_manager_cannot_swap_project_id_to_read_other_project_assignees(self):
         other_creator = UserFactory(active_organization=self.organization)
@@ -317,7 +351,7 @@ class TestTaskAssignmentAuthorization(APITestCase):
             f'/api/task-assignments/eligible-assignees/?project={self.project.id}'
         )
         assert eligible.status_code == 200
-        assert inactive.id not in {item['id'] for item in eligible.json()}
+        assert inactive.id not in {item['id'] for item in eligible.json()['results']}
 
         new_task = TaskFactory(project=self.project)
         response = self.client.post(
