@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SidebarMenu } from "../../components/SidebarMenu/SidebarMenu";
 import { useAPI } from "../../providers/ApiProvider";
 import { useProject } from "../../providers/ProjectProvider";
@@ -15,7 +15,7 @@ import "./settings.scss";
 
 export const MenuLayout = ({ children, ...routeProps }) => {
   const api = useAPI();
-  const callApi = api.callApi;
+  const callApi = useRef(api.callApi).current;
   const { project } = useProject();
   const [canManageMembers, setCanManageMembers] = useState(false);
 
