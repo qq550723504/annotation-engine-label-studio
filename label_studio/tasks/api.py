@@ -1204,26 +1204,19 @@ class TaskAssignmentEligibleAssigneeListAPI(generics.ListAPIView):
             project=project,
             enabled=True,
             role__in=[ProjectMember.Role.ANNOTATOR, ProjectMember.Role.MANAGER],
-        ).values_list('user_id', flat=True)
-
-        eligible_user_ids = set(explicit_user_ids)
-        if (
-            project.created_by_id is not None
-            and OrganizationMember.objects.filter(
-                organization=project.organization,
-                user_id=project.created_by_id,
-                deleted_at__isnull=True,
-            ).exists()
-        ):
-            eligible_user_ids.add(project.created_by_id)
+        ).values('user_id')
 
         active_org_user_ids = OrganizationMember.objects.filter(
             organization=project.organization,
             deleted_at__isnull=True,
-            user_id__in=eligible_user_ids,
-        ).values_list('user_id', flat=True)
+        ).values('user_id')
 
-        return User.objects.filter(id__in=active_org_user_ids, is_active=True).order_by('email', 'id')
+        eligible_users = User.objects.filter(
+            Q(id__in=explicit_user_ids) | Q(id=project.created_by_id),
+            id__in=active_org_user_ids,
+            is_active=True,
+        )
+        return eligible_users.order_by('email', 'id')
 
 
 class TaskAssignmentAPI(generics.RetrieveDestroyAPIView):
