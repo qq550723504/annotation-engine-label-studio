@@ -8,6 +8,7 @@ from users.models import User
 
 EMAILS = {
     'manager': 'e2e-manager@example.com',
+    'manager_b': 'e2e-manager-b@example.com',
     'annotator_a': 'e2e-annotator-a@example.com',
     'annotator_b': 'e2e-annotator-b@example.com',
     'reviewer': 'e2e-reviewer@example.com',
