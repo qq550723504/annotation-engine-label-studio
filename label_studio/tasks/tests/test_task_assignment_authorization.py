@@ -248,10 +248,11 @@ class TestTaskAssignmentAuthorization(APITestCase):
         assert removed.id not in user_ids
 
     def test_manager_cannot_swap_project_id_to_read_other_project_assignees(self):
-        other_organization = OrganizationFactory()
+        other_creator = UserFactory(active_organization=self.organization)
+        self.organization.add_user(other_creator)
         other_project = ProjectFactory(
-            organization=other_organization,
-            created_by=other_organization.created_by,
+            organization=self.organization,
+            created_by=other_creator,
         )
 
         self.client.force_authenticate(user=self.manager)
@@ -299,6 +300,33 @@ class TestTaskAssignmentAuthorization(APITestCase):
         assert assignment.assignee_id == self.annotator_a.id
         assert assignment.assigned_by_id == self.manager.id
         assert assignment.status == TaskAssignment.Status.ASSIGNED
+
+    def test_manager_cannot_assign_soft_deleted_organization_member(self):
+        revoked = UserFactory(active_organization=self.organization)
+        self.organization.add_user(revoked)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=revoked,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+        org_membership = OrganizationMember.objects.get(
+            organization=self.organization,
+            user=revoked,
+        )
+        org_membership.deleted_at = org_membership.created_at
+        org_membership.save(update_fields=['deleted_at'])
+
+        new_task = TaskFactory(project=self.project)
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.post(
+            '/api/task-assignments/',
+            data={'task': new_task.id, 'assignee': revoked.id},
+            format='json',
+        )
+
+        assert response.status_code == 400
+        assert not TaskAssignment.objects.filter(task=new_task, assignee=revoked).exists()
 
     def test_manager_cannot_assign_reviewer_as_annotator(self):
         new_task = TaskFactory(project=self.project)
