@@ -277,7 +277,7 @@ DataManagerPage.context = ({ dmRef }) => {
     if (!taskId) {
       toast.show({
         message: "Open a task before managing assignments.",
-        type: ToastType.info,
+        type: ToastType.error,
       });
       return;
     }
