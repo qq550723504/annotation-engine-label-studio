@@ -26,7 +26,7 @@ export const MenuLayout = ({ children, ...routeProps }) => {
     const probeMemberManagement = async () => {
       if (!project?.id) return;
 
-      const result = await callApi("projectMembers", {
+      const result = await callApi("projectMemberCapability", {
         params: { pk: project.id },
         errorFilter: (apiError) => [403, 404].includes(apiError?.status),
       });
@@ -40,7 +40,7 @@ export const MenuLayout = ({ children, ...routeProps }) => {
         return;
       }
 
-      setCanManageMembers(Boolean(result && !result.error && status !== 403));
+      setCanManageMembers(Boolean(result?.can_manage && !result.error && status !== 403));
     };
 
     probeMemberManagement();
