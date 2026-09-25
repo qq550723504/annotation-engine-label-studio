@@ -24,13 +24,16 @@ export const AssignmentManager = ({ projectId, taskId }) => {
 
   const [assignments, setAssignments] = useState([]);
   const [eligibleUsers, setEligibleUsers] = useState([]);
+  const [eligiblePage, setEligiblePage] = useState(1);
+  const [eligibleHasNext, setEligibleHasNext] = useState(false);
+  const [eligibleHasPrevious, setEligibleHasPrevious] = useState(false);
   const [selectedAssigneeId, setSelectedAssigneeId] = useState("");
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(null);
   const [error, setError] = useState("");
   const generationRef = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (page = eligiblePage) => {
     const generation = ++generationRef.current;
     setLoading(true);
 
@@ -40,7 +43,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
         errorFilter: () => true,
       }),
       callApiRef.current("eligibleTaskAssignees", {
-        params: { project: projectId },
+        params: { project: projectId, page, page_size: 50 },
         errorFilter: () => true,
       }),
     ]);
@@ -67,15 +70,17 @@ export const AssignmentManager = ({ projectId, taskId }) => {
 
     setAssignments(Array.isArray(assignmentResult) ? assignmentResult : assignmentResult?.results ?? []);
     setEligibleUsers(Array.isArray(assigneeResult) ? assigneeResult : assigneeResult?.results ?? []);
+    setEligibleHasNext(Boolean(assigneeResult?.next));
+    setEligibleHasPrevious(Boolean(assigneeResult?.previous));
     setLoading(false);
-  }, [projectId, taskId]);
+  }, [eligiblePage, projectId, taskId]);
 
   useEffect(() => {
-    refresh();
+    refresh(eligiblePage);
     return () => {
       generationRef.current += 1;
     };
-  }, [refresh]);
+  }, [eligiblePage, refresh]);
 
   const activeAssigneeIds = useMemo(
     () => new Set(assignments.map((assignment) => assignment.assignee)),
@@ -118,12 +123,12 @@ export const AssignmentManager = ({ projectId, taskId }) => {
     if (!result || result?.error || result?.$meta?.ok === false) {
       setError(errorMessage(result, "The task could not be assigned."));
       setProcessing(null);
-      await refresh();
+      await refresh(eligiblePage);
       return;
     }
 
     setSelectedAssigneeId("");
-    await refresh();
+    await refresh(eligiblePage);
     setProcessing(null);
   };
 
@@ -139,11 +144,11 @@ export const AssignmentManager = ({ projectId, taskId }) => {
     if (!result || result?.error || result?.$meta?.ok === false) {
       setError(errorMessage(result, "The assignment could not be cancelled."));
       setProcessing(null);
-      await refresh();
+      await refresh(eligiblePage);
       return;
     }
 
-    await refresh();
+    await refresh(eligiblePage);
     setProcessing(null);
   };
 
@@ -189,6 +194,36 @@ export const AssignmentManager = ({ projectId, taskId }) => {
           onClick={assign}
         >
           Assign
+        </Button>
+      </div>
+
+      <div className={cn("assignment-manager").elem("pagination").toClassName()}>
+        <Button
+          size="small"
+          look="outlined"
+          disabled={!eligibleHasPrevious || processing !== null}
+          onClick={async () => {
+            const nextPage = Math.max(1, eligiblePage - 1);
+            setEligiblePage(nextPage);
+            setSelectedAssigneeId("");
+            await refresh(nextPage);
+          }}
+        >
+          Previous assignees
+        </Button>
+        <span>Eligible assignees page {eligiblePage}</span>
+        <Button
+          size="small"
+          look="outlined"
+          disabled={!eligibleHasNext || processing !== null}
+          onClick={async () => {
+            const nextPage = eligiblePage + 1;
+            setEligiblePage(nextPage);
+            setSelectedAssigneeId("");
+            await refresh(nextPage);
+          }}
+        >
+          Next assignees
         </Button>
       </div>
 
