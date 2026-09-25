@@ -1,5 +1,5 @@
 import type React from "react";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { shallowEqualObjects } from "shallow-equal";
 import { addVisitedProject } from "@humansignal/core";
 import { useAuth } from "@humansignal/core/providers/AuthProvider";
@@ -38,6 +38,7 @@ export const ProjectProvider: React.FunctionComponent = ({ children }) => {
   const { update: updateStore } = useAppStore();
   // @todo use null for missed project data
   const [projectData, _setProjectData] = useState<APIProject | Empty>(projectCache.get(+routeProjectId) ?? {});
+  const requestGenerationRef = useRef(0);
   const setProject = useSetAtom(projectAtom);
 
   const setProjectData = (project: APIProject | Empty) => {
@@ -48,6 +49,7 @@ export const ProjectProvider: React.FunctionComponent = ({ children }) => {
   const fetchProject: Context["fetchProject"] = useCallback(
     async (id, force = false) => {
       const finalProjectId = +(id ?? routeProjectId);
+      const requestGeneration = ++requestGenerationRef.current;
 
       if (isNaN(finalProjectId)) return;
 
@@ -59,6 +61,10 @@ export const ProjectProvider: React.FunctionComponent = ({ children }) => {
         params: { pk: finalProjectId },
         errorFilter: () => false,
       });
+
+      if (requestGenerationRef.current !== requestGeneration) {
+        return;
+      }
 
       if (!result || result?.$meta?.ok === false) {
         projectCache.delete(finalProjectId);
