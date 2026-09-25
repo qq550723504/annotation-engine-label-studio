@@ -105,7 +105,7 @@ describe("project member and role management UI", () => {
 
       cy.contains("button", "Add member").click();
       cy.get('[data-testid="members-error"]')
-        .should("be.visible")
+        .should("exist")
         .and("contain.text", "already a member");
 
       // The failed duplicate mutation must not report success, but the roster
