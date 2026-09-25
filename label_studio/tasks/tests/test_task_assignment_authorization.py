@@ -1,3 +1,4 @@
+from organizations.models import OrganizationMember
 from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
@@ -207,6 +208,30 @@ class TestTaskAssignmentAuthorization(APITestCase):
         assert fresh_response.status_code == 201
 
     def test_manager_can_list_eligible_assignment_assignees(self):
+        disabled = UserFactory(active_organization=self.organization)
+        removed = UserFactory(active_organization=self.organization)
+        self.organization.add_user(disabled)
+        self.organization.add_user(removed)
+
+        ProjectMember.objects.create(
+            project=self.project,
+            user=disabled,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=False,
+        )
+        ProjectMember.objects.create(
+            project=self.project,
+            user=removed,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+        removed_org_membership = OrganizationMember.objects.get(
+            organization=self.organization,
+            user=removed,
+        )
+        removed_org_membership.deleted_at = removed_org_membership.created_at
+        removed_org_membership.save(update_fields=['deleted_at'])
+
         self.client.force_authenticate(user=self.manager)
 
         response = self.client.get(
@@ -219,6 +244,22 @@ class TestTaskAssignmentAuthorization(APITestCase):
         assert self.annotator_b.id in user_ids
         assert self.manager.id in user_ids
         assert self.reviewer.id not in user_ids
+        assert disabled.id not in user_ids
+        assert removed.id not in user_ids
+
+    def test_manager_cannot_swap_project_id_to_read_other_project_assignees(self):
+        other_organization = OrganizationFactory()
+        other_project = ProjectFactory(
+            organization=other_organization,
+            created_by=other_organization.created_by,
+        )
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(
+            f'/api/task-assignments/eligible-assignees/?project={other_project.id}'
+        )
+
+        assert response.status_code == 404
 
     def test_annotator_cannot_list_eligible_assignment_assignees(self):
         self.client.force_authenticate(user=self.annotator_a)
