@@ -21,7 +21,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
 from projects.functions.stream_history import fill_history_annotation
-from projects.models import Project
+from organizations.models import OrganizationMember
+from projects.models import Project, ProjectMember
 from rest_framework import generics, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -48,6 +49,8 @@ from tasks.serializers import (
     TaskSimpleSerializer,
 )
 from tasks.submissions import create_submission, review_submission
+from users.models import User
+from users.serializers import UserSimpleSerializer
 from webhooks.models import WebhookAction
 from webhooks.utils import (
     api_webhook,
@@ -1159,6 +1162,8 @@ class TaskAssignmentListCreateAPI(generics.ListCreateAPIView):
             queryset = queryset.filter(project_id=project_id)
         if task_id:
             queryset = queryset.filter(task_id=task_id)
+        if bool_from_request(self.request.GET, 'active', False):
+            queryset = queryset.filter(status__in=TaskAssignment.ACTIVE_STATUSES)
         return queryset.select_related('task', 'project', 'assignee', 'assigned_by', 'annotation')
 
     def perform_create(self, serializer):
@@ -1169,6 +1174,48 @@ class TaskAssignmentListCreateAPI(generics.ListCreateAPIView):
             'Project manager role is required to assign tasks.',
         )
         serializer.save(project=task.project, assigned_by=self.request.user)
+
+
+class TaskAssignmentEligibleAssigneeListAPI(generics.ListAPIView):
+    serializer_class = UserSimpleSerializer
+    permission_required = all_permissions.tasks_view
+
+    def get_queryset(self):
+        project_id = self.request.query_params.get('project')
+        if not project_id:
+            raise ValidationError({'project': 'Project is required.'})
+
+        project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=project_id)
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to manage task assignments.',
+        )
+
+        explicit_user_ids = ProjectMember.objects.filter(
+            project=project,
+            enabled=True,
+            role__in=[ProjectMember.Role.ANNOTATOR, ProjectMember.Role.MANAGER],
+        ).values_list('user_id', flat=True)
+
+        eligible_user_ids = set(explicit_user_ids)
+        if (
+            project.created_by_id is not None
+            and OrganizationMember.objects.filter(
+                organization=project.organization,
+                user_id=project.created_by_id,
+                deleted_at__isnull=True,
+            ).exists()
+        ):
+            eligible_user_ids.add(project.created_by_id)
+
+        active_org_user_ids = OrganizationMember.objects.filter(
+            organization=project.organization,
+            deleted_at__isnull=True,
+            user_id__in=eligible_user_ids,
+        ).values_list('user_id', flat=True)
+
+        return User.objects.filter(id__in=active_org_user_ids).order_by('email', 'id')
 
 
 class TaskAssignmentAPI(generics.RetrieveDestroyAPIView):
