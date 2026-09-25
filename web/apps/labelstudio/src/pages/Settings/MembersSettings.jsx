@@ -112,24 +112,36 @@ export const MembersSettings = () => {
       const result = await callApiRef.current("projectMemberCandidates", {
         params: {
           pk: projectId,
-          page,
-          page_size: 50,
+          limit: 50,
+          offset: (page - 1) * 50,
         },
         errorFilter: (apiError) => [403, 404].includes(apiError?.status),
       });
 
       if (
-        result &&
-        activeProjectIdRef.current === projectId &&
-        organizationRequestGenerationRef.current === requestGeneration &&
-        (refreshGeneration === null || refreshGenerationRef.current === refreshGeneration)
+        activeProjectIdRef.current !== projectId ||
+        organizationRequestGenerationRef.current !== requestGeneration ||
+        (refreshGeneration !== null && refreshGenerationRef.current !== refreshGeneration)
       ) {
-        setOrganizationUsers(responseItems(result).map((membership) => membership.user).filter(Boolean));
-        setOrganizationHasNext(Boolean(result.next));
-        setOrganizationHasPrevious(Boolean(result.previous));
+        return false;
       }
+
+      const status = result?.status ?? result?.$meta?.status;
+      if ([403, 404].includes(status)) {
+        setMembers([]);
+        setOrganizationUsers([]);
+        history.replace(`/projects/${projectId}/settings`);
+        return false;
+      }
+
+      if (!result) return false;
+
+      setOrganizationUsers(responseItems(result).map((membership) => membership.user).filter(Boolean));
+      setOrganizationHasNext(Boolean(result.next));
+      setOrganizationHasPrevious(Boolean(result.previous));
+      return true;
     },
-    [organizationPage],
+    [history, organizationPage],
   );
 
   const refresh = useCallback(async () => {
