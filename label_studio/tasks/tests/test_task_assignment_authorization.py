@@ -206,6 +206,42 @@ class TestTaskAssignmentAuthorization(APITestCase):
         )
         assert fresh_response.status_code == 201
 
+    def test_manager_can_list_eligible_assignment_assignees(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(
+            f'/api/task-assignments/eligible-assignees/?project={self.project.id}'
+        )
+
+        assert response.status_code == 200
+        user_ids = {item['id'] for item in response.json()}
+        assert self.annotator_a.id in user_ids
+        assert self.annotator_b.id in user_ids
+        assert self.manager.id in user_ids
+        assert self.reviewer.id not in user_ids
+
+    def test_annotator_cannot_list_eligible_assignment_assignees(self):
+        self.client.force_authenticate(user=self.annotator_a)
+
+        response = self.client.get(
+            f'/api/task-assignments/eligible-assignees/?project={self.project.id}'
+        )
+
+        assert response.status_code == 403
+
+    def test_assignment_list_can_filter_active_only(self):
+        self.client.force_authenticate(user=self.manager)
+        self.assignment_a.cancel()
+
+        response = self.client.get(
+            f'/api/task-assignments/?project={self.project.id}&task={self.shared_task.id}&active=true'
+        )
+
+        assert response.status_code == 200
+        assignment_ids = {item['id'] for item in response.json()}
+        assert self.assignment_a.id not in assignment_ids
+        assert self.assignment_b.id in assignment_ids
+
     def test_manager_can_assign_active_annotator(self):
         new_task = TaskFactory(project=self.project)
         self.client.force_authenticate(user=self.manager)
