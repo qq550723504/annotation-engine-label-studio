@@ -71,6 +71,11 @@ export const ProjectProvider: React.FunctionComponent = ({ children }) => {
         return;
       }
 
+      const activeProjectId = +(window.location.pathname.match(/\/projects\/(\d+)(?:\/|$)/)?.[1] ?? NaN);
+      if (activeProjectId !== finalProjectId) {
+        return;
+      }
+
       const projectInfo = result as unknown as APIProject;
 
       if (shallowEqualObjects(projectData, projectInfo) === false) {
