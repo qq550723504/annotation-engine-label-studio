@@ -158,6 +158,11 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
             raise ValidationError({'task': 'Task must belong to a project.'})
 
         is_creator = task.project.created_by_id == assignee.id
+        has_active_org_membership = OrganizationMember.objects.filter(
+            organization=task.project.organization,
+            user=assignee,
+            deleted_at__isnull=True,
+        ).exists()
         has_role = ProjectMember.objects.filter(
             project=task.project,
             user=assignee,
@@ -165,7 +170,7 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
             role__in=[ProjectMember.Role.ANNOTATOR, ProjectMember.Role.MANAGER],
         ).exists()
 
-        if not is_creator and not has_role:
+        if not has_active_org_membership or (not is_creator and not has_role):
             raise ValidationError({'assignee': 'Assignee must be an active annotator or manager in this project.'})
 
         if TaskAssignment.objects.filter(
