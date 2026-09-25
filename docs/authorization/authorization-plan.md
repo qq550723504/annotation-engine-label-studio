@@ -145,3 +145,5 @@ Project member administration depends on `GET /api/organizations/{org_id}/member
 
 Project member administration uses a dedicated lightweight capability probe at `GET /api/projects/{project_id}/members/capability/`, enforced by the same server-side `authorization.can_manage_project(...)` check as member mutations. Settings navigation must use this endpoint rather than loading the roster. The actual member list at `GET /api/projects/{project_id}/members/` is paginated (limit/offset) to avoid unbounded serialization for large projects.
 
+The add-member selector uses `GET /api/projects/{project_id}/members/candidates/`, which is manager-authorized and server-filters active organization memberships to exclude every existing project member plus the effective creator before pagination. Client-side filtering is only defensive and must not be the source of uniqueness across roster pages.
+
