@@ -38,6 +38,9 @@ export const MembersSettings = () => {
   const history = useHistory();
   const { project } = useProject();
   const [members, setMembers] = useState([]);
+  const [memberPage, setMemberPage] = useState(1);
+  const [memberHasNext, setMemberHasNext] = useState(false);
+  const [memberHasPrevious, setMemberHasPrevious] = useState(false);
   const [organizationUsers, setOrganizationUsers] = useState([]);
   const [organizationPage, setOrganizationPage] = useState(1);
   const [organizationHasNext, setOrganizationHasNext] = useState(false);
@@ -49,31 +52,53 @@ export const MembersSettings = () => {
   const [error, setError] = useState("");
   const activeProjectIdRef = useRef(project?.id);
   const refreshGenerationRef = useRef(0);
+  const memberRequestGenerationRef = useRef(0);
   const organizationRequestGenerationRef = useRef(0);
   activeProjectIdRef.current = project?.id;
 
-  const loadMembers = useCallback(async (projectId = activeProjectIdRef.current, generation = null) => {
-    if (!projectId) return false;
+  const loadMembers = useCallback(
+    async (page = memberPage, projectId = activeProjectIdRef.current, refreshGeneration = null) => {
+      if (!projectId) return false;
 
-    const result = await callApiRef.current("projectMembers", {
-      params: { pk: projectId },
-      errorFilter: (apiError) => [403, 404].includes(apiError?.status),
-    });
+      const requestGeneration = ++memberRequestGenerationRef.current;
+      const result = await callApiRef.current("projectMembers", {
+        params: {
+          pk: projectId,
+          limit: 50,
+          offset: (page - 1) * 50,
+        },
+        errorFilter: (apiError) => [403, 404].includes(apiError?.status),
+      });
 
-    if (activeProjectIdRef.current !== projectId || (generation !== null && refreshGenerationRef.current !== generation)) {
-      return false;
-    }
+      if (
+        activeProjectIdRef.current !== projectId ||
+        memberRequestGenerationRef.current !== requestGeneration ||
+        (refreshGeneration !== null && refreshGenerationRef.current !== refreshGeneration)
+      ) {
+        return false;
+      }
 
-    if ([403, 404].includes(result?.status) || [403, 404].includes(result?.$meta?.status)) {
-      history.replace(`/projects/${projectId}/settings`);
-      return false;
-    }
+      if ([403, 404].includes(result?.status) || [403, 404].includes(result?.$meta?.status)) {
+        history.replace(`/projects/${projectId}/settings`);
+        return false;
+      }
 
-    if (!result) return false;
+      if (!result) return false;
 
-    setMembers(responseItems(result));
-    return true;
-  }, [history]);
+      const items = responseItems(result);
+      if (!items.length && page > 1 && Number(result.count) > 0) {
+        const previousPage = page - 1;
+        setMemberPage(previousPage);
+        return loadMembers(previousPage, projectId, refreshGeneration);
+      }
+
+      setMembers(items);
+      setMemberHasNext(Boolean(result.next));
+      setMemberHasPrevious(Boolean(result.previous));
+      return true;
+    },
+    [history, memberPage],
+  );
 
   const loadOrganizationUsers = useCallback(
     async (
@@ -116,7 +141,7 @@ export const MembersSettings = () => {
     if (!projectId) return;
 
     setLoading(true);
-    const allowed = await loadMembers(projectId, generation);
+    const allowed = await loadMembers(memberPage, projectId, generation);
 
     if (allowed) {
       await loadOrganizationUsers(organizationPage, organizationId, projectId, generation);
@@ -125,7 +150,7 @@ export const MembersSettings = () => {
     if (refreshGenerationRef.current === generation && activeProjectIdRef.current === projectId) {
       setLoading(false);
     }
-  }, [loadMembers, loadOrganizationUsers, organizationPage, project?.id, project?.organization]);
+  }, [loadMembers, loadOrganizationUsers, memberPage, organizationPage, project?.id, project?.organization]);
 
   useEffect(() => {
     if (project?.id) refresh();
@@ -197,7 +222,7 @@ export const MembersSettings = () => {
 
       if (!result || result?.error || result?.$meta?.ok === false) {
         setError(errorMessage(result, "The requested member change could not be completed."));
-        const stillAllowed = await loadMembers();
+        const stillAllowed = await loadMembers(memberPage);
         if (stillAllowed) {
           await loadOrganizationUsers();
         }
@@ -205,7 +230,7 @@ export const MembersSettings = () => {
         return false;
       }
 
-      const stillAllowed = await loadMembers();
+      const stillAllowed = await loadMembers(memberPage);
       if (stillAllowed) {
         await loadOrganizationUsers();
       }
@@ -368,6 +393,34 @@ export const MembersSettings = () => {
           }}
         >
           Next users
+        </Button>
+      </div>
+
+      <div className={cn("members-settings").elem("roster-pagination").toClassName()}>
+        <Button
+          size="small"
+          look="outlined"
+          disabled={!memberHasPrevious || processing !== null}
+          onClick={async () => {
+            const nextPage = Math.max(1, memberPage - 1);
+            setMemberPage(nextPage);
+            await loadMembers(nextPage);
+          }}
+        >
+          Previous members
+        </Button>
+        <span>Project members page {memberPage}</span>
+        <Button
+          size="small"
+          look="outlined"
+          disabled={!memberHasNext || processing !== null}
+          onClick={async () => {
+            const nextPage = memberPage + 1;
+            setMemberPage(nextPage);
+            await loadMembers(nextPage);
+          }}
+        >
+          Next members
         </Button>
       </div>
 
