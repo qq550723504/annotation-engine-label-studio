@@ -1,0 +1,49 @@
+.assignment-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 520px;
+}
+
+.assignment-manager__error {
+  padding: 10px 12px;
+  border: 1px solid var(--color-negative-border-subtle, #efb3b3);
+  border-radius: 6px;
+}
+
+.assignment-manager__assign {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.assignment-manager__assign label {
+  grid-column: 1 / -1;
+}
+
+.assignment-manager__assign select {
+  min-height: 36px;
+  padding: 6px 8px;
+}
+
+.assignment-manager__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assignment-manager__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-neutral-border, #e5e5e5);
+}
+
+.assignment-manager__row > div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
