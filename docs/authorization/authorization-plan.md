@@ -147,3 +147,14 @@ Project member administration uses a dedicated lightweight capability probe at `
 
 The add-member selector uses `GET /api/projects/{project_id}/members/candidates/`, which is manager-authorized and server-filters active organization memberships to exclude every existing project member plus the effective creator before pagination. Client-side filtering is only defensive and must not be the source of uniqueness across roster pages.
 
+### Task assignment eligible-assignee contract
+
+Project task assignment administration depends on a fork-specific, manager-authorized helper endpoint:
+
+- `GET /api/task-assignments/eligible-assignees/?project={project_id}`
+- authorization: the authenticated principal must satisfy `authorization.can_manage_project(...)` for the requested project; project visibility alone is insufficient;
+- eligibility is derived server-side and requires all of: `User.is_active=True`, a non-deleted `OrganizationMember` in the project organization, and either the effective project creator or an enabled project member with labeling access (`annotator` or `manager`);
+- direct `POST /api/task-assignments/` validation must enforce the same active-user and active-organization-membership invariants and must never rely on the selector as a security boundary;
+- the eligible-assignee response is paginated (50 by default, capped at 100) and the Data Manager assignment selector is a client of that paginated contract;
+- preserve this endpoint, its authorization boundary, mutation-side invariant checks, and pagination across upstream rebases unless the assignment candidate source is intentionally redesigned.
+
