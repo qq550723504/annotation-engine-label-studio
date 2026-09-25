@@ -1,5 +1,6 @@
 from urllib.parse import urlencode
 
+from organizations.models import OrganizationMember
 from organizations.tests.factories import OrganizationFactory
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
@@ -18,6 +19,21 @@ class TestOrganizationMemberListAPI(APITestCase):
     def get_url(self, params=None):
         params = params or {}
         return f'/api/organizations/{self.organization.id}/memberships?{urlencode(params)}'
+
+    def test_active_filter_excludes_soft_deleted_members(self):
+        removed_user = UserFactory(username='removed_user', active_organization=self.organization)
+        membership = OrganizationMember.objects.get(organization=self.organization, user=removed_user)
+        membership.soft_delete()
+
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.get(self.get_url(params={'active': True}))
+        assert response.status_code == 200
+        returned_user_ids = {item['user']['id'] for item in response.json()['results']}
+        assert removed_user.id not in returned_user_ids
+        assert self.owner.id in returned_user_ids
+        assert self.user_1.id in returned_user_ids
+        assert self.user_2.id in returned_user_ids
 
     def test_list_organization_members(self):
         self.client.force_authenticate(user=self.owner)

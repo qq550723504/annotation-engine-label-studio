@@ -31,6 +31,7 @@ from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiRespo
 from label_studio_sdk.label_interface.interface import LabelInterface
 from ml.serializers import MLBackendSerializer
 from organizations.models import OrganizationMember
+from organizations.serializers import OrganizationMemberListSerializer
 from projects.functions.next_task import get_next_task
 from projects.functions.stream_history import get_label_stream_history
 from projects.functions.utils import recalculate_created_annotations_and_labels_from_scratch
@@ -50,7 +51,7 @@ from projects.serializers import (
 from rest_framework import filters, generics, status
 from rest_framework.exceptions import NotFound
 from rest_framework.exceptions import ValidationError as RestValidationError
-from rest_framework.pagination import PageNumberPagination
+from rest_framework.pagination import LimitOffsetPagination, PageNumberPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -112,6 +113,24 @@ class ProjectListPagination(PageNumberPagination):
 class ProjectFilterSet(FilterSet):
     ids = ListFilter(field_name='id', lookup_expr='in')
     title = CharFilter(field_name='title', lookup_expr='icontains')
+
+
+class ProjectMemberPagination(LimitOffsetPagination):
+    default_limit = 50
+    max_limit = 100
+
+
+class ProjectMemberCapabilityAPI(generics.GenericAPIView):
+    permission_required = all_permissions.projects_view
+
+    def get(self, request, *args, **kwargs):
+        project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=kwargs['pk'])
+        principal = resolve_principal(request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to manage project members.',
+        )
+        return Response({'can_manage': True})
 
 
 @method_decorator(
@@ -228,26 +247,41 @@ class ProjectListAPI(generics.ListCreateAPIView):
         return super(ProjectListAPI, self).post(request, *args, **kwargs)
 
 
-@method_decorator(
-    name='get',
-    decorator=extend_schema(
-        tags=['Projects'],
-        summary="List projects' counts",
-        parameters=[
-            *serializer_to_openapi_params(GetFieldsSerializer),
-            *filterset_to_openapi_params(ProjectFilterSet),
-        ],
-        description='Returns a list of projects with their counts. For example, task_number which is the total task number in project',
-        extensions={
-            'x-fern-sdk-group-name': 'projects',
-            'x-fern-sdk-method-name': 'list_counts',
-            'x-fern-audiences': ['public'],
-        },
-    ),
-)
+class ProjectMemberCandidatePagination(LimitOffsetPagination):
+    default_limit = 50
+    max_limit = 100
+
+
+class ProjectMemberCandidateListAPI(generics.ListAPIView):
+    serializer_class = OrganizationMemberListSerializer
+    pagination_class = ProjectMemberCandidatePagination
+    permission_required = all_permissions.projects_view
+
+    def _project(self):
+        project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to manage project members.',
+        )
+        return project
+
+    def get_queryset(self):
+        project = self._project()
+        member_user_ids = ProjectMember.objects.filter(project=project).values_list('user_id', flat=True)
+        candidates = OrganizationMember.objects.filter(
+            organization=project.organization,
+            deleted_at__isnull=True,
+        ).exclude(user_id__in=member_user_ids)
+        if project.created_by_id is not None:
+            candidates = candidates.exclude(user_id=project.created_by_id)
+        return candidates.select_related('user').prefetch_related('user__om_through').order_by('user__username')
+
+
 class ProjectMemberListCreateAPI(generics.ListCreateAPIView):
     serializer_class = ProjectMemberSerializer
     permission_required = all_permissions.projects_view
+    pagination_class = ProjectMemberPagination
 
     def _project(self):
         project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
@@ -370,6 +404,23 @@ class ProjectMemberAPI(generics.RetrieveUpdateDestroyAPIView):
         membership.delete()
 
 
+@method_decorator(
+    name='get',
+    decorator=extend_schema(
+        tags=['Projects'],
+        summary="List projects' counts",
+        parameters=[
+            *serializer_to_openapi_params(GetFieldsSerializer),
+            *filterset_to_openapi_params(ProjectFilterSet),
+        ],
+        description='Returns a list of projects with their counts. For example, task_number which is the total task number in project',
+        extensions={
+            'x-fern-sdk-group-name': 'projects',
+            'x-fern-sdk-method-name': 'list_counts',
+            'x-fern-audiences': ['public'],
+        },
+    ),
+)
 class ProjectCountsListAPI(generics.ListAPIView):
     serializer_class = ProjectCountsSerializer
     filterset_class = ProjectFilterSet

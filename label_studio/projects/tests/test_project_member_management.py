@@ -35,6 +35,62 @@ class TestProjectMemberManagement(APITestCase):
     def setUp(self):
         self.client.force_authenticate(user=self.manager)
 
+    def test_manager_capability_probe_is_lightweight_and_authoritative(self):
+        response = self.client.get(f'/api/projects/{self.project.id}/members/capability/')
+
+        assert response.status_code == 200
+        assert response.json() == {'can_manage': True}
+
+        self.client.force_authenticate(user=self.annotator)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=self.annotator,
+            role=ProjectMember.Role.ANNOTATOR,
+        )
+        denied = self.client.get(f'/api/projects/{self.project.id}/members/capability/')
+
+        assert denied.status_code == 403
+
+    def test_member_list_is_paginated(self):
+        response = self.client.get(f'/api/projects/{self.project.id}/members/?limit=1&offset=0')
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload['count'] >= 1
+        assert len(payload['results']) == 1
+        assert 'next' in payload
+        assert 'previous' in payload
+
+    def test_member_candidates_exclude_existing_members_and_creator(self):
+        ProjectMember.objects.create(
+            project=self.project,
+            user=self.reviewer,
+            role=ProjectMember.Role.REVIEWER,
+        )
+
+        candidate = UserFactory(active_organization=self.organization)
+        self.organization.add_user(candidate)
+
+        response = self.client.get(f'/api/projects/{self.project.id}/members/candidates/?page_size=50')
+
+        assert response.status_code == 200
+        user_ids = {item['user']['id'] for item in response.json()['results']}
+        assert candidate.id in user_ids
+        assert self.reviewer.id not in user_ids
+        assert self.manager.id not in user_ids
+
+    def test_member_candidates_require_manager_role(self):
+        self.client.force_authenticate(user=self.annotator)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=self.annotator,
+            role=ProjectMember.Role.ANNOTATOR,
+        )
+
+        response = self.client.get(f'/api/projects/{self.project.id}/members/candidates/')
+
+        assert response.status_code == 403
+
     def test_manager_can_add_annotator(self):
         response = self.client.post(
             f'/api/projects/{self.project.id}/members/',

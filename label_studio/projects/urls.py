@@ -19,6 +19,16 @@ _api_urlpatterns = [
     path('', api.ProjectListAPI.as_view(), name='project-list'),
     path('<int:pk>/', api.ProjectAPI.as_view(), name='project-detail'),
     path('<int:pk>/members/', api.ProjectMemberListCreateAPI.as_view(), name='project-member-list'),
+    path(
+        '<int:pk>/members/candidates/',
+        api.ProjectMemberCandidateListAPI.as_view(),
+        name='project-member-candidates',
+    ),
+    path(
+        '<int:pk>/members/capability/',
+        api.ProjectMemberCapabilityAPI.as_view(),
+        name='project-member-capability',
+    ),
     path('<int:pk>/members/<int:member_pk>/', api.ProjectMemberAPI.as_view(), name='project-member-detail'),
     path('counts/', api.ProjectCountsListAPI.as_view(), name='project-counts-list'),
     # Get next task
