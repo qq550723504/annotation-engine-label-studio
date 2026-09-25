@@ -31,6 +31,7 @@ from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiRespo
 from label_studio_sdk.label_interface.interface import LabelInterface
 from ml.serializers import MLBackendSerializer
 from organizations.models import OrganizationMember
+from organizations.serializers import OrganizationMemberListSerializer
 from projects.functions.next_task import get_next_task
 from projects.functions.stream_history import get_label_stream_history
 from projects.functions.utils import recalculate_created_annotations_and_labels_from_scratch
@@ -263,6 +264,38 @@ class ProjectListAPI(generics.ListCreateAPIView):
         },
     ),
 )
+class ProjectMemberCandidatePagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class ProjectMemberCandidateListAPI(generics.ListAPIView):
+    serializer_class = OrganizationMemberListSerializer
+    pagination_class = ProjectMemberCandidatePagination
+    permission_required = all_permissions.projects_view
+
+    def _project(self):
+        project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to manage project members.',
+        )
+        return project
+
+    def get_queryset(self):
+        project = self._project()
+        member_user_ids = ProjectMember.objects.filter(project=project).values_list('user_id', flat=True)
+        candidates = OrganizationMember.objects.filter(
+            organization=project.organization,
+            deleted_at__isnull=True,
+        ).exclude(user_id__in=member_user_ids)
+        if project.created_by_id is not None:
+            candidates = candidates.exclude(user_id=project.created_by_id)
+        return candidates.select_related('user').prefetch_related('user__om_through').order_by('user__username')
+
+
 class ProjectMemberListCreateAPI(generics.ListCreateAPIView):
     serializer_class = ProjectMemberSerializer
     permission_required = all_permissions.projects_view
