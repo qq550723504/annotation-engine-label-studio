@@ -15,6 +15,7 @@ import "./settings.scss";
 
 export const MenuLayout = ({ children, ...routeProps }) => {
   const api = useAPI();
+  const callApi = api.callApi;
   const { project } = useProject();
   const [canManageMembers, setCanManageMembers] = useState(false);
 
@@ -25,7 +26,7 @@ export const MenuLayout = ({ children, ...routeProps }) => {
     const probeMemberManagement = async () => {
       if (!project?.id) return;
 
-      const result = await api.callApi("projectMembers", {
+      const result = await callApi("projectMembers", {
         params: { pk: project.id },
         errorFilter: (apiError) => [403, 404].includes(apiError?.status),
       });
@@ -47,7 +48,7 @@ export const MenuLayout = ({ children, ...routeProps }) => {
     return () => {
       active = false;
     };
-  }, [api, project?.id, routeProps.location?.pathname]);
+  }, [callApi, project?.id, routeProps.location?.pathname]);
 
   return (
     <SidebarMenu
