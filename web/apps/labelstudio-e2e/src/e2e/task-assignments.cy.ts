@@ -32,7 +32,12 @@ describe("task assignment management UI", () => {
   };
 
   const openAssignmentManager = () => {
-    cy.get("body").type("{esc}", { force: true });
+    cy.get("body").then(($body) => {
+      if ($body.find('button[aria-label="Close modal"]').length) {
+        cy.get('button[aria-label="Close modal"]').first().click();
+      }
+    });
+
     cy.get('[data-testid="manage-task-assignments"]', { timeout: 30000 })
       .should("be.visible")
       .and("not.be.disabled")
