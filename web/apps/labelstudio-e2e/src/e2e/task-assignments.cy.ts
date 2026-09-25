@@ -42,9 +42,16 @@ describe("task assignment management UI", () => {
     cy.get('[data-testid="manage-task-assignments"]', { timeout: 30000 })
       .should("be.visible")
       .and("not.be.disabled")
-      .click();
+      .focus()
+      .type("{enter}");
 
     cy.get('[data-testid="assignment-manager"]', { timeout: 30000 }).should("exist");
+  };
+
+  const closeAssignmentManager = () => {
+    cy.get('[data-testid="assignment-manager"]').should("exist");
+    cy.get('button[aria-label="Close modal"]').first().click();
+    cy.get('[data-testid="assignment-manager"]').should("not.exist");
   };
 
   it("assigns, revokes a stale session, and reassigns a task", () => {
@@ -69,6 +76,7 @@ describe("task assignment management UI", () => {
       expect(response.body).to.have.length(1);
       const oldAssignment = response.body[0];
 
+      closeAssignmentManager();
       openTaskAs(fixture.users.annotator_a.email);
       cy.request(`/api/tasks/${fixture.tasks.c.id}/`).its("status").should("eq", 200);
 
@@ -109,6 +117,7 @@ describe("task assignment management UI", () => {
       cy.get('[data-testid="assignment-assignee-select"]').select(String(fixture.users.annotator_b.id));
       cy.contains("button", "Assign").click();
       cy.contains('[data-testid^="assignment-"]', fixture.users.annotator_b.email).should("exist");
+      closeAssignmentManager();
 
       cy.loginAs(fixture.users.annotator_b.email, fixture.password, dataPage());
       cy.request(`/api/tasks/${fixture.tasks.c.id}/`).its("status").should("eq", 200);
