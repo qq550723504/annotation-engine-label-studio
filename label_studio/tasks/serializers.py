@@ -17,6 +17,7 @@ from fsm.serializer_fields import FSMStateField
 from fsm.state_inference import get_or_infer_state
 from fsm.utils import get_or_initialize_state, is_fsm_enabled
 from label_studio_sdk.label_interface import LabelInterface
+from organizations.models import OrganizationMember
 from projects.models import Project, ProjectMember
 from rest_flex_fields import FlexFieldsModelSerializer
 from rest_framework import generics, serializers
@@ -158,11 +159,14 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
             raise ValidationError({'task': 'Task must belong to a project.'})
 
         is_creator = task.project.created_by_id == assignee.id
-        has_active_org_membership = OrganizationMember.objects.filter(
-            organization=task.project.organization,
-            user=assignee,
-            deleted_at__isnull=True,
-        ).exists()
+        has_active_org_membership = (
+            assignee.is_active
+            and OrganizationMember.objects.filter(
+                organization=task.project.organization,
+                user=assignee,
+                deleted_at__isnull=True,
+            ).exists()
+        )
         has_role = ProjectMember.objects.filter(
             project=task.project,
             user=assignee,
