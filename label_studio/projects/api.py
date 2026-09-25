@@ -50,7 +50,7 @@ from projects.serializers import (
 from rest_framework import filters, generics, status
 from rest_framework.exceptions import NotFound
 from rest_framework.exceptions import ValidationError as RestValidationError
-from rest_framework.pagination import PageNumberPagination
+from rest_framework.pagination import LimitOffsetPagination, PageNumberPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -245,10 +245,9 @@ class ProjectListAPI(generics.ListCreateAPIView):
         },
     ),
 )
-class ProjectMemberPagination(PageNumberPagination):
-    page_size = 50
-    page_size_query_param = 'page_size'
-    max_page_size = 100
+class ProjectMemberPagination(LimitOffsetPagination):
+    default_limit = 50
+    max_limit = 100
 
 
 class ProjectMemberCapabilityAPI(generics.GenericAPIView):
