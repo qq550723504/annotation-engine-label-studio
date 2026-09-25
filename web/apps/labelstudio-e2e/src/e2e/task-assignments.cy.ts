@@ -35,6 +35,7 @@ describe("task assignment management UI", () => {
     cy.get("body").then(($body) => {
       if ($body.find('button[aria-label="Close modal"]').length) {
         cy.get('button[aria-label="Close modal"]').first().click();
+        cy.get('button[aria-label="Close modal"]').should("not.exist");
       }
     });
 
