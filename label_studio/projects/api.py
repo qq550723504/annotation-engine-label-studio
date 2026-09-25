@@ -245,9 +245,29 @@ class ProjectListAPI(generics.ListCreateAPIView):
         },
     ),
 )
+class ProjectMemberPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class ProjectMemberCapabilityAPI(generics.GenericAPIView):
+    permission_required = all_permissions.projects_view
+
+    def get(self, request, *args, **kwargs):
+        project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=kwargs['pk'])
+        principal = resolve_principal(request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to manage project members.',
+        )
+        return Response({'can_manage': True})
+
+
 class ProjectMemberListCreateAPI(generics.ListCreateAPIView):
     serializer_class = ProjectMemberSerializer
     permission_required = all_permissions.projects_view
+    pagination_class = ProjectMemberPagination
 
     def _project(self):
         project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
