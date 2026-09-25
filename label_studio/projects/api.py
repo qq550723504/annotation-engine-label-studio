@@ -247,27 +247,9 @@ class ProjectListAPI(generics.ListCreateAPIView):
         return super(ProjectListAPI, self).post(request, *args, **kwargs)
 
 
-@method_decorator(
-    name='get',
-    decorator=extend_schema(
-        tags=['Projects'],
-        summary="List projects' counts",
-        parameters=[
-            *serializer_to_openapi_params(GetFieldsSerializer),
-            *filterset_to_openapi_params(ProjectFilterSet),
-        ],
-        description='Returns a list of projects with their counts. For example, task_number which is the total task number in project',
-        extensions={
-            'x-fern-sdk-group-name': 'projects',
-            'x-fern-sdk-method-name': 'list_counts',
-            'x-fern-audiences': ['public'],
-        },
-    ),
-)
-class ProjectMemberCandidatePagination(PageNumberPagination):
-    page_size = 50
-    page_size_query_param = 'page_size'
-    max_page_size = 100
+class ProjectMemberCandidatePagination(LimitOffsetPagination):
+    default_limit = 50
+    max_limit = 100
 
 
 class ProjectMemberCandidateListAPI(generics.ListAPIView):
@@ -422,6 +404,23 @@ class ProjectMemberAPI(generics.RetrieveUpdateDestroyAPIView):
         membership.delete()
 
 
+@method_decorator(
+    name='get',
+    decorator=extend_schema(
+        tags=['Projects'],
+        summary="List projects' counts",
+        parameters=[
+            *serializer_to_openapi_params(GetFieldsSerializer),
+            *filterset_to_openapi_params(ProjectFilterSet),
+        ],
+        description='Returns a list of projects with their counts. For example, task_number which is the total task number in project',
+        extensions={
+            'x-fern-sdk-group-name': 'projects',
+            'x-fern-sdk-method-name': 'list_counts',
+            'x-fern-audiences': ['public'],
+        },
+    ),
+)
 class ProjectCountsListAPI(generics.ListAPIView):
     serializer_class = ProjectCountsSerializer
     filterset_class = ProjectFilterSet
