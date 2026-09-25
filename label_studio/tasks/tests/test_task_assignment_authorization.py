@@ -301,6 +301,34 @@ class TestTaskAssignmentAuthorization(APITestCase):
         assert assignment.assigned_by_id == self.manager.id
         assert assignment.status == TaskAssignment.Status.ASSIGNED
 
+    def test_manager_cannot_assign_inactive_user(self):
+        inactive = UserFactory(active_organization=self.organization, is_active=False)
+        self.organization.add_user(inactive)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=inactive,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+
+        self.client.force_authenticate(user=self.manager)
+
+        eligible = self.client.get(
+            f'/api/task-assignments/eligible-assignees/?project={self.project.id}'
+        )
+        assert eligible.status_code == 200
+        assert inactive.id not in {item['id'] for item in eligible.json()}
+
+        new_task = TaskFactory(project=self.project)
+        response = self.client.post(
+            '/api/task-assignments/',
+            data={'task': new_task.id, 'assignee': inactive.id},
+            format='json',
+        )
+
+        assert response.status_code == 400
+        assert not TaskAssignment.objects.filter(task=new_task, assignee=inactive).exists()
+
     def test_manager_cannot_assign_soft_deleted_organization_member(self):
         revoked = UserFactory(active_organization=self.organization)
         self.organization.add_user(revoked)
