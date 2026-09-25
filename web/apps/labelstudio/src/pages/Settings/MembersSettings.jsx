@@ -49,6 +49,7 @@ export const MembersSettings = () => {
   const [error, setError] = useState("");
   const activeProjectIdRef = useRef(project?.id);
   const refreshGenerationRef = useRef(0);
+  const organizationRequestGenerationRef = useRef(0);
   activeProjectIdRef.current = project?.id;
 
   const loadMembers = useCallback(async (projectId = activeProjectIdRef.current, generation = null) => {
@@ -79,10 +80,11 @@ export const MembersSettings = () => {
       page = organizationPage,
       organizationId = project?.organization,
       projectId = activeProjectIdRef.current,
-      generation = null,
+      refreshGeneration = null,
     ) => {
       if (!organizationId || !projectId) return;
 
+      const requestGeneration = ++organizationRequestGenerationRef.current;
       const result = await callApiRef.current("memberships", {
         params: {
           pk: organizationId,
@@ -95,7 +97,8 @@ export const MembersSettings = () => {
       if (
         result &&
         activeProjectIdRef.current === projectId &&
-        (generation === null || refreshGenerationRef.current === generation)
+        organizationRequestGenerationRef.current === requestGeneration &&
+        (refreshGeneration === null || refreshGenerationRef.current === refreshGeneration)
       ) {
         setOrganizationUsers(responseItems(result).map((membership) => membership.user).filter(Boolean));
         setOrganizationHasNext(Boolean(result.next));
