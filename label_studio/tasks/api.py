@@ -25,6 +25,7 @@ from organizations.models import OrganizationMember
 from projects.models import Project, ProjectMember
 from rest_framework import generics, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from tasks.exceptions import AssignmentConflictError
@@ -1176,8 +1177,15 @@ class TaskAssignmentListCreateAPI(generics.ListCreateAPIView):
         serializer.save(project=task.project, assigned_by=self.request.user)
 
 
+class TaskAssignmentEligibleAssigneePagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class TaskAssignmentEligibleAssigneeListAPI(generics.ListAPIView):
     serializer_class = UserSimpleSerializer
+    pagination_class = TaskAssignmentEligibleAssigneePagination
     permission_required = all_permissions.tasks_view
 
     def get_queryset(self):
