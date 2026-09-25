@@ -48,7 +48,7 @@ yarn cypress run \
 | Membership revocation invalidates backend access | PASS | A logged-in annotator loses task API access immediately after out-of-band membership disablement. |
 | Stale already-open editor Save/Submit after revocation | GAP | Current UI cannot reach/open the assignment-scoped editor from Data Manager for these users, so the stale-open-editor browser interaction cannot yet be exercised. Backend stale-token behavior remains covered by API acceptance tests. |
 | Project member/role management through browser UI | IMPLEMENTED | #17 adds the project Settings → Members workflow; CI must pass before this row is promoted to PASS. |
-| Task assignment administration through browser UI | GAP | Backend exists; UI tracked in #18. |
+| Task assignment administration through browser UI | IMPLEMENTED | #18 adds a Manager-only Data Manager assignment workflow with active assignment inspection, assign, cancel, reassign, and server-filtered eligible assignees; CI must pass before this row is promoted to PASS. |
 | Reviewer pending queue / immutable snapshot review UI | GAP | Backend exists; UI tracked in #19. |
 | Approve / Reject browser controls | GAP | Backend exists; UI tracked in #19. |
 | Submission revision history UI | GAP | Backend exists; UI tracked in #20. |
@@ -90,7 +90,7 @@ The supported programmatic action used by the current UI to open a task is Data 
 The following backend capabilities deliberately have no current product UI in this milestone:
 
 - project member / role management — implemented in #17; pending browser CI verification;
-- task assignment management — #18;
+- task assignment management — implemented in #18; pending browser CI verification;
 - Reviewer workspace and approve/reject — #19;
 - submission history and approved release — #20.
 
@@ -119,6 +119,25 @@ yarn cypress run \
 
 The browser coverage exercises add, role change, disable/re-enable, remove, non-manager denial, and real backend validation rendering.
 
+## Task assignment management UI (#18)
+
+The Data Manager exposes a Manager-only `Assignments` control when a concrete task is open. The UI does not own assignment lifecycle state: it uses the existing `TaskAssignment` create/delete APIs, displays active server state, and re-fetches after every mutation.
+
+Eligible assignees come from a manager-authorized backend helper and are limited to active users with non-deleted organization membership and an effective labeling role for the project. Direct POST validation enforces the same identity and membership constraints.
+
+Focused browser command:
+
+```bash
+cd web
+yarn cypress run \
+  --project apps/labelstudio-e2e \
+  --config-file cypress.config.ts \
+  --config baseUrl=http://localhost:8080,video=true \
+  --spec apps/labelstudio-e2e/src/e2e/task-assignments.cy.ts
+```
+
+Browser coverage exercises Manager assign, stale-session invalidation after same-user reassignment, cancel/reassign to another annotator, reviewer exclusion, and non-manager absence of mutation controls.
+
 ## CI
 
 The repository now contains a separate `Enterprise Browser E2E` workflow.
@@ -138,7 +157,7 @@ Only executed browser scenarios may be marked PASS.
 
 GAP means that the backend contract exists but the corresponding product UI is not yet implemented.
 
-The full workflow must not be declared browser-complete until #21 passes after #17–#20 are implemented. In particular, #18 must provide a browser-reachable assignment-to-labeling workflow before Submit and stale-open-editor scenarios can move from GAP to PASS.
+The full workflow must not be declared browser-complete until #21 passes after #17–#20 are implemented. #18 now provides browser-reachable Manager assignment administration and stale assignment-token browser coverage; the remaining reviewer/release workflows are tracked in #19–#20.
 
 
 ## Final CI result
