@@ -122,6 +122,11 @@ class Command(BaseCommand):
             data={'text': 'Annotator B browser acceptance task'},
             overlap=1,
         )
+        task_c = Task.objects.create(
+            project=project,
+            data={'text': 'Manager assignment lifecycle browser task'},
+            overlap=1,
+        )
         assignment_a = TaskAssignment.objects.create(
             project=project,
             task=task_a,
@@ -137,7 +142,7 @@ class Command(BaseCommand):
 
         # Mirror the data-column bookkeeping performed by normal import flows so
         # Data Manager treats the deterministic fixtures like real imported tasks.
-        project.summary.update_data_columns([task_a, task_b])
+        project.summary.update_data_columns([task_a, task_b, task_c])
 
         payload = {
             'password': PASSWORD,
@@ -149,6 +154,7 @@ class Command(BaseCommand):
             'tasks': {
                 'a': {'id': task_a.id, 'assignment_id': assignment_a.id},
                 'b': {'id': task_b.id, 'assignment_id': assignment_b.id},
+                'c': {'id': task_c.id},
             },
             'submission_count': Submission.objects.filter(
                 assignment__project=project
