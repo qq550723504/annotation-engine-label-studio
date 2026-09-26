@@ -44,16 +44,16 @@ yarn cypress run \
 | Four distinct identities can authenticate with isolated sessions | PASS | Browser uses the real `/user/login/` form for each role. |
 | Annotator task scope is enforced by the backend from the browser session | PASS | From a real logged-in browser session, assigned task returns 200 and another annotator's task returns 404. |
 | Reviewer project visibility does not grant labeling/task access | PASS | Reviewer session cannot retrieve assigned annotator task; Browser E2E passed this scenario. |
-| Existing editor explicit Submit creates immutable Submission | IMPLEMENTED | #21 exercises the real Editor Submit/Update path, which carries assignment id/version plus `submit_for_review=true`; pending full-flow CI before promotion to PASS. |
+| Existing editor explicit Submit creates immutable Submission | PASS | #21 Enterprise Browser E2E run #141 passed the real Editor Submit/Update path with assignment id/version plus `submit_for_review=true`. |
 | Membership revocation invalidates backend access | PASS | A logged-in annotator loses task API access immediately after out-of-band membership disablement. |
-| Stale already-open editor Save/Submit after revocation | IMPLEMENTED | #21 keeps a real Annotator editor open while project membership/assignment are revoked out-of-band, then submits from the stale page and requires a controlled 403/404/409 with no 500; pending full-flow CI. |
+| Stale already-open editor Save/Submit after revocation | PASS | #21 Enterprise Browser E2E run #141 passed with a confirmed-writable real Annotator editor kept open across out-of-band revocation; stale Submit was required to fail with controlled 403/404/409 and never 500. |
 | Project member/role management through browser UI | PASS | #17 merged after focused browser CI passed. |
 | Task assignment administration through browser UI | PASS | #18 merged after focused browser CI passed, including stale assignment-token coverage. |
 | Reviewer pending queue / immutable snapshot review UI | PASS | #19 merged after focused browser CI passed against immutable Submission snapshot/revision/hash. |
 | Approve / Reject browser controls | PASS | #19 merged after focused reject/revise/approve browser CI passed. |
 | Submission revision history UI | PASS | #20 merged after focused browser CI passed for immutable multi-revision history. |
 | Manager approved-revision Release UI | PASS | #20 merged after focused browser CI passed with exact submission/revision/hash/snapshot validation. |
-| Full browser Manager → Assign → Annotate → Reject → Revise → Approve → Release flow | IMPLEMENTED | #21 composes the real UI and Editor paths in one isolated project; pending full-flow CI before promotion to PASS. |
+| Full browser Manager → Assign → Annotate → Reject → Revise → Approve → Release flow | PASS | #21 Enterprise Browser E2E run #141 passed the composed real-UI journey on commit `b1b342407e4b675183359ac0e6313fcb83ee1969`. |
 
 ## Findings during E2E bring-up
 
@@ -238,7 +238,7 @@ Only executed browser scenarios may be marked PASS.
 
 GAP means that the backend contract exists but the corresponding product UI is not yet implemented.
 
-The full workflow must not be declared browser-complete until the #21 full-flow spec passes in CI. Focused #17–#20 PASS rows remain supporting evidence, not a substitute for the composed journey.
+The full workflow is browser-complete only when the #21 full-flow spec passes in CI. On commit `b1b342407e4b675183359ac0e6313fcb83ee1969`, Enterprise Browser E2E run #141 passed; Fork PR Gate run #173 also passed. Focused #17–#20 PASS rows remain supporting evidence for the composed journey.
 
 
 ## Historical #16 CI result
@@ -250,4 +250,4 @@ The following result belongs only to the earlier #16 current-UI milestone. It do
 - PR: #22
 - Merge commit: `7f99a7dad88340c148a3dae0f2190683f548dd00`
 
-#16 is complete as a historical focused milestone. Its former GAP items were subsequently implemented in #17–#20. Browser-complete enterprise collaboration remains pending until the #21 full-flow spec itself passes in CI.
+#16 is complete as a historical focused milestone. Its former GAP items were subsequently implemented in #17–#20. The composed #21 enterprise collaboration flow subsequently passed Enterprise Browser E2E run #141 on commit `b1b342407e4b675183359ac0e6313fcb83ee1969`.
