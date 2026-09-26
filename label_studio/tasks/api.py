@@ -1029,9 +1029,26 @@ class AnnotationDraftAPI(generics.RetrieveUpdateDestroyAPIView):
         return super().update(request, *args, **kwargs)
 
 
+class SubmissionPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class SubmissionListAPI(generics.ListAPIView):
     serializer_class = SubmissionSerializer
     permission_required = all_permissions.annotations_view
+    pagination_class = SubmissionPagination
+
+    def paginate_queryset(self, queryset):
+        if not (
+            bool_from_request(self.request.GET, 'reviewable', False)
+            or bool_from_request(self.request.GET, 'history', False)
+            or self.request.query_params.get('page')
+            or self.request.query_params.get('page_size')
+        ):
+            return None
+        return super().paginate_queryset(queryset)
 
     def get_queryset(self):
         user = self.request.user
