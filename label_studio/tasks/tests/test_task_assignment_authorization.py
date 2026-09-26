@@ -146,6 +146,38 @@ class TestTaskAssignmentAuthorization(APITestCase):
         import_validate.assert_not_called()
         export_validate.assert_not_called()
 
+    def test_storage_create_rejects_malformed_project_id_before_connection_validation(self):
+        self.client.force_authenticate(user=self.annotator_a)
+
+        for malformed_project in ('abc', [], {}):
+            with (
+                patch('io_storages.s3.models.S3ImportStorage.validate_connection') as import_validate,
+                patch('io_storages.s3.models.S3ExportStorage.validate_connection') as export_validate,
+            ):
+                import_response = self.client.post(
+                    '/api/storages/s3/',
+                    data={
+                        'project': malformed_project,
+                        'bucket': 'malformed-project-import',
+                        'title': 'malformed-project-import',
+                    },
+                    format='json',
+                )
+                export_response = self.client.post(
+                    '/api/storages/export/s3',
+                    data={
+                        'project': malformed_project,
+                        'bucket': 'malformed-project-export',
+                        'title': 'malformed-project-export',
+                    },
+                    format='json',
+                )
+
+            assert import_response.status_code == 400
+            assert export_response.status_code == 400
+            import_validate.assert_not_called()
+            export_validate.assert_not_called()
+
     def test_assignee_can_open_assigned_task_but_not_someone_elses_task(self):
         self.client.force_authenticate(user=self.annotator_a)
 
