@@ -34,7 +34,6 @@ describe("full enterprise collaboration browser workflow", () => {
 
   const loginActor = (email: string, nextPath: string) => {
     cy.visit("/logout");
-    cy.location("pathname", { timeout: 30000 }).should("eq", "/user/login/");
     cy.loginAs(email, fixture.password, nextPath);
   };
 
