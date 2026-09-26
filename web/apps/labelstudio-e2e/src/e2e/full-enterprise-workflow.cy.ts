@@ -20,8 +20,19 @@ type Fixture = {
 
 describe("full enterprise collaboration browser workflow", () => {
   let fixture: Fixture;
+  let actorSwitchInProgress = false;
 
   before(() => {
+    Cypress.on("uncaught:exception", (error) => {
+      if (
+        actorSwitchInProgress &&
+        error.message.includes("Unauthorized") &&
+        error.message.includes("LS API not available")
+      ) {
+        return false;
+      }
+    });
+
     cy.readFile(".enterprise-e2e.json").then((data) => {
       fixture = data as Fixture;
     });
@@ -33,8 +44,14 @@ describe("full enterprise collaboration browser workflow", () => {
   const membersPage = () => `/projects/${projectId()}/settings/members`;
 
   const loginActor = (email: string, nextPath: string) => {
+    cy.then(() => {
+      actorSwitchInProgress = true;
+    });
     cy.visit("/logout");
     cy.loginAs(email, fixture.password, nextPath);
+    cy.then(() => {
+      actorSwitchInProgress = false;
+    });
   };
 
   const loginAndVisit = (email: string, path: string) => {
