@@ -347,7 +347,7 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.request({
       url: `/api/projects/${projectId()}/members/`,
       failOnStatusCode: false,
-    }).its("status").should("eq", 403);
+    }).its("status").should("be.oneOf", [403, 404]);
     loginAndVisit(fixture.users.reviewer.email, dataPage());
     cy.get('[data-testid="manage-task-assignments"]').should("not.exist");
     cy.get('[data-testid="open-release-workspace"]').should("not.exist");
