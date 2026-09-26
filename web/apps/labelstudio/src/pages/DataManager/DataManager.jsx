@@ -14,6 +14,7 @@ import { isDefined } from "../../utils/helpers";
 import { ImportModal } from "../CreateProject/Import/ImportModal";
 import { ExportPage } from "../ExportPage/ExportPage";
 import { APIConfig } from "./api-config";
+import { AssignmentManager } from "./AssignmentManager";
 
 import "./DataManager.scss";
 
@@ -240,7 +241,53 @@ DataManagerPage.pages = {
 };
 DataManagerPage.context = ({ dmRef }) => {
   const { project } = useProject();
+  const api = useAPI();
+  const toast = useContext(ToastContext);
   const [mode, setMode] = useState(dmRef?.mode ?? "explorer");
+  const [canManageAssignments, setCanManageAssignments] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const probe = async () => {
+      if (!project?.id) {
+        setCanManageAssignments(false);
+        return;
+      }
+
+      const result = await api.callApi("projectMemberCapability", {
+        params: { pk: project.id },
+        errorFilter: (apiError) => [403, 404].includes(apiError?.status),
+      });
+
+      if (!active) return;
+      const status = result?.status ?? result?.$meta?.status;
+      setCanManageAssignments(Boolean(result?.can_manage && !result?.error && status !== 403 && status !== 404));
+    };
+
+    probe();
+    return () => {
+      active = false;
+    };
+  }, [project?.id]);
+
+  const openAssignments = () => {
+    const taskId = dmRef?.store?.taskStore?.selected?.id;
+
+    if (!taskId) {
+      toast.show({
+        message: "Open a task before managing assignments.",
+        type: ToastType.error,
+      });
+      return;
+    }
+
+    modal({
+      title: `Task #${taskId} assignments`,
+      body: <AssignmentManager projectId={project.id} taskId={taskId} />,
+      style: { width: 640 },
+    });
+  };
 
   const links = {
     "/settings": "Settings",
@@ -290,6 +337,18 @@ DataManagerPage.context = ({ dmRef }) => {
 
   return project && project.id ? (
     <Space size="small">
+      {canManageAssignments && (
+        <Button
+          size="small"
+          look="outlined"
+          disabled={mode === "explorer"}
+          onClick={openAssignments}
+          data-testid="manage-task-assignments"
+        >
+          Assignments
+        </Button>
+      )}
+
       {project.expert_instruction && mode !== "explorer" && (
         <Button
           size="small"

@@ -109,6 +109,8 @@ describe('enterprise collaboration - currently available UI', () => {
     // Data Manager control can remain stale until refresh. That stale control
     // is the documented UI GAP; the security boundary is the 404 above.
     cy.contains('button', /Label All Tasks/i).should('exist');
+
+    cy.task('setEnterpriseE2EMember', { actor: 'annotator_b', enabled: true });
   });
 });
 

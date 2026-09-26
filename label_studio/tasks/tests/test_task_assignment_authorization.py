@@ -1,3 +1,4 @@
+from organizations.models import OrganizationMember
 from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
@@ -206,6 +207,154 @@ class TestTaskAssignmentAuthorization(APITestCase):
         )
         assert fresh_response.status_code == 201
 
+    def test_manager_can_list_eligible_assignment_assignees(self):
+        disabled = UserFactory(active_organization=self.organization)
+        removed = UserFactory(active_organization=self.organization)
+        self.organization.add_user(disabled)
+        self.organization.add_user(removed)
+
+        ProjectMember.objects.create(
+            project=self.project,
+            user=disabled,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=False,
+        )
+        ProjectMember.objects.create(
+            project=self.project,
+            user=removed,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+        removed_org_membership = OrganizationMember.objects.get(
+            organization=self.organization,
+            user=removed,
+        )
+        removed_org_membership.deleted_at = removed_org_membership.created_at
+        removed_org_membership.save(update_fields=['deleted_at'])
+
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(
+            f'/api/task-assignments/eligible-assignees/?project={self.project.id}'
+        )
+
+        assert response.status_code == 200
+        user_ids = {item['id'] for item in response.json()['results']}
+        assert self.annotator_a.id in user_ids
+        assert self.annotator_b.id in user_ids
+        assert self.manager.id in user_ids
+        assert self.reviewer.id not in user_ids
+        assert disabled.id not in user_ids
+        assert removed.id not in user_ids
+
+    def test_eligible_assignees_paginate_across_page_boundary(self):
+        bulk_users = []
+        for _ in range(55):
+            user = UserFactory(active_organization=self.organization)
+            self.organization.add_user(user)
+            ProjectMember.objects.create(
+                project=self.project,
+                user=user,
+                role=ProjectMember.Role.ANNOTATOR,
+                enabled=True,
+            )
+            bulk_users.append(user)
+
+        self.client.force_authenticate(user=self.manager)
+        first_response = self.client.get(
+            f'/api/task-assignments/eligible-assignees/?project={self.project.id}&page_size=50&page=1'
+        )
+        second_response = self.client.get(
+            f'/api/task-assignments/eligible-assignees/?project={self.project.id}&page_size=50&page=2'
+        )
+
+        assert first_response.status_code == 200
+        assert second_response.status_code == 200
+        first_page = first_response.json()
+        second_page = second_response.json()
+        assert first_page['next'] is not None
+        assert second_page['previous'] is not None
+
+        returned_ids = {
+            item['id']
+            for item in first_page['results'] + second_page['results']
+        }
+        assert {user.id for user in bulk_users}.issubset(returned_ids)
+
+    def test_manager_cannot_swap_project_id_to_read_other_project_assignees(self):
+        other_creator = UserFactory(active_organization=self.organization)
+        self.organization.add_user(other_creator)
+        other_project = ProjectFactory(
+            organization=self.organization,
+            created_by=other_creator,
+        )
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(
+            f'/api/task-assignments/eligible-assignees/?project={other_project.id}'
+        )
+
+        assert response.status_code == 404
+
+    def test_annotator_cannot_list_eligible_assignment_assignees(self):
+        self.client.force_authenticate(user=self.annotator_a)
+
+        response = self.client.get(
+            f'/api/task-assignments/eligible-assignees/?project={self.project.id}'
+        )
+
+        assert response.status_code == 403
+
+    def test_assignment_list_can_filter_active_only(self):
+        self.client.force_authenticate(user=self.manager)
+        self.assignment_a.cancel()
+
+        response = self.client.get(
+            f'/api/task-assignments/?project={self.project.id}&task={self.shared_task.id}&active=true'
+        )
+
+        assert response.status_code == 200
+        assignment_ids = {item['id'] for item in response.json()}
+        assert self.assignment_a.id not in assignment_ids
+        assert self.assignment_b.id in assignment_ids
+
+    def test_assignment_list_keeps_identity_for_ineligible_assignee(self):
+        revoked = UserFactory(active_organization=self.organization)
+        self.organization.add_user(revoked)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=revoked,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+        task = TaskFactory(project=self.project)
+        assignment = TaskAssignment.objects.create(
+            task=task,
+            project=self.project,
+            assignee=revoked,
+            assigned_by=self.manager,
+        )
+
+        project_membership = ProjectMember.objects.get(
+            project=self.project,
+            user=revoked,
+        )
+        project_membership.enabled = False
+        project_membership.save(update_fields=['enabled'])
+        revoked.is_active = False
+        revoked.save(update_fields=['is_active'])
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(
+            f'/api/task-assignments/?project={self.project.id}&task={task.id}&active=true'
+        )
+
+        assert response.status_code == 200
+        item = next(item for item in response.json() if item['id'] == assignment.id)
+        assert item['assignee'] == revoked.id
+        assert item['assignee_identity']['id'] == revoked.id
+        assert item['assignee_identity']['email'] == revoked.email
+
     def test_manager_can_assign_active_annotator(self):
         new_task = TaskFactory(project=self.project)
         self.client.force_authenticate(user=self.manager)
@@ -222,6 +371,61 @@ class TestTaskAssignmentAuthorization(APITestCase):
         assert assignment.assignee_id == self.annotator_a.id
         assert assignment.assigned_by_id == self.manager.id
         assert assignment.status == TaskAssignment.Status.ASSIGNED
+
+    def test_manager_cannot_assign_inactive_user(self):
+        inactive = UserFactory(active_organization=self.organization, is_active=False)
+        self.organization.add_user(inactive)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=inactive,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+
+        self.client.force_authenticate(user=self.manager)
+
+        eligible = self.client.get(
+            f'/api/task-assignments/eligible-assignees/?project={self.project.id}'
+        )
+        assert eligible.status_code == 200
+        assert inactive.id not in {item['id'] for item in eligible.json()['results']}
+
+        new_task = TaskFactory(project=self.project)
+        response = self.client.post(
+            '/api/task-assignments/',
+            data={'task': new_task.id, 'assignee': inactive.id},
+            format='json',
+        )
+
+        assert response.status_code == 400
+        assert not TaskAssignment.objects.filter(task=new_task, assignee=inactive).exists()
+
+    def test_manager_cannot_assign_soft_deleted_organization_member(self):
+        revoked = UserFactory(active_organization=self.organization)
+        self.organization.add_user(revoked)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=revoked,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+        org_membership = OrganizationMember.objects.get(
+            organization=self.organization,
+            user=revoked,
+        )
+        org_membership.deleted_at = org_membership.created_at
+        org_membership.save(update_fields=['deleted_at'])
+
+        new_task = TaskFactory(project=self.project)
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.post(
+            '/api/task-assignments/',
+            data={'task': new_task.id, 'assignee': revoked.id},
+            format='json',
+        )
+
+        assert response.status_code == 400
+        assert not TaskAssignment.objects.filter(task=new_task, assignee=revoked).exists()
 
     def test_manager_cannot_assign_reviewer_as_annotator(self):
         new_task = TaskFactory(project=self.project)

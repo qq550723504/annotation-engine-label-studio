@@ -17,6 +17,7 @@ from fsm.serializer_fields import FSMStateField
 from fsm.state_inference import get_or_infer_state
 from fsm.utils import get_or_initialize_state, is_fsm_enabled
 from label_studio_sdk.label_interface import LabelInterface
+from organizations.models import OrganizationMember
 from projects.models import Project, ProjectMember
 from rest_flex_fields import FlexFieldsModelSerializer
 from rest_framework import generics, serializers
@@ -28,7 +29,7 @@ from tasks.exceptions import AnnotationDuplicateError
 from tasks.models import Annotation, AnnotationDraft, Prediction, PredictionMeta, ReviewDecision, Submission, Task, TaskAssignment
 from tasks.validation import TaskValidator
 from users.models import User
-from users.serializers import UserSerializer
+from users.serializers import UserSerializer, UserSimpleSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,7 @@ class PredictionSerializer(ModelSerializer):
 
 class TaskAssignmentSerializer(serializers.ModelSerializer):
     assignee = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    assignee_identity = UserSimpleSerializer(source='assignee', read_only=True)
 
     class Meta:
         model = TaskAssignment
@@ -133,6 +135,7 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
             'task',
             'project',
             'assignee',
+            'assignee_identity',
             'assigned_by',
             'annotation',
             'status',
@@ -142,6 +145,7 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'project',
+            'assignee_identity',
             'assigned_by',
             'annotation',
             'status',
@@ -158,6 +162,14 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
             raise ValidationError({'task': 'Task must belong to a project.'})
 
         is_creator = task.project.created_by_id == assignee.id
+        has_active_org_membership = (
+            assignee.is_active
+            and OrganizationMember.objects.filter(
+                organization=task.project.organization,
+                user=assignee,
+                deleted_at__isnull=True,
+            ).exists()
+        )
         has_role = ProjectMember.objects.filter(
             project=task.project,
             user=assignee,
@@ -165,7 +177,7 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
             role__in=[ProjectMember.Role.ANNOTATOR, ProjectMember.Role.MANAGER],
         ).exists()
 
-        if not is_creator and not has_role:
+        if not has_active_org_membership or (not is_creator and not has_role):
             raise ValidationError({'assignee': 'Assignee must be an active annotator or manager in this project.'})
 
         if TaskAssignment.objects.filter(

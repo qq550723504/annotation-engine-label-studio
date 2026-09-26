@@ -26,6 +26,7 @@ _api_urlpatterns = [
 ]
 
 _api_assignments_urlpatterns = [
+    path('eligible-assignees/', api.TaskAssignmentEligibleAssigneeListAPI.as_view(), name='assignment-eligible-assignees'),
     path('', api.TaskAssignmentListCreateAPI.as_view(), name='assignment-list'),
     path('<int:pk>/', api.TaskAssignmentAPI.as_view(), name='assignment-detail'),
 ]

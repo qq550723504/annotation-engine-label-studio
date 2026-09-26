@@ -29,6 +29,10 @@ export const API_CONFIG = {
     createProjectMember: "POST:/projects/:pk/members/",
     updateProjectMember: "PATCH:/projects/:pk/members/:memberPk/",
     deleteProjectMember: "DELETE:/projects/:pk/members/:memberPk/",
+    taskAssignments: "GET:/task-assignments/",
+    createTaskAssignment: "POST:/task-assignments/",
+    deleteTaskAssignment: "DELETE:/task-assignments/:assignmentPk/",
+    eligibleTaskAssignees: "GET:/task-assignments/eligible-assignees/",
 
     // Presigning
     presignUrlForTask: "/../tasks/:taskID/presign",
