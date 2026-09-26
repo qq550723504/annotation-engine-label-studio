@@ -3,7 +3,7 @@ from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
-from tasks.models import Annotation, Submission, TaskAssignment
+from tasks.models import Annotation, ReviewDecision, Submission, TaskAssignment
 from tasks.submissions import create_submission
 from tasks.tests.factories import TaskFactory
 from users.tests.factories import UserFactory
@@ -176,6 +176,60 @@ class TestTaskAssignmentAuthorization(APITestCase):
         assert review_response.status_code == 403
         submission.refresh_from_db()
         assert submission.status == Submission.Status.PENDING
+
+    def test_reviewer_cannot_review_submission_from_other_project_by_id(self):
+        other_creator = UserFactory(active_organization=self.organization)
+        other_annotator = UserFactory(active_organization=self.organization)
+        self.organization.add_user(other_creator)
+        self.organization.add_user(other_annotator)
+
+        other_project = ProjectFactory(
+            organization=self.organization,
+            created_by=other_creator,
+        )
+        ProjectMember.objects.create(
+            project=other_project,
+            user=other_annotator,
+            role=ProjectMember.Role.ANNOTATOR,
+        )
+
+        other_task = TaskFactory(project=other_project)
+        other_assignment = TaskAssignment.objects.create(
+            task=other_task,
+            project=other_project,
+            assignee=other_annotator,
+            assigned_by=other_creator,
+        )
+
+        self.client.force_authenticate(user=other_annotator)
+        annotation_response = self.client.post(
+            f'/api/tasks/{other_task.id}/annotations/',
+            data={
+                'result': [],
+                'assignment_id': other_assignment.id,
+                'assignment_version': other_assignment.version,
+            },
+            format='json',
+        )
+        assert annotation_response.status_code == 201, annotation_response.json()
+        other_annotation = Annotation.objects.get(pk=annotation_response.json()['id'])
+        other_submission = create_submission(
+            assignment=other_assignment,
+            annotation=other_annotation,
+            actor=other_annotator,
+        )
+
+        self.client.force_authenticate(user=self.reviewer)
+        response = self.client.post(
+            f'/api/submissions/{other_submission.id}/review/',
+            data={'decision': 'approved'},
+            format='json',
+        )
+
+        assert response.status_code in (403, 404)
+        other_submission.refresh_from_db()
+        assert other_submission.status == Submission.Status.PENDING
+        assert not ReviewDecision.objects.filter(submission=other_submission).exists()
 
     def test_reviewer_cannot_swap_project_id_to_read_other_project_queue(self):
         annotation = self._create_annotation(self.annotator_a, self.shared_task)
