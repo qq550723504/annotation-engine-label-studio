@@ -335,12 +335,12 @@ class TestTaskAssignmentAuthorization(APITestCase):
             assigned_by=self.manager,
         )
 
-        org_membership = OrganizationMember.objects.get(
-            organization=self.organization,
+        project_membership = ProjectMember.objects.get(
+            project=self.project,
             user=revoked,
         )
-        org_membership.deleted_at = org_membership.created_at
-        org_membership.save(update_fields=['deleted_at'])
+        project_membership.enabled = False
+        project_membership.save(update_fields=['enabled'])
         revoked.is_active = False
         revoked.save(update_fields=['is_active'])
 
