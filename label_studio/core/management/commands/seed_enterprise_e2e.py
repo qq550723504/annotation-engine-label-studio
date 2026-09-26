@@ -113,6 +113,22 @@ class Command(BaseCommand):
             enabled=True,
         )
 
+        full_flow_project = Project.objects.create(
+            title='Enterprise Full Browser Flow E2E',
+            description='Isolated project for the complete browser collaboration acceptance flow.',
+            organization=organization,
+            created_by=manager,
+            is_published=True,
+            enable_empty_annotation=True,
+            label_config=label_config,
+        )
+        ProjectMember.objects.create(
+            project=full_flow_project,
+            user=manager,
+            role=ProjectMember.Role.MANAGER,
+            enabled=True,
+        )
+
         task_a = Task.objects.create(
             project=project,
             data={'text': 'Annotator A browser acceptance task'},
@@ -136,6 +152,16 @@ class Command(BaseCommand):
         task_release = Task.objects.create(
             project=project,
             data={'text': 'Manager approved release browser task'},
+            overlap=1,
+        )
+        full_flow_task_a = Task.objects.create(
+            project=full_flow_project,
+            data={'text': 'Full flow Annotator A task'},
+            overlap=1,
+        )
+        full_flow_task_b = Task.objects.create(
+            project=full_flow_project,
+            data={'text': 'Full flow Annotator B task'},
             overlap=1,
         )
         assignment_a = TaskAssignment.objects.create(
@@ -237,10 +263,18 @@ class Command(BaseCommand):
         # Mirror the data-column bookkeeping performed by normal import flows so
         # Data Manager treats the deterministic fixtures like real imported tasks.
         project.summary.update_data_columns([task_a, task_b, task_c, task_review, task_release])
+        full_flow_project.summary.update_data_columns([full_flow_task_a, full_flow_task_b])
 
         payload = {
             'password': PASSWORD,
             'project_id': project.id,
+            'full_flow': {
+                'project_id': full_flow_project.id,
+                'tasks': {
+                    'a': {'id': full_flow_task_a.id},
+                    'b': {'id': full_flow_task_b.id},
+                },
+            },
             'users': {
                 key: {'id': user.id, 'email': user.email}
                 for key, user in users.items()
