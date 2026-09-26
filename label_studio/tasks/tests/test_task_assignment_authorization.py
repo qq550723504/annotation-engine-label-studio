@@ -3,7 +3,8 @@ from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
-from tasks.models import Annotation, TaskAssignment
+from tasks.models import Annotation, Submission, TaskAssignment
+from tasks.submissions import create_submission
 from tasks.tests.factories import TaskFactory
 from users.tests.factories import UserFactory
 
@@ -85,6 +86,58 @@ class TestTaskAssignmentAuthorization(APITestCase):
         assert assigned.json()['assignment_id'] == self.assignment_a.id
         assert assigned.json()['assignment_version'] == self.assignment_a.version
         assert unassigned.status_code == 404
+
+    def test_reviewer_can_list_only_reviewable_pending_submissions(self):
+        annotation = self._create_annotation(self.annotator_a, self.shared_task)
+        submission = create_submission(
+            assignment=self.assignment_a,
+            annotation=annotation,
+            actor=self.annotator_a,
+        )
+        Submission.objects.create(
+            assignment=self.other_assignment,
+            annotation=None,
+            revision=1,
+            result_snapshot={'task': {'id': self.other_task.id}},
+            result_hash='0' * 64,
+            submitted_by=self.annotator_b,
+            status=Submission.Status.APPROVED,
+        )
+
+        self.client.force_authenticate(user=self.reviewer)
+        response = self.client.get(
+            f'/api/submissions/?project={self.project.id}&reviewable=true'
+        )
+
+        assert response.status_code == 200
+        ids = {item['id'] for item in response.json()}
+        assert ids == {submission.id}
+        item = response.json()[0]
+        assert item['revision'] == 1
+        assert item['result_hash'] == submission.result_hash
+        assert item['result_snapshot'] == submission.result_snapshot
+
+    def test_non_reviewer_cannot_open_reviewable_submission_queue(self):
+        annotation = self._create_annotation(self.annotator_a, self.shared_task)
+        create_submission(
+            assignment=self.assignment_a,
+            annotation=annotation,
+            actor=self.annotator_a,
+        )
+
+        for user in (self.manager, self.annotator_a):
+            self.client.force_authenticate(user=user)
+            response = self.client.get(
+                f'/api/submissions/?project={self.project.id}&reviewable=true'
+            )
+            assert response.status_code == 403
+
+    def test_reviewable_submission_queue_requires_project(self):
+        self.client.force_authenticate(user=self.reviewer)
+
+        response = self.client.get('/api/submissions/?reviewable=true')
+
+        assert response.status_code == 400
 
     def test_reviewer_project_membership_does_not_grant_task_access(self):
         self.client.force_authenticate(user=self.reviewer)
