@@ -29,7 +29,7 @@ from tasks.exceptions import AnnotationDuplicateError
 from tasks.models import Annotation, AnnotationDraft, Prediction, PredictionMeta, ReviewDecision, Submission, Task, TaskAssignment
 from tasks.validation import TaskValidator
 from users.models import User
-from users.serializers import UserSerializer
+from users.serializers import UserSerializer, UserSimpleSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +126,7 @@ class PredictionSerializer(ModelSerializer):
 
 class TaskAssignmentSerializer(serializers.ModelSerializer):
     assignee = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    assignee_identity = UserSimpleSerializer(source='assignee', read_only=True)
 
     class Meta:
         model = TaskAssignment
@@ -134,6 +135,7 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
             'task',
             'project',
             'assignee',
+            'assignee_identity',
             'assigned_by',
             'annotation',
             'status',
@@ -143,6 +145,7 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'project',
+            'assignee_identity',
             'assigned_by',
             'annotation',
             'status',
