@@ -164,6 +164,11 @@ class Command(BaseCommand):
             data={'text': 'Full flow Annotator B task'},
             overlap=1,
         )
+        full_flow_stale_task = Task.objects.create(
+            project=full_flow_project,
+            data={'text': 'Full flow stale editor task'},
+            overlap=1,
+        )
         assignment_a = TaskAssignment.objects.create(
             project=project,
             task=task_a,
@@ -263,7 +268,7 @@ class Command(BaseCommand):
         # Mirror the data-column bookkeeping performed by normal import flows so
         # Data Manager treats the deterministic fixtures like real imported tasks.
         project.summary.update_data_columns([task_a, task_b, task_c, task_review, task_release])
-        full_flow_project.summary.update_data_columns([full_flow_task_a, full_flow_task_b])
+        full_flow_project.summary.update_data_columns([full_flow_task_a, full_flow_task_b, full_flow_stale_task])
 
         payload = {
             'password': PASSWORD,
@@ -273,6 +278,7 @@ class Command(BaseCommand):
                 'tasks': {
                     'a': {'id': full_flow_task_a.id},
                     'b': {'id': full_flow_task_b.id},
+                    'stale': {'id': full_flow_stale_task.id},
                 },
             },
             'users': {
