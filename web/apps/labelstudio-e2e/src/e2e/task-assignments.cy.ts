@@ -62,9 +62,9 @@ describe("task assignment management UI", () => {
       .should("not.contain.text", fixture.users.reviewer.email);
 
     cy.get('[data-testid="assignment-assignee-select"]').select(String(fixture.users.annotator_a.id));
-    cy.contains("button", "Assign").click();
+    cy.get('[data-testid="assignment-submit"]').click();
 
-    cy.contains('[data-testid^="assignment-"]', fixture.users.annotator_a.email)
+    cy.contains('[data-testid^="assignment-row-"]', fixture.users.annotator_a.email)
       .should("exist")
       .and("contain.text", "assigned");
 
@@ -115,7 +115,7 @@ describe("task assignment management UI", () => {
       cy.get('[data-testid="assignment-empty"]').should("exist");
       cy.get('[data-testid="assignment-assignee-select"]').select(String(fixture.users.annotator_b.id));
       cy.contains("button", "Assign").click();
-      cy.contains('[data-testid^="assignment-"]', fixture.users.annotator_b.email).should("exist");
+      cy.contains('[data-testid^="assignment-row-"]', fixture.users.annotator_b.email).should("exist");
       closeAssignmentManager();
 
       cy.loginAs(fixture.users.annotator_b.email, fixture.password, dataPage());
