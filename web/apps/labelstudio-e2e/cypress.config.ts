@@ -35,7 +35,7 @@ export default defineConfig({
           taskId,
           actor,
         }: {
-          action: "assign" | "cancel";
+          action: "assign" | "cancel" | "clear";
           taskId: number;
           actor: string;
         }) {
