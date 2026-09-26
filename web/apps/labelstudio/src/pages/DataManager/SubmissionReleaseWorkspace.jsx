@@ -49,15 +49,13 @@ export const SubmissionReleaseWorkspace = ({ projectId }) => {
 
     if (generationRef.current !== generation) return;
 
-    if (nextPage > 1 && result?.response?.detail === "Invalid page.") {
-      const fallbackPage = nextPage - 1;
+    while (nextPage > 1 && result?.response?.detail === "Invalid page.") {
+      nextPage -= 1;
       result = await callApiRef.current("projectSubmissions", {
-        params: { project: projectId, page: fallbackPage, page_size: 50 },
+        params: { project: projectId, page: nextPage, page_size: 50 },
         errorFilter: () => true,
       });
       if (generationRef.current !== generation) return;
-      nextPage = fallbackPage;
-      setPage(fallbackPage);
     }
 
     if (!result || result?.error || result?.$meta?.ok === false) {
