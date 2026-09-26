@@ -1,0 +1,49 @@
+.submission-release-workspace {
+  min-height: 360px;
+
+  &__layout {
+    display: grid;
+    grid-template-columns: minmax(220px, 280px) 1fr;
+    gap: 16px;
+  }
+
+  &__history,
+  &__detail {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__history-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px;
+    text-align: left;
+    border: 1px solid var(--color-neutral-border);
+    border-radius: 6px;
+    background: var(--color-neutral-background);
+    cursor: pointer;
+
+    &_active {
+      border-color: var(--color-primary-border);
+    }
+  }
+
+  &__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  pre {
+    max-height: 320px;
+    overflow: auto;
+    padding: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid var(--color-neutral-border);
+    border-radius: 6px;
+  }
+}
