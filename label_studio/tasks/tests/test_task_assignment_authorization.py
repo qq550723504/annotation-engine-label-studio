@@ -318,7 +318,7 @@ class TestTaskAssignmentAuthorization(APITestCase):
         assert self.assignment_a.id not in assignment_ids
         assert self.assignment_b.id in assignment_ids
 
-    def test_assignment_list_keeps_identity_for_revoked_assignee(self):
+    def test_assignment_list_keeps_identity_for_ineligible_assignee(self):
         revoked = UserFactory(active_organization=self.organization)
         self.organization.add_user(revoked)
         ProjectMember.objects.create(
