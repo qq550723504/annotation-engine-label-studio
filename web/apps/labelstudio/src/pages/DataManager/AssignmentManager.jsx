@@ -233,7 +233,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
           <div data-testid="assignment-empty">No active assignments.</div>
         ) : (
           assignments.map((assignment) => {
-            const user = userById.get(assignment.assignee);
+            const user = assignment.assignee_identity ?? userById.get(assignment.assignee);
             const identity =
               user?.email ||
               [user?.first_name, user?.last_name].filter(Boolean).join(" ") ||
