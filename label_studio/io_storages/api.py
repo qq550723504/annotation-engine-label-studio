@@ -29,6 +29,13 @@ class ImportStorageListAPI(generics.ListCreateAPIView):
 
     serializer_class = ImportStorageSerializer
 
+    def create(self, request, *args, **kwargs):
+        project_id = request.data.get('project')
+        if project_id is not None:
+            project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=project_id)
+            require_project_manager(request, project)
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         project = serializer.validated_data.get('project')
         require_project_manager(self.request, project)
@@ -77,6 +84,13 @@ class ExportStorageListAPI(generics.ListCreateAPIView):
     )
     parser_classes = (JSONParser, FormParser, MultiPartParser)
     serializer_class = ExportStorageSerializer
+
+    def create(self, request, *args, **kwargs):
+        project_id = request.data.get('project')
+        if project_id is not None:
+            project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=project_id)
+            require_project_manager(request, project)
+        return super().create(request, *args, **kwargs)
 
     def get_queryset(self):
         project_pk = self.request.query_params.get('project')
