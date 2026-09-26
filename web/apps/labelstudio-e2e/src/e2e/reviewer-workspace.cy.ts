@@ -97,9 +97,15 @@ describe("immutable submission reviewer workspace", () => {
       expect(queueResponse.status).to.eq(200);
       const revision2 = queueResponse.body.results.find((item) => item.revision === 2);
       expect(revision2).to.exist;
-      expect(revision2.result_snapshot).to.deep.include({
-        task: { id: fixture.tasks.review.id },
-      });
+      expect(revision2.result_snapshot.task.id).to.eq(fixture.tasks.review.id);
+      expect(revision2.result_snapshot.annotation.result).to.deep.equal([
+        {
+          from_name: "sentiment",
+          to_name: "text",
+          type: "choices",
+          value: { choices: ["Negative"] },
+        },
+      ]);
       cy.get("@revision1Hash").then((revision1Hash) => {
         expect(revision2.result_hash).not.to.eq(String(revision1Hash));
       });
