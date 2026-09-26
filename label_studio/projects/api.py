@@ -133,6 +133,19 @@ class ProjectMemberCapabilityAPI(generics.GenericAPIView):
         return Response({'can_manage': True})
 
 
+class ProjectReviewCapabilityAPI(generics.GenericAPIView):
+    permission_required = all_permissions.projects_view
+
+    def get(self, request, *args, **kwargs):
+        project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=kwargs['pk'])
+        principal = resolve_principal(request)
+        authorization.require(
+            authorization.can_review_project(principal, project),
+            'Project reviewer role is required to review submissions.',
+        )
+        return Response({'can_review': True})
+
+
 @method_decorator(
     name='get',
     decorator=extend_schema(
