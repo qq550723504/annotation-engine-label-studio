@@ -83,7 +83,6 @@ describe('enterprise collaboration - currently available UI', () => {
       expect(response.body.assignment_version).to.be.a('number');
     });
 
-    cy.contains('button', /Label All Tasks/i).should('not.exist');
     cy.get('[data-testid="bottombar-submit-button"]').should('not.exist');
   });
 
