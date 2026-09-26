@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from organizations.models import OrganizationMember
 from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
@@ -75,6 +77,130 @@ class TestTaskAssignmentAuthorization(APITestCase):
         )
         assert response.status_code == 201, response.json()
         return Annotation.objects.get(pk=response.json()['id'])
+
+    def test_non_manager_storage_create_is_denied_before_connection_validation(self):
+        for user in (self.annotator_a, self.reviewer):
+            self.client.force_authenticate(user=user)
+            with (
+                patch('io_storages.s3.models.S3ImportStorage.validate_connection') as import_validate,
+                patch('io_storages.s3.models.S3ExportStorage.validate_connection') as export_validate,
+            ):
+                import_response = self.client.post(
+                    '/api/storages/s3/',
+                    data={
+                        'project': self.project.id,
+                        'bucket': 'authorization-test-import',
+                        'title': 'authorization-test-import',
+                    },
+                    format='json',
+                )
+                export_response = self.client.post(
+                    '/api/storages/export/s3',
+                    data={
+                        'project': self.project.id,
+                        'bucket': 'authorization-test-export',
+                        'title': 'authorization-test-export',
+                    },
+                    format='json',
+                )
+
+            assert import_response.status_code == 403
+            assert export_response.status_code == 403
+            import_validate.assert_not_called()
+            export_validate.assert_not_called()
+
+    def test_storage_create_foreign_project_id_is_denied_before_connection_validation(self):
+        other_creator = UserFactory(active_organization=self.organization)
+        self.organization.add_user(other_creator)
+        other_project = ProjectFactory(
+            organization=self.organization,
+            created_by=other_creator,
+        )
+
+        self.client.force_authenticate(user=self.annotator_a)
+        with (
+            patch('io_storages.s3.models.S3ImportStorage.validate_connection') as import_validate,
+            patch('io_storages.s3.models.S3ExportStorage.validate_connection') as export_validate,
+        ):
+            import_response = self.client.post(
+                '/api/storages/s3/',
+                data={
+                    'project': other_project.id,
+                    'bucket': 'foreign-project-import',
+                    'title': 'foreign-project-import',
+                },
+                format='json',
+            )
+            export_response = self.client.post(
+                '/api/storages/export/s3',
+                data={
+                    'project': other_project.id,
+                    'bucket': 'foreign-project-export',
+                    'title': 'foreign-project-export',
+                },
+                format='json',
+            )
+
+        assert import_response.status_code == 404
+        assert export_response.status_code == 404
+        import_validate.assert_not_called()
+        export_validate.assert_not_called()
+
+    def test_storage_create_rejects_malformed_project_id_before_connection_validation(self):
+        self.client.force_authenticate(user=self.annotator_a)
+
+        for malformed_project in ('abc', [], {}):
+            with (
+                patch('io_storages.s3.models.S3ImportStorage.validate_connection') as import_validate,
+                patch('io_storages.s3.models.S3ExportStorage.validate_connection') as export_validate,
+            ):
+                import_response = self.client.post(
+                    '/api/storages/s3/',
+                    data={
+                        'project': malformed_project,
+                        'bucket': 'malformed-project-import',
+                        'title': 'malformed-project-import',
+                    },
+                    format='json',
+                )
+                export_response = self.client.post(
+                    '/api/storages/export/s3',
+                    data={
+                        'project': malformed_project,
+                        'bucket': 'malformed-project-export',
+                        'title': 'malformed-project-export',
+                    },
+                    format='json',
+                )
+
+            assert import_response.status_code == 400
+            assert export_response.status_code == 400
+            import_validate.assert_not_called()
+            export_validate.assert_not_called()
+
+    def test_storage_create_rejects_non_object_body_before_connection_validation(self):
+        self.client.force_authenticate(user=self.annotator_a)
+
+        for malformed_body in ([], 'abc', 7):
+            with (
+                patch('io_storages.s3.models.S3ImportStorage.validate_connection') as import_validate,
+                patch('io_storages.s3.models.S3ExportStorage.validate_connection') as export_validate,
+            ):
+                import_response = self.client.post(
+                    '/api/storages/s3/',
+                    data=malformed_body,
+                    format='json',
+                )
+                export_response = self.client.post(
+                    '/api/storages/export/s3',
+                    data=malformed_body,
+                    format='json',
+                )
+
+            assert import_response.status_code == 400
+            assert export_response.status_code == 400
+            import_validate.assert_not_called()
+            export_validate.assert_not_called()
 
     def test_assignee_can_open_assigned_task_but_not_someone_elses_task(self):
         self.client.force_authenticate(user=self.annotator_a)

@@ -59,7 +59,15 @@ export default defineConfig({
           );
           return null;
         },
-        setEnterpriseE2EMember({ actor, enabled }: { actor: string; enabled: boolean }) {
+        setEnterpriseE2EMember({
+          actor,
+          enabled,
+          projectId,
+        }: {
+          actor: string;
+          enabled: boolean;
+          projectId?: number;
+        }) {
           const repoRoot = resolve(__dirname, '../../..');
           execFileSync(
             'poetry',
@@ -71,6 +79,7 @@ export default defineConfig({
               actor,
               '--enabled',
               enabled ? 'true' : 'false',
+              ...(projectId ? ['--project-id', String(projectId)] : []),
             ],
             {
               cwd: repoRoot,

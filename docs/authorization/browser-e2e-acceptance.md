@@ -2,7 +2,7 @@
 
 Issue: #16
 
-This document validates only enterprise collaboration behavior that is already reachable through the current Label Studio UI. Missing product workflows are recorded as GAP and are implemented separately in #17–#20.
+This document records the enterprise collaboration browser acceptance contract. Focused workflows #17–#20 are merged; #21 adds the single end-to-end browser journey that composes them.
 
 ## Test environment
 
@@ -44,16 +44,16 @@ yarn cypress run \
 | Four distinct identities can authenticate with isolated sessions | PASS | Browser uses the real `/user/login/` form for each role. |
 | Annotator task scope is enforced by the backend from the browser session | PASS | From a real logged-in browser session, assigned task returns 200 and another annotator's task returns 404. |
 | Reviewer project visibility does not grant labeling/task access | PASS | Reviewer session cannot retrieve assigned annotator task; Browser E2E passed this scenario. |
-| Existing editor explicit Submit creates immutable Submission | GAP | Backend/API contract is verified, but the current acceptance suite does not yet complete the formal Submission workflow through the editor; project-level labeling entry visibility is not treated as an authorization boundary. |
+| Existing editor explicit Submit creates immutable Submission | PASS | #21 Enterprise Browser E2E run #141 passed the real Editor Submit/Update path with assignment id/version plus `submit_for_review=true`. |
 | Membership revocation invalidates backend access | PASS | A logged-in annotator loses task API access immediately after out-of-band membership disablement. |
-| Stale already-open editor Save/Submit after revocation | GAP | The full stale-open-editor Save/Submit interaction remains outside this current-UI acceptance case; backend stale-token behavior and focused assignment browser coverage enforce the security boundary. |
-| Project member/role management through browser UI | IMPLEMENTED | #17 adds the project Settings → Members workflow; CI must pass before this row is promoted to PASS. |
-| Task assignment administration through browser UI | IMPLEMENTED | #18 adds a Manager-only Data Manager assignment workflow with active assignment inspection, assign, cancel, reassign, and server-filtered eligible assignees; CI must pass before this row is promoted to PASS. |
-| Reviewer pending queue / immutable snapshot review UI | IMPLEMENTED | #19 adds a Reviewer-only workspace backed by the immutable Submission snapshot/revision/hash contract; CI must pass before this row is promoted to PASS. |
-| Approve / Reject browser controls | IMPLEMENTED | #19 adds Reviewer-only Approve/Reject actions with required reject reason and authoritative backend review enforcement; CI must pass before this row is promoted to PASS. |
-| Submission revision history UI | IMPLEMENTED | #20 adds a Manager release workspace with paginated immutable revision history and review metadata; CI must pass before this row is promoted to PASS. |
-| Manager approved-revision Release UI | IMPLEMENTED | #20 exposes Release only for approved immutable revisions and validates the returned submission/revision/hash against the selected snapshot; CI must pass before this row is promoted to PASS. |
-| Full browser Manager → Assign → Annotate → Reject → Revise → Approve → Release flow | GAP | Final browser acceptance tracked in #21 after #17–#20. |
+| Stale already-open editor Save/Submit after revocation | PASS | #21 Enterprise Browser E2E run #141 passed with a confirmed-writable real Annotator editor kept open across out-of-band revocation; stale Submit was required to fail with controlled 403/404/409 and never 500. |
+| Project member/role management through browser UI | PASS | #17 merged after focused browser CI passed. |
+| Task assignment administration through browser UI | PASS | #18 merged after focused browser CI passed, including stale assignment-token coverage. |
+| Reviewer pending queue / immutable snapshot review UI | PASS | #19 merged after focused browser CI passed against immutable Submission snapshot/revision/hash. |
+| Approve / Reject browser controls | PASS | #19 merged after focused reject/revise/approve browser CI passed. |
+| Submission revision history UI | PASS | #20 merged after focused browser CI passed for immutable multi-revision history. |
+| Manager approved-revision Release UI | PASS | #20 merged after focused browser CI passed with exact submission/revision/hash/snapshot validation. |
+| Full browser Manager → Assign → Annotate → Reject → Revise → Approve → Release flow | PASS | #21 Enterprise Browser E2E run #141 passed the composed real-UI journey on commit `b1b342407e4b675183359ac0e6313fcb83ee1969`. |
 
 ## Findings during E2E bring-up
 
@@ -85,16 +85,9 @@ The Data Manager explorer does not guarantee that raw `task.data.text` is render
 
 The supported programmatic action used by the current UI to open a task is Data Manager's `startLabeling(item)`; a bare `?task=` URL is primarily a history/state restoration mechanism. Current acceptance therefore asserts protected API/editor state rather than the presence or absence of a project-level labeling-entry button.
 
-## Explicit gaps
+## Milestone status
 
-The following backend capabilities deliberately have no current product UI in this milestone:
-
-- project member / role management — implemented in #17; pending browser CI verification;
-- task assignment management — implemented in #18; pending browser CI verification;
-- Reviewer workspace and approve/reject — implemented in #19; pending browser CI verification;
-- submission history and approved release — implemented in #20; pending browser CI verification.
-
-#16 must not implement those workflows.
+Focused browser workflows #17–#20 are implemented, merged, and passed their dedicated CI acceptance. #21 does not add another business workflow; it proves that the same product surfaces compose correctly in one browser journey, including explicit Editor Submit/Update and stale-open-editor revocation behavior.
 
 ## Project member management UI (#17)
 
@@ -193,6 +186,39 @@ yarn cypress run \
 
 Browser coverage exercises rejected revision 1, approved revision 2, pending revision 3, Manager-only release visibility, rejected/pending backend rejection, approved release success, and exact revision/hash/snapshot correspondence.
 
+
+## Full enterprise collaboration browser flow (#21)
+
+The full-flow fixture uses a second isolated project in the same organization. It starts with only the Manager as a project member and two unassigned tasks, so the browser must perform the collaboration setup rather than inheriting the focused test fixtures.
+
+The browser journey:
+
+1. Manager adds Annotator A, Annotator B, and Reviewer through Settings → Members.
+2. Manager assigns Task A and Task B through the Data Manager assignment UI.
+3. Annotator task isolation and Reviewer labeling denial are checked from authenticated browser sessions.
+4. Annotator A edits the real Label Studio Editor; autosave creates a draft while Submission history remains empty.
+5. Explicit Editor Submit creates immutable revision 1 using the current assignment id/version and `submit_for_review=true`.
+6. Reviewer rejects revision 1 with a reason.
+7. Annotator A reopens the real Editor, changes the result, and Editor Update creates revision 2.
+8. Revision 1 remains rejected and immutable; revision 2 has a distinct hash/snapshot.
+9. Reviewer approves revision 2.
+10. Manager opens Releases and releases exactly approved revision 2.
+11. Manager UI Disable/Enable is exercised; then a real Annotator editor is kept open while the project membership and assignment are revoked concurrently. A stale Submit/Update must fail with 403/404/409 and never 500.
+12. Annotator and Reviewer sessions are denied Manager-only member, assignment, Export, Storage, Webhook, and Data Manager write surfaces.
+
+Focused command:
+
+```bash
+cd web
+yarn cypress run \
+  --project apps/labelstudio-e2e \
+  --config-file cypress.config.ts \
+  --config baseUrl=http://localhost:8080,video=true \
+  --spec apps/labelstudio-e2e/src/e2e/full-enterprise-workflow.cy.ts
+```
+
+The project-scoped fixture mutation used during the stale-open-editor step represents the concurrent Manager actor while preserving the Annotator's already-rendered editor page. The same Manager membership disable/enable path is also exercised through the product UI in the same flow; the security boundary remains the server-side rejection of the stale editor write.
+
 ## CI
 
 The repository now contains a separate `Enterprise Browser E2E` workflow.
@@ -212,14 +238,16 @@ Only executed browser scenarios may be marked PASS.
 
 GAP means that the backend contract exists but the corresponding product UI is not yet implemented.
 
-The full workflow must not be declared browser-complete until #21 passes after #17–#20 are implemented. #18 now provides browser-reachable Manager assignment administration and stale assignment-token browser coverage; the remaining reviewer/release workflows are tracked in #19–#20.
+The full workflow is browser-complete only when the #21 full-flow spec passes in CI. On commit `b1b342407e4b675183359ac0e6313fcb83ee1969`, Enterprise Browser E2E run #141 passed; Fork PR Gate run #173 also passed. Focused #17–#20 PASS rows remain supporting evidence for the composed journey.
 
 
-## Final CI result
+## Historical #16 CI result
+
+The following result belongs only to the earlier #16 current-UI milestone. It does **not** prove the composed #21 enterprise workflow:
 
 - Fork PR Gate: PASS
 - Enterprise Browser E2E: PASS
 - PR: #22
 - Merge commit: `7f99a7dad88340c148a3dae0f2190683f548dd00`
 
-The current-UI validation milestone is complete. Remaining GAP items are intentionally tracked in #17–#20 and are not failures of #16.
+#16 is complete as a historical focused milestone. Its former GAP items were subsequently implemented in #17–#20. The composed #21 enterprise collaboration flow subsequently passed Enterprise Browser E2E run #141 on commit `b1b342407e4b675183359ac0e6313fcb83ee1969`.

@@ -181,3 +181,15 @@ Manager release UI depends on the existing fork-specific release endpoint:
 - object-level authorization must reject cross-project Submission ID substitution even within the same organization;
 - preserve this authorization and immutable-payload boundary across upstream rebases unless release orchestration is intentionally redesigned.
 
+### Storage create pre-validation authorization
+
+Storage create endpoints must authorize the requested project before serializer validation can perform provider-specific connection checks:
+
+- import and export storage create requests read the requested `project` identity first;
+- the project must be visible to the authenticated actor and the effective project role must be Manager;
+- Annotator/Reviewer requests are denied before S3/GCS/Azure/Redis/etc. credential or connectivity validation;
+- external provider errors must never replace the authorization denial for an unauthorized project actor;
+- keep the existing `perform_create` Manager check as defense in depth.
+
+This ordering is part of the fork authorization boundary and must be preserved across upstream rebases.
+
