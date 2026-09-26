@@ -33,6 +33,8 @@ export const API_CONFIG = {
     createTaskAssignment: "POST:/task-assignments/",
     deleteTaskAssignment: "DELETE:/task-assignments/:assignmentPk/",
     eligibleTaskAssignees: "GET:/task-assignments/eligible-assignees/",
+    reviewableSubmissions: "GET:/submissions/",
+    reviewSubmission: "POST:/submissions/:submissionPk/review/",
 
     // Presigning
     presignUrlForTask: "/../tasks/:taskID/presign",
