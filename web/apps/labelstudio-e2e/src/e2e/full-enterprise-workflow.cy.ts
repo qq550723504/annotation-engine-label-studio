@@ -219,62 +219,93 @@ describe("full enterprise collaboration browser workflow", () => {
       .and("contain.text", revision2Hash);
     closeModal();
 
-    // 25-29: keep Annotator A's editor open, disable via Manager UI, then stale Update must fail.
-    openAssignedEditor(fixture.users.annotator_a.email, "Full flow Annotator A task");
-    choose("Positive");
-
-    // Preserve the stale A session in this browser context while Manager mutates membership in another session.
-    cy.window().then((win) => {
-      win.localStorage.setItem("full-flow-stale-marker", "1");
-    });
-
-    cy.loginAs(fixture.users.manager.email, fixture.password, membersPage());
-    cy.visit(membersPage());
+    // 25-29: prove Manager UI revocation, then exercise a truly stale open Editor.
+    loginAndVisit(fixture.users.manager.email, membersPage());
     cy.contains("tr", fixture.users.annotator_a.email).within(() => {
       cy.contains("button", "Disable").click();
     });
     cy.contains("tr", fixture.users.annotator_a.email).should("contain.text", "Disabled");
+    cy.contains("tr", fixture.users.annotator_a.email).within(() => {
+      cy.contains("button", "Enable").click();
+    });
+    cy.contains("tr", fixture.users.annotator_a.email).should("contain.text", "Enabled");
 
-    // Re-authenticate A without reloading the already-open editor contract is not possible in one Cypress tab,
-    // so use the same authenticated actor API token from a fresh page request to prove stale assignment rejection.
-    // The focused browser assignment test already covers same-session token staleness; here we bind the final flow
-    // to membership revocation and verify the protected write remains controlled and non-500.
-    cy.loginAs(fixture.users.annotator_a.email, fixture.password, dataPage());
+    // Disabling cancelled A's active assignment, so create a fresh assignment through Manager UI.
+    assignTask(fixture.full_flow.tasks.a.id, fixture.users.annotator_a.id, fixture.users.annotator_a.email);
+
+    // Keep this real Editor page open while membership changes out-of-band in a concurrent actor.
+    openAssignedEditor(fixture.users.annotator_a.email, "Full flow Annotator A task");
+    choose("Positive");
+
+    cy.request(`/api/tasks/${fixture.full_flow.tasks.a.id}/`).then((taskResponse) => {
+      expect(taskResponse.status).to.eq(200);
+      expect(taskResponse.body.assignment_id).to.be.a("number");
+      expect(taskResponse.body.assignment_version).to.be.a("number");
+    });
+
+    cy.task("setEnterpriseE2EMember", {
+      actor: "annotator_a",
+      enabled: false,
+      projectId: projectId(),
+    });
+
+    cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.a.id}/annotations/**`).as("staleSubmit");
+    cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible").click();
+    cy.wait("@staleSubmit").then((interception) => {
+      expect(interception.response?.statusCode).to.be.oneOf([403, 404, 409]);
+      expect(interception.response?.statusCode).not.to.eq(500);
+    });
+
     cy.request({
       url: `/api/tasks/${fixture.full_flow.tasks.a.id}/`,
       failOnStatusCode: false,
     }).its("status").should("eq", 404);
 
-    cy.request({
-      url: `/api/annotations/${revision2Id}/`,
-      method: "PATCH",
-      failOnStatusCode: false,
-      body: {
-        result: [],
-        submit_for_review: true,
-      },
-    }).then((response) => {
-      expect(response.status).to.be.oneOf([403, 404, 409]);
-      expect(response.status).not.to.eq(500);
-    });
+    cy.reload();
+    cy.get('[data-testid="bottombar-submit-button"]').should("not.exist");
 
-    // 30-34: role separation / hardened surfaces remain server-authoritative.
+    // 30-34: role separation / hardened mutation surfaces remain server-authoritative.
     cy.request({
       url: `/api/submissions/${revision2Id}/review/`,
       method: "POST",
       failOnStatusCode: false,
       body: { decision: "approved" },
     }).its("status").should("eq", 403);
+    cy.request({
+      url: `/api/projects/${projectId()}/members/`,
+      failOnStatusCode: false,
+    }).its("status").should("eq", 403);
+    cy.request({
+      url: `/api/projects/${projectId()}/import`,
+      method: "POST",
+      failOnStatusCode: false,
+      body: {},
+    }).then((response) => {
+      expect(response.status).to.be.oneOf([403, 404]);
+      expect(response.status).not.to.eq(500);
+    });
 
     loginAndVisit(fixture.users.reviewer.email, dataPage());
     cy.get('[data-testid="manage-task-assignments"]').should("not.exist");
     cy.get('[data-testid="open-release-workspace"]').should("not.exist");
+    cy.contains("button", /Label All Tasks/i).should("not.exist");
     cy.request({
       url: `/api/task-assignments/?project=${projectId()}`,
       method: "POST",
       failOnStatusCode: false,
       body: { task: fixture.full_flow.tasks.a.id, assignee: fixture.users.reviewer.id },
     }).its("status").should("eq", 403);
+    cy.request({
+      url: `/api/projects/${projectId()}/members/`,
+      failOnStatusCode: false,
+    }).its("status").should("eq", 403);
+
+    // Restore membership for repeatable local reruns; assignment intentionally remains cancelled.
+    cy.task("setEnterpriseE2EMember", {
+      actor: "annotator_a",
+      enabled: true,
+      projectId: projectId(),
+    });
   });
 });
 
