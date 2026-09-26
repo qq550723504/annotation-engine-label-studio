@@ -37,6 +37,7 @@ export const API_CONFIG = {
     reviewableSubmissions: "GET:/submissions/",
     projectSubmissions: "GET:/submissions/",
     reviewSubmission: "POST:/submissions/:submissionPk/review/",
+    releaseSubmission: "GET:/submissions/:submissionPk/release/",
 
     // Presigning
     presignUrlForTask: "/../tasks/:taskID/presign",
