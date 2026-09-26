@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 
 def _validated_project_id(request):
+    if not hasattr(request.data, 'get'):
+        raise ValidationError('Request body must be a JSON object.')
     project_id = request.data.get('project')
     if project_id is None:
         return None
