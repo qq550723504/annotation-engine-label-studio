@@ -158,3 +158,15 @@ Project task assignment administration depends on a fork-specific, manager-autho
 - the eligible-assignee response is paginated (50 by default, capped at 100) and the Data Manager assignment selector is a client of that paginated contract;
 - preserve this endpoint, its authorization boundary, mutation-side invariant checks, and pagination across upstream rebases unless the assignment candidate source is intentionally redesigned.
 
+### Reviewer queue and immutable review contract
+
+Reviewer UI access depends on fork-specific, server-authoritative review endpoints:
+
+- `GET /api/projects/{project_id}/review-capability/` is the lightweight capability probe used by Data Manager; it succeeds only when the authenticated principal has the effective `reviewer` role for that project.
+- `GET /api/submissions/?project={project_id}&reviewable=true` is the authoritative pending review queue. It requires Reviewer role, returns only `pending` submissions, excludes submissions created by the authenticated reviewer, and is paginated (50 by default, capped at 100).
+- `GET /api/submissions/?project={project_id}&history=true` returns non-pending submission history with the same bounded pagination contract.
+- `POST /api/submissions/{submission_id}/review/` remains the authoritative mutation endpoint and revalidates Reviewer role, pending status, self-review prohibition, and required rejection reason at decision time.
+- The Reviewer workspace must display `Submission.result_snapshot`, `revision`, and `result_hash` as the review subject. It must not substitute the current mutable Annotation state.
+- If Reviewer membership is revoked while the workspace is open, subsequent queue/review requests must be denied and the client must clear stale review controls rather than treating UI state as authorization.
+- Preserve the capability probe, reviewer-only queue semantics, self-review filtering, pagination, immutable snapshot contract, and stale-session enforcement across upstream rebases unless the reviewer workflow is intentionally redesigned.
+
