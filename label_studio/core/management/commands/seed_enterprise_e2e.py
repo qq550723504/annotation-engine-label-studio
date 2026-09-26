@@ -6,8 +6,8 @@ from django.db import transaction
 
 from organizations.models import Organization
 from projects.models import Project, ProjectMember
-from tasks.models import Annotation, Submission, Task, TaskAssignment
-from tasks.submissions import create_submission
+from tasks.models import Annotation, ReviewDecision, Submission, Task, TaskAssignment
+from tasks.submissions import create_submission, review_submission
 from users.models import User
 
 
@@ -133,6 +133,11 @@ class Command(BaseCommand):
             data={'text': 'Reviewer immutable submission browser task'},
             overlap=1,
         )
+        task_release = Task.objects.create(
+            project=project,
+            data={'text': 'Manager approved release browser task'},
+            overlap=1,
+        )
         assignment_a = TaskAssignment.objects.create(
             project=project,
             task=task_a,
@@ -174,9 +179,64 @@ class Command(BaseCommand):
             actor=users['annotator_a'],
         )
 
+        assignment_release = TaskAssignment.objects.create(
+            project=project,
+            task=task_release,
+            assignee=users['annotator_a'],
+            assigned_by=manager,
+        )
+        release_annotation = Annotation.objects.create(
+            task=task_release,
+            project=project,
+            completed_by=users['annotator_a'],
+            updated_by=users['annotator_a'],
+            result=[{'from_name': 'sentiment', 'to_name': 'text', 'type': 'choices', 'value': {'choices': ['Positive']}}],
+        )
+        assignment_release.annotation = release_annotation
+        assignment_release.save(update_fields=['annotation', 'updated_at'])
+
+        release_revision_1 = create_submission(
+            assignment=assignment_release,
+            annotation=release_annotation,
+            actor=users['annotator_a'],
+        )
+        review_submission(
+            submission=release_revision_1,
+            reviewer=users['reviewer'],
+            decision=ReviewDecision.Decision.REJECTED,
+            reason='Needs correction',
+        )
+
+        release_annotation.result = [
+            {'from_name': 'sentiment', 'to_name': 'text', 'type': 'choices', 'value': {'choices': ['Negative']}}
+        ]
+        release_annotation.updated_by = users['annotator_a']
+        release_annotation.save(update_fields=['result', 'updated_by', 'updated_at'])
+        release_revision_2 = create_submission(
+            assignment=assignment_release,
+            annotation=release_annotation,
+            actor=users['annotator_a'],
+        )
+        review_submission(
+            submission=release_revision_2,
+            reviewer=users['reviewer'],
+            decision=ReviewDecision.Decision.APPROVED,
+        )
+
+        release_annotation.result = [
+            {'from_name': 'sentiment', 'to_name': 'text', 'type': 'choices', 'value': {'choices': ['Positive']}}
+        ]
+        release_annotation.updated_by = users['annotator_a']
+        release_annotation.save(update_fields=['result', 'updated_by', 'updated_at'])
+        release_revision_3 = create_submission(
+            assignment=assignment_release,
+            annotation=release_annotation,
+            actor=users['annotator_a'],
+        )
+
         # Mirror the data-column bookkeeping performed by normal import flows so
         # Data Manager treats the deterministic fixtures like real imported tasks.
-        project.summary.update_data_columns([task_a, task_b, task_c, task_review])
+        project.summary.update_data_columns([task_a, task_b, task_c, task_review, task_release])
 
         payload = {
             'password': PASSWORD,
@@ -194,6 +254,14 @@ class Command(BaseCommand):
                     'assignment_id': assignment_review.id,
                     'submission_id': review_submission.id,
                     'annotation_id': review_annotation.id,
+                },
+                'release': {
+                    'id': task_release.id,
+                    'assignment_id': assignment_release.id,
+                    'annotation_id': release_annotation.id,
+                    'revision_1_submission_id': release_revision_1.id,
+                    'revision_2_submission_id': release_revision_2.id,
+                    'revision_3_submission_id': release_revision_3.id,
                 },
             },
             'submission_count': Submission.objects.filter(
