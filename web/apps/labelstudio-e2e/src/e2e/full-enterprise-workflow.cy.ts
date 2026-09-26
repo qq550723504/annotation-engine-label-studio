@@ -37,6 +37,12 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.location("pathname", { timeout: 30000 }).should("eq", path.split("?")[0]);
   };
 
+  const openTaskPanel = (email: string, taskId: number) => {
+    cy.loginAs(email, fixture.password, dataPage());
+    cy.visit(`${dataPage()}?task=${taskId}`);
+    cy.location("pathname", { timeout: 30000 }).should("eq", dataPage());
+  };
+
   const addMember = (userId: number, role: "annotator" | "reviewer") => {
     cy.get('[data-testid="member-user-select"]').select(String(userId));
     cy.get('[data-testid="member-role-select"]').select(role);
@@ -44,7 +50,7 @@ describe("full enterprise collaboration browser workflow", () => {
   };
 
   const openAssignmentManager = (taskId: number) => {
-    loginAndVisit(fixture.users.manager.email, `${dataPage()}?task=${taskId}`);
+    openTaskPanel(fixture.users.manager.email, taskId);
     cy.get('[data-testid="manage-task-assignments"]', { timeout: 30000 })
       .should("be.visible")
       .and("not.be.disabled")
@@ -67,6 +73,14 @@ describe("full enterprise collaboration browser workflow", () => {
     loginAndVisit(email, dataPage());
     cy.contains("button", /Label All Tasks/i, { timeout: 30000 }).should("be.visible").click();
     cy.contains(taskText, { timeout: 30000 }).should("be.visible");
+  };
+
+  const reopenAssignedEditor = (email: string, taskId: number, taskText: string) => {
+    openTaskPanel(email, taskId);
+    cy.contains(taskText, { timeout: 30000 }).should("be.visible");
+    cy.get('[data-testid="bottombar-update-button"], [data-testid="bottombar-submit-button"]', {
+      timeout: 30000,
+    }).should("be.visible");
   };
 
   const choose = (value: "Positive" | "Negative") => {
@@ -197,7 +211,11 @@ describe("full enterprise collaboration browser workflow", () => {
     closeModal();
 
     // 17-20: Annotator A changes the real annotation and submits revision 2 through Editor Update.
-    openAssignedEditor(fixture.users.annotator_a.email, "Full flow Annotator A task");
+    reopenAssignedEditor(
+      fixture.users.annotator_a.email,
+      fixture.full_flow.tasks.a.id,
+      "Full flow Annotator A task",
+    );
     choose("Negative");
     cy.intercept("PATCH", `**/api/annotations/**`).as("submitRevision2");
     cy.get('[data-testid="bottombar-update-button"]', { timeout: 30000 }).should("be.visible").click();
@@ -271,7 +289,11 @@ describe("full enterprise collaboration browser workflow", () => {
     assignTask(fixture.full_flow.tasks.a.id, fixture.users.annotator_a.id, fixture.users.annotator_a.email);
 
     // Keep this real Editor page open while membership changes out-of-band in a concurrent actor.
-    openAssignedEditor(fixture.users.annotator_a.email, "Full flow Annotator A task");
+    reopenAssignedEditor(
+      fixture.users.annotator_a.email,
+      fixture.full_flow.tasks.a.id,
+      "Full flow Annotator A task",
+    );
     choose("Positive");
 
     cy.request(`/api/tasks/${fixture.full_flow.tasks.a.id}/`).then((taskResponse) => {
