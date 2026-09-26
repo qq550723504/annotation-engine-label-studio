@@ -2,11 +2,11 @@ from types import SimpleNamespace
 
 from django.contrib.auth.models import AnonymousUser
 from django.test import TestCase
-from rest_framework.exceptions import NotAuthenticated, PermissionDenied
+from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated, PermissionDenied
 from users.tests.factories import UserFactory
 
 from access_control.authorization import AuthorizationService
-from access_control.identity import LOCAL_IDENTITY_SOURCE, LocalIdentityProvider, get_identity_provider
+from access_control.identity import LOCAL_IDENTITY_SOURCE, LocalIdentityProvider, Principal, get_identity_provider, resolve_actor
 
 
 class TestLocalIdentityProvider(TestCase):
@@ -36,6 +36,18 @@ class TestLocalIdentityProvider(TestCase):
         with self.assertRaises(PermissionDenied):
             authorization.require(False)
 
+    def test_resolve_actor_rejects_unmapped_principal(self):
+        class UnmappedProvider:
+            def resolve(self, request):
+                return Principal(
+                    principal_id="external:missing",
+                    source="external",
+                    username="missing@example.com",
+                    local_user_id=None,
+                )
+
+        with self.assertRaises(AuthenticationFailed):
+            resolve_actor(SimpleNamespace(user=UserFactory()), provider=UnmappedProvider())
 
     def test_configured_provider_defaults_to_local_provider(self):
         get_identity_provider.cache_clear()
