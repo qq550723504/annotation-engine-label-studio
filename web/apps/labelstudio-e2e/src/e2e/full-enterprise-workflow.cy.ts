@@ -80,10 +80,10 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.get('[data-testid="assignment-manager"]').should("not.exist");
   };
 
-  const openAssignedEditor = (email: string, taskText: string) => {
-    loginAndVisit(email, dataPage());
-    cy.contains("button", /Label All Tasks/i, { timeout: 30000 }).should("be.visible").click();
+  const openAssignedEditor = (email: string, taskId: number, taskText: string) => {
+    openTaskPanel(email, taskId);
     cy.contains(taskText, { timeout: 30000 }).should("be.visible");
+    cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible");
   };
 
   const reopenAssignedEditor = (email: string, taskId: number, taskText: string) => {
@@ -175,7 +175,11 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.contains("button", /Label All Tasks/i).should("not.exist");
 
     // 12-14: Annotator A edits in the real Editor; draft exists before explicit Submit.
-    openAssignedEditor(fixture.users.annotator_a.email, "Full flow Annotator A task");
+    openAssignedEditor(
+      fixture.users.annotator_a.email,
+      fixture.full_flow.tasks.a.id,
+      "Full flow Annotator A task",
+    );
     cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.a.id}/drafts*`).as("draftRevision1");
     choose("Positive");
 
