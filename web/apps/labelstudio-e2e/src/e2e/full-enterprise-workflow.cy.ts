@@ -13,6 +13,7 @@ type Fixture = {
     tasks: {
       a: { id: number };
       b: { id: number };
+      stale: { id: number };
     };
   };
 };
@@ -32,10 +33,8 @@ describe("full enterprise collaboration browser workflow", () => {
   const membersPage = () => `/projects/${projectId()}/settings/members`;
 
   const loginActor = (email: string, nextPath: string) => {
-    cy.request({
-      url: "/logout",
-      failOnStatusCode: false,
-    });
+    cy.visit("/logout");
+    cy.location("pathname", { timeout: 30000 }).should("eq", "/user/login/");
     cy.loginAs(email, fixture.password, nextPath);
   };
 
@@ -291,7 +290,7 @@ describe("full enterprise collaboration browser workflow", () => {
     });
     closeModal();
 
-    // 25-29: prove Manager UI revocation, then exercise a truly stale open Editor.
+    // 25-29: prove Manager UI revocation, then exercise a truly stale writable Editor.
     loginAndVisit(fixture.users.manager.email, membersPage());
     cy.contains("tr", fixture.users.annotator_a.email).within(() => {
       cy.contains("button", "Disable").click();
@@ -302,49 +301,47 @@ describe("full enterprise collaboration browser workflow", () => {
     });
     cy.contains("tr", fixture.users.annotator_a.email).should("contain.text", "Enabled");
 
-    // Disabling cancelled A's active assignment, so create a fresh assignment through Manager UI.
-    assignTask(fixture.full_flow.tasks.a.id, fixture.users.annotator_a.id, fixture.users.annotator_a.email);
-
-    // Keep this real Editor page open while membership changes out-of-band in a concurrent actor.
-    reopenAssignedEditor(
+    // Use a fresh, never-annotated task so the active assignment is definitely writable before revocation.
+    assignTask(
+      fixture.full_flow.tasks.stale.id,
+      fixture.users.annotator_a.id,
       fixture.users.annotator_a.email,
-      fixture.full_flow.tasks.a.id,
-      "Full flow Annotator A task",
     );
-    choose("Positive");
 
-    cy.request(`/api/tasks/${fixture.full_flow.tasks.a.id}/`).then((taskResponse) => {
+    openAssignedEditor(
+      fixture.users.annotator_a.email,
+      fixture.full_flow.tasks.stale.id,
+      "Full flow stale editor task",
+    );
+
+    cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.stale.id}/drafts*`).as("staleWritableDraft");
+    choose("Positive");
+    cy.wait("@staleWritableDraft", { timeout: 30000 })
+      .its("response.statusCode")
+      .should("be.oneOf", [200, 201]);
+
+    cy.request(`/api/tasks/${fixture.full_flow.tasks.stale.id}/`).then((taskResponse) => {
       expect(taskResponse.status).to.eq(200);
       expect(taskResponse.body.assignment_id).to.be.a("number");
       expect(taskResponse.body.assignment_version).to.be.a("number");
     });
 
+    // Keep this confirmed-writable real Editor open while membership is revoked out-of-band.
     cy.task("setEnterpriseE2EMember", {
       actor: "annotator_a",
       enabled: false,
       projectId: projectId(),
     });
 
-    cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.a.id}/annotations/**`).as("staleSubmit");
-    cy.intercept("PATCH", "**/api/annotations/**").as("staleUpdate");
-    cy.get("body").then(($body) => {
-      if ($body.find('[data-testid="bottombar-update-button"]').length) {
-        cy.get('[data-testid="bottombar-update-button"]').should("be.visible").click();
-        cy.wait("@staleUpdate").then((interception) => {
-          expect(interception.response?.statusCode).to.be.oneOf([403, 404, 409]);
-          expect(interception.response?.statusCode).not.to.eq(500);
-        });
-      } else {
-        cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible").click();
-        cy.wait("@staleSubmit").then((interception) => {
-          expect(interception.response?.statusCode).to.be.oneOf([403, 404, 409]);
-          expect(interception.response?.statusCode).not.to.eq(500);
-        });
-      }
+    cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.stale.id}/annotations/**`).as("staleSubmit");
+    cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible").click();
+    cy.wait("@staleSubmit").then((interception) => {
+      expect(interception.response?.statusCode).to.be.oneOf([403, 404, 409]);
+      expect(interception.response?.statusCode).not.to.eq(500);
     });
 
     cy.request({
-      url: `/api/tasks/${fixture.full_flow.tasks.a.id}/`,
+      url: `/api/tasks/${fixture.full_flow.tasks.stale.id}/`,
       failOnStatusCode: false,
     }).its("status").should("eq", 404);
 
