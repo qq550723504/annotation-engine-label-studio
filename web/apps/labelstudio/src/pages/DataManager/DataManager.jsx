@@ -16,6 +16,7 @@ import { ExportPage } from "../ExportPage/ExportPage";
 import { APIConfig } from "./api-config";
 import { AssignmentManager } from "./AssignmentManager";
 import { ReviewerWorkspace } from "./ReviewerWorkspace";
+import { SubmissionReleaseWorkspace } from "./SubmissionReleaseWorkspace";
 
 import "./DataManager.scss";
 
@@ -324,6 +325,14 @@ DataManagerPage.context = ({ dmRef }) => {
     });
   };
 
+  const openReleases = () => {
+    modal({
+      title: "Submission history and release",
+      body: <SubmissionReleaseWorkspace projectId={project.id} />,
+      style: { width: 960 },
+    });
+  };
+
   const links = {
     "/settings": "Settings",
   };
@@ -381,6 +390,17 @@ DataManagerPage.context = ({ dmRef }) => {
           data-testid="manage-task-assignments"
         >
           Assignments
+        </Button>
+      )}
+
+      {canManageAssignments && (
+        <Button
+          size="small"
+          look="outlined"
+          onClick={openReleases}
+          data-testid="open-release-workspace"
+        >
+          Releases
         </Button>
       )}
 
