@@ -54,7 +54,10 @@ describe("immutable submission reviewer workspace", () => {
     cy.get(`[data-testid="review-submission-${fixture.tasks.review.submission_id}"]`).click();
     cy.get('[data-testid="reviewer-workspace"]').should("contain.text", "revision 1");
     cy.get('[data-testid="review-result-snapshot"]').should("contain.text", "Positive");
-    cy.get('[data-testid="review-result-hash"]').invoke("text").as("revision1Hash");
+    cy.request(`/api/submissions/${fixture.tasks.review.submission_id}/`).then((revision1Response) => {
+      expect(revision1Response.status).to.eq(200);
+      cy.wrap(revision1Response.body.result_hash).as("revision1Hash");
+    });
 
     cy.request({
       url: `/api/annotations/${fixture.tasks.review.annotation_id}/`,
@@ -88,9 +91,17 @@ describe("immutable submission reviewer workspace", () => {
     cy.contains('[data-testid^="review-submission-"]', "Revision 2", { timeout: 30000 }).click();
     cy.get('[data-testid="review-status"]').should("contain.text", "pending");
     cy.get('[data-testid="review-result-snapshot"]').should("contain.text", "Negative");
-    cy.get('[data-testid="review-result-hash"]').invoke("text").then((revision2Hash) => {
+    cy.request(
+      `/api/submissions/?project=${fixture.project_id}&reviewable=true&page=1&page_size=50`,
+    ).then((queueResponse) => {
+      expect(queueResponse.status).to.eq(200);
+      const revision2 = queueResponse.body.results.find((item) => item.revision === 2);
+      expect(revision2).to.exist;
+      expect(revision2.result_snapshot).to.deep.include({
+        task: { id: fixture.tasks.review.id },
+      });
       cy.get("@revision1Hash").then((revision1Hash) => {
-        expect(revision2Hash.trim()).not.to.eq(String(revision1Hash).trim());
+        expect(revision2.result_hash).not.to.eq(String(revision1Hash));
       });
     });
     cy.contains('[data-testid^="review-history-"]', "Revision 1")
