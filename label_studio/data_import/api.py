@@ -7,6 +7,7 @@ import time
 from urllib.parse import unquote, urlparse
 
 from core.decorators import override_report_only_csp
+from access_control.identity import resolve_actor
 from access_control.project_access import get_managed_project_or_404, managed_projects_for_user, require_project_manager
 from core.feature_flags import flag_set
 from core.permissions import ViewClassPermission, all_permissions
@@ -266,7 +267,8 @@ class ImportAPI(generics.CreateAPIView):
             project = get_managed_project_or_404(self.request, project_id)
         else:
             project = None
-        return {'project': project, 'user': self.request.user}
+        actor = resolve_actor(self.request)[1] if project is not None else self.request.user
+        return {'project': project, 'user': actor}
 
     def post(self, *args, **kwargs):
         return super(ImportAPI, self).post(*args, **kwargs)
@@ -410,10 +412,11 @@ class ImportAPI(generics.CreateAPIView):
         else:
             raise ValidationError('load_tasks: No data found in DATA or in FILES')
 
+        actor = resolve_actor(request)[1]
         start_job_async_or_sync(
             async_import_background,
             project_import.id,
-            request.user.id,
+            actor.id,
             queue_name='high',
             on_failure=set_import_background_failure,
             project_id=project.id,
