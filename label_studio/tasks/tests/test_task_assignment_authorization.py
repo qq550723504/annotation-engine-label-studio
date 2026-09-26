@@ -279,6 +279,113 @@ class TestTaskAssignmentAuthorization(APITestCase):
         )
         assert manager.status_code == 403
 
+    def test_manager_releases_exact_approved_submission_snapshot(self):
+        snapshot = {
+            'annotation': {'id': 123, 'result': [{'value': 'approved'}]},
+            'task': {'id': self.shared_task.id},
+            'project': {'id': self.project.id},
+        }
+        submission = Submission.objects.create(
+            assignment=self.assignment_a,
+            annotation=None,
+            revision=41,
+            result_snapshot=snapshot,
+            result_hash='a' * 64,
+            submitted_by=self.annotator_a,
+            status=Submission.Status.APPROVED,
+        )
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(f'/api/submissions/{submission.id}/release/')
+
+        assert response.status_code == 200
+        assert response.json() == {
+            'submission_id': submission.id,
+            'revision': 41,
+            'result_hash': 'a' * 64,
+            'result_snapshot': snapshot,
+        }
+
+    def test_manager_cannot_release_pending_or_rejected_submission(self):
+        pending = Submission.objects.create(
+            assignment=self.assignment_a,
+            annotation=None,
+            revision=42,
+            result_snapshot={'revision': 'pending'},
+            result_hash='b' * 64,
+            submitted_by=self.annotator_a,
+            status=Submission.Status.PENDING,
+        )
+        rejected = Submission.objects.create(
+            assignment=self.assignment_a,
+            annotation=None,
+            revision=43,
+            result_snapshot={'revision': 'rejected'},
+            result_hash='c' * 64,
+            submitted_by=self.annotator_a,
+            status=Submission.Status.REJECTED,
+        )
+
+        self.client.force_authenticate(user=self.manager)
+        pending_response = self.client.get(f'/api/submissions/{pending.id}/release/')
+        rejected_response = self.client.get(f'/api/submissions/{rejected.id}/release/')
+
+        assert pending_response.status_code == 400
+        assert rejected_response.status_code == 400
+
+    def test_non_manager_cannot_release_approved_submission(self):
+        submission = Submission.objects.create(
+            assignment=self.assignment_a,
+            annotation=None,
+            revision=44,
+            result_snapshot={'revision': 'approved'},
+            result_hash='d' * 64,
+            submitted_by=self.annotator_a,
+            status=Submission.Status.APPROVED,
+        )
+
+        for user in (self.annotator_a, self.reviewer):
+            self.client.force_authenticate(user=user)
+            response = self.client.get(f'/api/submissions/{submission.id}/release/')
+            assert response.status_code == 403
+
+    def test_manager_cannot_release_approved_submission_from_other_project_by_id(self):
+        other_creator = UserFactory(active_organization=self.organization)
+        other_annotator = UserFactory(active_organization=self.organization)
+        self.organization.add_user(other_creator)
+        self.organization.add_user(other_annotator)
+
+        other_project = ProjectFactory(
+            organization=self.organization,
+            created_by=other_creator,
+        )
+        ProjectMember.objects.create(
+            project=other_project,
+            user=other_annotator,
+            role=ProjectMember.Role.ANNOTATOR,
+        )
+        other_task = TaskFactory(project=other_project)
+        other_assignment = TaskAssignment.objects.create(
+            task=other_task,
+            project=other_project,
+            assignee=other_annotator,
+            assigned_by=other_creator,
+        )
+        other_submission = Submission.objects.create(
+            assignment=other_assignment,
+            annotation=None,
+            revision=1,
+            result_snapshot={'task': {'id': other_task.id}},
+            result_hash='e' * 64,
+            submitted_by=other_annotator,
+            status=Submission.Status.APPROVED,
+        )
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(f'/api/submissions/{other_submission.id}/release/')
+
+        assert response.status_code == 403
+
     def test_reviewer_project_membership_does_not_grant_task_access(self):
         self.client.force_authenticate(user=self.reviewer)
 

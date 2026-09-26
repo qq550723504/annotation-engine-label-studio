@@ -170,3 +170,14 @@ Reviewer UI access depends on fork-specific, server-authoritative review endpoin
 - If Reviewer membership is revoked while the workspace is open, subsequent queue/review requests must be denied and the client must clear stale review controls rather than treating UI state as authorization.
 - Preserve the capability probe, reviewer-only queue semantics, self-review filtering, pagination, immutable snapshot contract, and stale-session enforcement across upstream rebases unless the reviewer workflow is intentionally redesigned.
 
+### Approved immutable release contract
+
+Manager release UI depends on the existing fork-specific release endpoint:
+
+- `GET /api/submissions/{submission_id}/release/` revalidates effective Manager role for the Submission's project at request time;
+- only `approved` Submission revisions are releasable; pending, rejected, and superseded revisions must fail;
+- the release payload is derived exclusively from the selected immutable Submission and returns `submission_id`, `revision`, `result_hash`, and `result_snapshot`;
+- the client must validate that the release response matches the selected immutable revision and must never substitute the current mutable Annotation;
+- object-level authorization must reject cross-project Submission ID substitution even within the same organization;
+- preserve this authorization and immutable-payload boundary across upstream rebases unless release orchestration is intentionally redesigned.
+
