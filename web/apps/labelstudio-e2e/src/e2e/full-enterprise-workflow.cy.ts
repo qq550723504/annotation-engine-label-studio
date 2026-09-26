@@ -105,9 +105,10 @@ describe("full enterprise collaboration browser workflow", () => {
     }).its("status").should("be.oneOf", [403, 404]);
 
     cy.request({
-      url: `/api/dm/views/reset/?project=${projectId()}`,
-      method: "DELETE",
+      url: `/api/dm/actions/?project=${projectId()}`,
+      method: "POST",
       failOnStatusCode: false,
+      body: {},
     }).its("status").should("be.oneOf", [403, 404]);
   };
 
