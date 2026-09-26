@@ -10,12 +10,32 @@ export default defineConfig({
     specPattern: 'src/e2e/**/*.cy.{js,jsx,ts,tsx}',
     setupNodeEvents(on, config) {
       on('task', {
+        createEnterpriseE2ESubmission({ taskId, actor }: { taskId: number; actor: string }) {
+          const repoRoot = resolve(__dirname, '../../..');
+          execFileSync(
+            'poetry',
+            [
+              'run',
+              'python',
+              'label_studio/manage.py',
+              'create_enterprise_e2e_submission',
+              String(taskId),
+              actor,
+            ],
+            {
+              cwd: repoRoot,
+              stdio: 'inherit',
+              env: process.env,
+            },
+          );
+          return null;
+        },
         setEnterpriseE2EAssignment({
           action,
           taskId,
           actor,
         }: {
-          action: "assign" | "cancel";
+          action: "assign" | "cancel" | "clear";
           taskId: number;
           actor: string;
         }) {

@@ -29,6 +29,11 @@ _api_urlpatterns = [
         api.ProjectMemberCapabilityAPI.as_view(),
         name='project-member-capability',
     ),
+    path(
+        '<int:pk>/review-capability/',
+        api.ProjectReviewCapabilityAPI.as_view(),
+        name='project-review-capability',
+    ),
     path('<int:pk>/members/<int:member_pk>/', api.ProjectMemberAPI.as_view(), name='project-member-detail'),
     path('counts/', api.ProjectCountsListAPI.as_view(), name='project-counts-list'),
     # Get next task

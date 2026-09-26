@@ -1029,9 +1029,26 @@ class AnnotationDraftAPI(generics.RetrieveUpdateDestroyAPIView):
         return super().update(request, *args, **kwargs)
 
 
+class SubmissionPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class SubmissionListAPI(generics.ListAPIView):
     serializer_class = SubmissionSerializer
     permission_required = all_permissions.annotations_view
+    pagination_class = SubmissionPagination
+
+    def paginate_queryset(self, queryset):
+        if not (
+            bool_from_request(self.request.GET, 'reviewable', False)
+            or bool_from_request(self.request.GET, 'history', False)
+            or self.request.query_params.get('page')
+            or self.request.query_params.get('page_size')
+        ):
+            return None
+        return super().paginate_queryset(queryset)
 
     def get_queryset(self):
         user = self.request.user
@@ -1048,10 +1065,29 @@ class SubmissionListAPI(generics.ListAPIView):
 
         project_id = self.request.query_params.get('project')
         status_value = self.request.query_params.get('status')
-        if project_id:
-            queryset = queryset.filter(assignment__project_id=project_id)
-        if status_value:
-            queryset = queryset.filter(status=status_value)
+        reviewable = bool_from_request(self.request.GET, 'reviewable', False)
+        history = bool_from_request(self.request.GET, 'history', False)
+
+        if reviewable:
+            if not project_id:
+                raise ValidationError({'project': 'Project is required for the review queue.'})
+            project = generics.get_object_or_404(Project.objects.for_user(user), pk=project_id)
+            principal = resolve_principal(self.request)
+            authorization.require(
+                authorization.can_review_project(principal, project),
+                'Project reviewer role is required to access the review queue.',
+            )
+            queryset = queryset.filter(
+                assignment__project=project,
+                status=Submission.Status.PENDING,
+            ).exclude(submitted_by=user)
+        else:
+            if project_id:
+                queryset = queryset.filter(assignment__project_id=project_id)
+            if history:
+                queryset = queryset.exclude(status=Submission.Status.PENDING)
+            elif status_value:
+                queryset = queryset.filter(status=status_value)
 
         return queryset.select_related(
             'assignment',
@@ -1059,6 +1095,8 @@ class SubmissionListAPI(generics.ListAPIView):
             'assignment__assignee',
             'annotation',
             'submitted_by',
+            'review',
+            'review__reviewer',
         ).order_by('-submitted_at', '-id')
 
 

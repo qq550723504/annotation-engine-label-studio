@@ -6,7 +6,8 @@ from django.db import transaction
 
 from organizations.models import Organization
 from projects.models import Project, ProjectMember
-from tasks.models import Submission, Task, TaskAssignment
+from tasks.models import Annotation, Submission, Task, TaskAssignment
+from tasks.submissions import create_submission
 from users.models import User
 
 
@@ -127,6 +128,11 @@ class Command(BaseCommand):
             data={'text': 'Manager assignment lifecycle browser task'},
             overlap=1,
         )
+        task_review = Task.objects.create(
+            project=project,
+            data={'text': 'Reviewer immutable submission browser task'},
+            overlap=1,
+        )
         assignment_a = TaskAssignment.objects.create(
             project=project,
             task=task_a,
@@ -140,9 +146,37 @@ class Command(BaseCommand):
             assigned_by=manager,
         )
 
+        assignment_review = TaskAssignment.objects.create(
+            project=project,
+            task=task_review,
+            assignee=users['annotator_a'],
+            assigned_by=manager,
+        )
+        review_annotation = Annotation.objects.create(
+            task=task_review,
+            project=project,
+            completed_by=users['annotator_a'],
+            updated_by=users['annotator_a'],
+            result=[
+                {
+                    'from_name': 'sentiment',
+                    'to_name': 'text',
+                    'type': 'choices',
+                    'value': {'choices': ['Positive']},
+                }
+            ],
+        )
+        assignment_review.annotation = review_annotation
+        assignment_review.save(update_fields=['annotation', 'updated_at'])
+        review_submission = create_submission(
+            assignment=assignment_review,
+            annotation=review_annotation,
+            actor=users['annotator_a'],
+        )
+
         # Mirror the data-column bookkeeping performed by normal import flows so
         # Data Manager treats the deterministic fixtures like real imported tasks.
-        project.summary.update_data_columns([task_a, task_b, task_c])
+        project.summary.update_data_columns([task_a, task_b, task_c, task_review])
 
         payload = {
             'password': PASSWORD,
@@ -155,6 +189,12 @@ class Command(BaseCommand):
                 'a': {'id': task_a.id, 'assignment_id': assignment_a.id},
                 'b': {'id': task_b.id, 'assignment_id': assignment_b.id},
                 'c': {'id': task_c.id},
+                'review': {
+                    'id': task_review.id,
+                    'assignment_id': assignment_review.id,
+                    'submission_id': review_submission.id,
+                    'annotation_id': review_annotation.id,
+                },
             },
             'submission_count': Submission.objects.filter(
                 assignment__project=project

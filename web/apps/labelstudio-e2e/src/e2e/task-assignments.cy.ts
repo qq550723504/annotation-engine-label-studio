@@ -32,6 +32,21 @@ describe("task assignment management UI", () => {
 
   const dataPage = () => `/projects/${fixture.project_id}/data`;
 
+  const resetTaskCAssignment = (actor?: "annotator_a" | "annotator_b") => {
+    cy.task("setEnterpriseE2EAssignment", {
+      action: "clear",
+      taskId: fixture.tasks.c.id,
+      actor: "manager",
+    });
+    if (actor) {
+      cy.task("setEnterpriseE2EAssignment", {
+        action: "assign",
+        taskId: fixture.tasks.c.id,
+        actor,
+      });
+    }
+  };
+
   const openTaskAs = (email: string) => {
     cy.loginAs(email, fixture.password, dataPage());
     cy.visit(`${dataPage()}?task=${fixture.tasks.c.id}`);
@@ -61,6 +76,7 @@ describe("task assignment management UI", () => {
   };
 
   it("assigns, revokes a stale session, and reassigns a task", () => {
+    resetTaskCAssignment();
     openTaskAs(fixture.users.manager.email);
     openAssignmentManager();
 
@@ -131,6 +147,7 @@ describe("task assignment management UI", () => {
   });
 
   it("rejects assignment management after manager membership is revoked in the same session", () => {
+    resetTaskCAssignment("annotator_b");
     openTaskAs(fixture.users.manager_b.email);
     openAssignmentManager();
 
@@ -172,6 +189,7 @@ describe("task assignment management UI", () => {
   });
 
   it("does not expose assignment mutation controls to an assigned annotator", () => {
+    resetTaskCAssignment("annotator_b");
     openTaskAs(fixture.users.annotator_b.email);
     cy.get('[data-testid="manage-task-assignments"]').should("not.exist");
   });

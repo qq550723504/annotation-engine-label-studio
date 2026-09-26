@@ -25,6 +25,7 @@ export const API_CONFIG = {
     projectResetCache: "POST:/projects/:pk/summary/reset",
     projectMembers: "GET:/projects/:pk/members/",
     projectMemberCapability: "GET:/projects/:pk/members/capability/",
+    projectReviewCapability: "GET:/projects/:pk/review-capability/",
     projectMemberCandidates: "GET:/projects/:pk/members/candidates/",
     createProjectMember: "POST:/projects/:pk/members/",
     updateProjectMember: "PATCH:/projects/:pk/members/:memberPk/",
@@ -33,6 +34,9 @@ export const API_CONFIG = {
     createTaskAssignment: "POST:/task-assignments/",
     deleteTaskAssignment: "DELETE:/task-assignments/:assignmentPk/",
     eligibleTaskAssignees: "GET:/task-assignments/eligible-assignees/",
+    reviewableSubmissions: "GET:/submissions/",
+    projectSubmissions: "GET:/submissions/",
+    reviewSubmission: "POST:/submissions/:submissionPk/review/",
 
     // Presigning
     presignUrlForTask: "/../tasks/:taskID/presign",

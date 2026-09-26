@@ -44,13 +44,13 @@ yarn cypress run \
 | Four distinct identities can authenticate with isolated sessions | PASS | Browser uses the real `/user/login/` form for each role. |
 | Annotator task scope is enforced by the backend from the browser session | PASS | From a real logged-in browser session, assigned task returns 200 and another annotator's task returns 404. |
 | Reviewer project visibility does not grant labeling/task access | PASS | Reviewer session cannot retrieve assigned annotator task; Browser E2E passed this scenario. |
-| Existing editor explicit Submit creates immutable Submission | GAP | Backend/API contract is verified, but the current Data Manager UI does not expose a labeling entry action for these assignment-scoped annotator sessions, so the editor Submit button cannot be reached through current UI. |
+| Existing editor explicit Submit creates immutable Submission | GAP | Backend/API contract is verified, but the current acceptance suite does not yet complete the formal Submission workflow through the editor; project-level labeling entry visibility is not treated as an authorization boundary. |
 | Membership revocation invalidates backend access | PASS | A logged-in annotator loses task API access immediately after out-of-band membership disablement. |
-| Stale already-open editor Save/Submit after revocation | GAP | Current UI cannot reach/open the assignment-scoped editor from Data Manager for these users, so the stale-open-editor browser interaction cannot yet be exercised. Backend stale-token behavior remains covered by API acceptance tests. |
+| Stale already-open editor Save/Submit after revocation | GAP | The full stale-open-editor Save/Submit interaction remains outside this current-UI acceptance case; backend stale-token behavior and focused assignment browser coverage enforce the security boundary. |
 | Project member/role management through browser UI | IMPLEMENTED | #17 adds the project Settings → Members workflow; CI must pass before this row is promoted to PASS. |
 | Task assignment administration through browser UI | IMPLEMENTED | #18 adds a Manager-only Data Manager assignment workflow with active assignment inspection, assign, cancel, reassign, and server-filtered eligible assignees; CI must pass before this row is promoted to PASS. |
-| Reviewer pending queue / immutable snapshot review UI | GAP | Backend exists; UI tracked in #19. |
-| Approve / Reject browser controls | GAP | Backend exists; UI tracked in #19. |
+| Reviewer pending queue / immutable snapshot review UI | IMPLEMENTED | #19 adds a Reviewer-only workspace backed by the immutable Submission snapshot/revision/hash contract; CI must pass before this row is promoted to PASS. |
+| Approve / Reject browser controls | IMPLEMENTED | #19 adds Reviewer-only Approve/Reject actions with required reject reason and authoritative backend review enforcement; CI must pass before this row is promoted to PASS. |
 | Submission revision history UI | GAP | Backend exists; UI tracked in #20. |
 | Manager approved-revision Release UI | GAP | Backend exists; UI tracked in #20. |
 | Full browser Manager → Assign → Annotate → Reject → Revise → Approve → Release flow | GAP | Final browser acceptance tracked in #21 after #17–#20. |
@@ -76,14 +76,14 @@ Browser execution confirmed a new current-UI gap:
 - another annotator's Task API returns 404;
 - the project Data Manager route loads successfully;
 - the same authenticated browser session can access its assigned Task API and is denied another annotator's Task API;
-- the current rendered UI does not expose a usable **Label All Tasks** entry action for the assignment-scoped annotator session.
+- project-level labeling entry visibility can vary with seeded task state and is not itself an authorization boundary; protected task access and editor writes remain server-authoritative.
 
 Therefore #16 does not implement or synthesize a labeling entry UI. The missing projection/navigation is a product UI gap and belongs with the task-assignment UI work in #18.
 
 
 The Data Manager explorer does not guarantee that raw `task.data.text` is rendered as visible table text in the default view. Therefore task isolation is validated from the actual Data Manager task store plus the authenticated API response, not by assuming a particular default column configuration.
 
-The supported programmatic action used by the current UI to open a task is Data Manager's `startLabeling(item)`; a bare `?task=` URL is primarily a history/state restoration mechanism and is not used by this acceptance test as the canonical task-opening interaction.
+The supported programmatic action used by the current UI to open a task is Data Manager's `startLabeling(item)`; a bare `?task=` URL is primarily a history/state restoration mechanism. Current acceptance therefore asserts protected API/editor state rather than the presence or absence of a project-level labeling-entry button.
 
 ## Explicit gaps
 
@@ -91,7 +91,7 @@ The following backend capabilities deliberately have no current product UI in th
 
 - project member / role management — implemented in #17; pending browser CI verification;
 - task assignment management — implemented in #18; pending browser CI verification;
-- Reviewer workspace and approve/reject — #19;
+- Reviewer workspace and approve/reject — implemented in #19; pending browser CI verification;
 - submission history and approved release — #20.
 
 #16 must not implement those workflows.
@@ -137,6 +137,34 @@ yarn cypress run \
 ```
 
 Browser coverage exercises Manager assign, stale-session invalidation after same-user reassignment, cancel/reassign to another annotator, reviewer exclusion, and non-manager absence of mutation controls.
+
+
+## Reviewer workspace UI (#19)
+
+The Data Manager exposes a project-level `Reviews` control only after the server-authoritative reviewable queue confirms Reviewer role for the project.
+
+The workspace:
+
+- lists pending reviewable Submission revisions;
+- displays the exact immutable `Submission.result_snapshot`, revision and result hash;
+- shows submitter identity and submitted timestamp;
+- exposes Approve and Reject only for pending reviewable revisions;
+- requires a rejection reason;
+- keeps reviewed revisions visible as immutable history while later revisions appear separately;
+- never loads the current mutable Annotation as the review subject.
+
+Focused browser command:
+
+```bash
+cd web
+yarn cypress run \
+  --project apps/labelstudio-e2e \
+  --config-file cypress.config.ts \
+  --config baseUrl=http://localhost:8080,video=true \
+  --spec apps/labelstudio-e2e/src/e2e/reviewer-workspace.cy.ts
+```
+
+Browser coverage exercises revision 1 rejection, required reject reason, immutable rejected-history visibility, deterministic creation of revision 2, revision/hash separation, revision 2 approval, Reviewer annotation-edit denial, and Annotator review denial.
 
 ## CI
 

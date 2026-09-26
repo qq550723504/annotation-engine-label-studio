@@ -3,7 +3,8 @@ from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
-from tasks.models import Annotation, TaskAssignment
+from tasks.models import Annotation, ReviewDecision, Submission, TaskAssignment
+from tasks.submissions import create_submission
 from tasks.tests.factories import TaskFactory
 from users.tests.factories import UserFactory
 
@@ -85,6 +86,198 @@ class TestTaskAssignmentAuthorization(APITestCase):
         assert assigned.json()['assignment_id'] == self.assignment_a.id
         assert assigned.json()['assignment_version'] == self.assignment_a.version
         assert unassigned.status_code == 404
+
+    def test_reviewer_can_list_only_reviewable_pending_submissions(self):
+        annotation = self._create_annotation(self.annotator_a, self.shared_task)
+        submission = create_submission(
+            assignment=self.assignment_a,
+            annotation=annotation,
+            actor=self.annotator_a,
+        )
+        Submission.objects.create(
+            assignment=self.other_assignment,
+            annotation=None,
+            revision=1,
+            result_snapshot={'task': {'id': self.other_task.id}},
+            result_hash='0' * 64,
+            submitted_by=self.annotator_b,
+            status=Submission.Status.APPROVED,
+        )
+
+        self.client.force_authenticate(user=self.reviewer)
+        response = self.client.get(
+            f'/api/submissions/?project={self.project.id}&reviewable=true'
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        ids = {item['id'] for item in payload['results']}
+        assert ids == {submission.id}
+        item = payload['results'][0]
+        assert item['revision'] == 1
+        assert item['result_hash'] == submission.result_hash
+        assert item['result_snapshot'] == submission.result_snapshot
+
+    def test_non_reviewer_cannot_open_reviewable_submission_queue(self):
+        annotation = self._create_annotation(self.annotator_a, self.shared_task)
+        create_submission(
+            assignment=self.assignment_a,
+            annotation=annotation,
+            actor=self.annotator_a,
+        )
+
+        for user in (self.manager, self.annotator_a):
+            self.client.force_authenticate(user=user)
+            response = self.client.get(
+                f'/api/submissions/?project={self.project.id}&reviewable=true'
+            )
+            assert response.status_code == 403
+
+    def test_reviewable_submission_queue_requires_project(self):
+        self.client.force_authenticate(user=self.reviewer)
+
+        response = self.client.get('/api/submissions/?reviewable=true')
+
+        assert response.status_code == 400
+
+    def test_revoked_reviewer_cannot_list_or_review_submission(self):
+        annotation = self._create_annotation(self.annotator_a, self.shared_task)
+        submission = create_submission(
+            assignment=self.assignment_a,
+            annotation=annotation,
+            actor=self.annotator_a,
+        )
+
+        membership = ProjectMember.objects.get(
+            project=self.project,
+            user=self.reviewer,
+        )
+
+        self.client.force_authenticate(user=self.reviewer)
+        before = self.client.get(
+            f'/api/submissions/?project={self.project.id}&reviewable=true'
+        )
+        assert before.status_code == 200
+        assert submission.id in {item['id'] for item in before.json()['results']}
+
+        membership.enabled = False
+        membership.save(update_fields=['enabled'])
+
+        queue_response = self.client.get(
+            f'/api/submissions/?project={self.project.id}&reviewable=true'
+        )
+        review_response = self.client.post(
+            f'/api/submissions/{submission.id}/review/',
+            data={'decision': 'approved'},
+            format='json',
+        )
+
+        assert queue_response.status_code in (403, 404)
+        assert review_response.status_code == 403
+        submission.refresh_from_db()
+        assert submission.status == Submission.Status.PENDING
+
+    def test_reviewer_cannot_review_submission_from_other_project_by_id(self):
+        other_creator = UserFactory(active_organization=self.organization)
+        other_annotator = UserFactory(active_organization=self.organization)
+        self.organization.add_user(other_creator)
+        self.organization.add_user(other_annotator)
+
+        other_project = ProjectFactory(
+            organization=self.organization,
+            created_by=other_creator,
+        )
+        ProjectMember.objects.create(
+            project=other_project,
+            user=other_annotator,
+            role=ProjectMember.Role.ANNOTATOR,
+        )
+
+        other_task = TaskFactory(project=other_project)
+        other_assignment = TaskAssignment.objects.create(
+            task=other_task,
+            project=other_project,
+            assignee=other_annotator,
+            assigned_by=other_creator,
+        )
+
+        self.client.force_authenticate(user=other_annotator)
+        annotation_response = self.client.post(
+            f'/api/tasks/{other_task.id}/annotations/',
+            data={
+                'result': [],
+                'assignment_id': other_assignment.id,
+                'assignment_version': other_assignment.version,
+            },
+            format='json',
+        )
+        assert annotation_response.status_code == 201, annotation_response.json()
+        other_annotation = Annotation.objects.get(pk=annotation_response.json()['id'])
+        other_submission = create_submission(
+            assignment=other_assignment,
+            annotation=other_annotation,
+            actor=other_annotator,
+        )
+
+        self.client.force_authenticate(user=self.reviewer)
+        response = self.client.post(
+            f'/api/submissions/{other_submission.id}/review/',
+            data={'decision': 'approved'},
+            format='json',
+        )
+
+        assert response.status_code in (403, 404)
+        other_submission.refresh_from_db()
+        assert other_submission.status == Submission.Status.PENDING
+        assert not ReviewDecision.objects.filter(submission=other_submission).exists()
+
+    def test_reviewer_cannot_swap_project_id_to_read_other_project_queue(self):
+        annotation = self._create_annotation(self.annotator_a, self.shared_task)
+        create_submission(
+            assignment=self.assignment_a,
+            annotation=annotation,
+            actor=self.annotator_a,
+        )
+
+        other_creator = UserFactory(active_organization=self.organization)
+        self.organization.add_user(other_creator)
+        other_project = ProjectFactory(
+            organization=self.organization,
+            created_by=other_creator,
+        )
+
+        self.client.force_authenticate(user=self.reviewer)
+        response = self.client.get(
+            f'/api/submissions/?project={other_project.id}&reviewable=true'
+        )
+
+        assert response.status_code == 404
+
+    def test_reviewer_capability_is_reviewer_only_and_revocation_sensitive(self):
+        self.client.force_authenticate(user=self.reviewer)
+        allowed = self.client.get(
+            f'/api/projects/{self.project.id}/review-capability/'
+        )
+        assert allowed.status_code == 200
+        assert allowed.json()['can_review'] is True
+
+        membership = ProjectMember.objects.get(
+            project=self.project,
+            user=self.reviewer,
+        )
+        membership.enabled = False
+        membership.save(update_fields=['enabled'])
+
+        revoked = self.client.get(
+            f'/api/projects/{self.project.id}/review-capability/'
+        )
+        assert revoked.status_code in (403, 404)
+
+        self.client.force_authenticate(user=self.manager)
+        manager = self.client.get(
+            f'/api/projects/{self.project.id}/review-capability/'
+        )
+        assert manager.status_code == 403
 
     def test_reviewer_project_membership_does_not_grant_task_access(self):
         self.client.force_authenticate(user=self.reviewer)

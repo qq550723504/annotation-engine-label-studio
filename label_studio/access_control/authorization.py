@@ -50,6 +50,12 @@ class AuthorizationService:
         return cls.project_role(principal, project) == ProjectMember.Role.MANAGER
 
     @classmethod
+    def can_review_project(cls, principal: Principal, project) -> bool:
+        from projects.models import ProjectMember
+
+        return cls.project_role(principal, project) == ProjectMember.Role.REVIEWER
+
+    @classmethod
     def active_task_assignment(cls, principal: Principal, task):
         """Return the principal's active assignment for a task, if any."""
         if principal.local_user_id is None:

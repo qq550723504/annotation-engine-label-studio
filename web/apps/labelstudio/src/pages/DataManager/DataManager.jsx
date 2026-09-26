@@ -15,6 +15,7 @@ import { ImportModal } from "../CreateProject/Import/ImportModal";
 import { ExportPage } from "../ExportPage/ExportPage";
 import { APIConfig } from "./api-config";
 import { AssignmentManager } from "./AssignmentManager";
+import { ReviewerWorkspace } from "./ReviewerWorkspace";
 
 import "./DataManager.scss";
 
@@ -245,6 +246,7 @@ DataManagerPage.context = ({ dmRef }) => {
   const toast = useContext(ToastContext);
   const [mode, setMode] = useState(dmRef?.mode ?? "explorer");
   const [canManageAssignments, setCanManageAssignments] = useState(false);
+  const [canReviewSubmissions, setCanReviewSubmissions] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -271,6 +273,31 @@ DataManagerPage.context = ({ dmRef }) => {
     };
   }, [project?.id]);
 
+  useEffect(() => {
+    let active = true;
+
+    const probe = async () => {
+      if (!project?.id) {
+        setCanReviewSubmissions(false);
+        return;
+      }
+
+      const result = await api.callApi("projectReviewCapability", {
+        params: { pk: project.id },
+        errorFilter: (apiError) => [403, 404].includes(apiError?.status),
+      });
+
+      if (!active) return;
+      const status = result?.status ?? result?.$meta?.status;
+      setCanReviewSubmissions(Boolean(result?.can_review && !result?.error && status !== 403 && status !== 404));
+    };
+
+    probe();
+    return () => {
+      active = false;
+    };
+  }, [project?.id]);
+
   const openAssignments = () => {
     const taskId = dmRef?.store?.taskStore?.selected?.id;
 
@@ -286,6 +313,14 @@ DataManagerPage.context = ({ dmRef }) => {
       title: `Task #${taskId} assignments`,
       body: <AssignmentManager projectId={project.id} taskId={taskId} />,
       style: { width: 640 },
+    });
+  };
+
+  const openReviews = () => {
+    modal({
+      title: "Review submissions",
+      body: <ReviewerWorkspace projectId={project.id} />,
+      style: { width: 960 },
     });
   };
 
@@ -346,6 +381,17 @@ DataManagerPage.context = ({ dmRef }) => {
           data-testid="manage-task-assignments"
         >
           Assignments
+        </Button>
+      )}
+
+      {canReviewSubmissions && (
+        <Button
+          size="small"
+          look="outlined"
+          onClick={openReviews}
+          data-testid="open-review-workspace"
+        >
+          Reviews
         </Button>
       )}
 
