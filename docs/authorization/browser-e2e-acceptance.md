@@ -49,8 +49,8 @@ yarn cypress run \
 | Stale already-open editor Save/Submit after revocation | GAP | Current UI cannot reach/open the assignment-scoped editor from Data Manager for these users, so the stale-open-editor browser interaction cannot yet be exercised. Backend stale-token behavior remains covered by API acceptance tests. |
 | Project member/role management through browser UI | IMPLEMENTED | #17 adds the project Settings → Members workflow; CI must pass before this row is promoted to PASS. |
 | Task assignment administration through browser UI | IMPLEMENTED | #18 adds a Manager-only Data Manager assignment workflow with active assignment inspection, assign, cancel, reassign, and server-filtered eligible assignees; CI must pass before this row is promoted to PASS. |
-| Reviewer pending queue / immutable snapshot review UI | GAP | Backend exists; UI tracked in #19. |
-| Approve / Reject browser controls | GAP | Backend exists; UI tracked in #19. |
+| Reviewer pending queue / immutable snapshot review UI | IMPLEMENTED | #19 adds a Reviewer-only workspace backed by the immutable Submission snapshot/revision/hash contract; CI must pass before this row is promoted to PASS. |
+| Approve / Reject browser controls | IMPLEMENTED | #19 adds Reviewer-only Approve/Reject actions with required reject reason and authoritative backend review enforcement; CI must pass before this row is promoted to PASS. |
 | Submission revision history UI | GAP | Backend exists; UI tracked in #20. |
 | Manager approved-revision Release UI | GAP | Backend exists; UI tracked in #20. |
 | Full browser Manager → Assign → Annotate → Reject → Revise → Approve → Release flow | GAP | Final browser acceptance tracked in #21 after #17–#20. |
@@ -91,7 +91,7 @@ The following backend capabilities deliberately have no current product UI in th
 
 - project member / role management — implemented in #17; pending browser CI verification;
 - task assignment management — implemented in #18; pending browser CI verification;
-- Reviewer workspace and approve/reject — #19;
+- Reviewer workspace and approve/reject — implemented in #19; pending browser CI verification;
 - submission history and approved release — #20.
 
 #16 must not implement those workflows.
@@ -137,6 +137,34 @@ yarn cypress run \
 ```
 
 Browser coverage exercises Manager assign, stale-session invalidation after same-user reassignment, cancel/reassign to another annotator, reviewer exclusion, and non-manager absence of mutation controls.
+
+
+## Reviewer workspace UI (#19)
+
+The Data Manager exposes a project-level `Reviews` control only after the server-authoritative reviewable queue confirms Reviewer role for the project.
+
+The workspace:
+
+- lists pending reviewable Submission revisions;
+- displays the exact immutable `Submission.result_snapshot`, revision and result hash;
+- shows submitter identity and submitted timestamp;
+- exposes Approve and Reject only for pending reviewable revisions;
+- requires a rejection reason;
+- keeps reviewed revisions visible as immutable history while later revisions appear separately;
+- never loads the current mutable Annotation as the review subject.
+
+Focused browser command:
+
+```bash
+cd web
+yarn cypress run \
+  --project apps/labelstudio-e2e \
+  --config-file cypress.config.ts \
+  --config baseUrl=http://localhost:8080,video=true \
+  --spec apps/labelstudio-e2e/src/e2e/reviewer-workspace.cy.ts
+```
+
+Browser coverage exercises revision 1 rejection, required reject reason, immutable rejected-history visibility, deterministic creation of revision 2, revision/hash separation, revision 2 approval, Reviewer annotation-edit denial, and Annotator review denial.
 
 ## CI
 
