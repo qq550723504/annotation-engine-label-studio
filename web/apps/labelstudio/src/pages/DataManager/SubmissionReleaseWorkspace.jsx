@@ -26,9 +26,11 @@ export const SubmissionReleaseWorkspace = ({ projectId }) => {
   const api = useAPI();
   const callApiRef = useRef(api.callApi);
   callApiRef.current = api.callApi;
+  const selectedIdRef = useRef(null);
 
   const [submissions, setSubmissions] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  selectedIdRef.current = selectedId;
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
@@ -100,6 +102,7 @@ export const SubmissionReleaseWorkspace = ({ projectId }) => {
   const release = async () => {
     if (!selected || selected.status !== "approved") return;
 
+    const releaseSubmissionId = selected.id;
     setReleasing(true);
     setError("");
     setReleaseResult(null);
@@ -108,6 +111,11 @@ export const SubmissionReleaseWorkspace = ({ projectId }) => {
       params: { submissionPk: selected.id },
       errorFilter: () => true,
     });
+
+    if (selectedIdRef.current !== releaseSubmissionId) {
+      setReleasing(false);
+      return;
+    }
 
     if (!result || result?.error || result?.$meta?.ok === false) {
       setError(errorMessage(result, "The approved submission could not be released."));
