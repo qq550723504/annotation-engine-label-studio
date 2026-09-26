@@ -133,34 +133,41 @@ describe("task assignment management UI", () => {
     openTaskAs(fixture.users.manager_b.email);
     openAssignmentManager();
 
-    cy.task("setEnterpriseE2EMember", { actor: "manager_b", enabled: false });
-
-    cy.request({
-      url: `/api/task-assignments/eligible-assignees/?project=${fixture.project_id}`,
-      failOnStatusCode: false,
-    }).its("status").should("be.oneOf", [403, 404]);
-
-    cy.request({
-      url: `/api/task-assignments/?project=${fixture.project_id}&task=${fixture.tasks.c.id}&active=true`,
-      failOnStatusCode: false,
-    }).its("status").should("be.oneOf", [403, 404]);
-
-    cy.request({
-      url: "/api/task-assignments/",
-      method: "POST",
-      failOnStatusCode: false,
-      body: {
-        task: fixture.tasks.c.id,
-        assignee: fixture.users.annotator_a.id,
-      },
-    }).its("status").should("be.oneOf", [403, 404]);
-
     cy.request(
       `/api/task-assignments/?project=${fixture.project_id}&task=${fixture.tasks.c.id}&active=true`,
-      { failOnStatusCode: false },
-    );
+    ).then((beforeRevocation) => {
+      expect(beforeRevocation.status).to.eq(200);
+      expect(beforeRevocation.body).to.have.length(1);
+      const assignmentId = beforeRevocation.body[0].id;
 
-    cy.task("setEnterpriseE2EMember", { actor: "manager_b", enabled: true });
+      cy.task("setEnterpriseE2EMember", { actor: "manager_b", enabled: false });
+
+      cy.request({
+        url: `/api/task-assignments/eligible-assignees/?project=${fixture.project_id}`,
+        failOnStatusCode: false,
+      }).its("status").should("be.oneOf", [403, 404]);
+
+      cy.request({
+        url: `/api/task-assignments/?project=${fixture.project_id}&task=${fixture.tasks.c.id}&active=true`,
+        failOnStatusCode: false,
+      }).its("status").should("be.oneOf", [403, 404]);
+
+      cy.request({
+        url: "/api/task-assignments/",
+        method: "POST",
+        failOnStatusCode: false,
+        body: {
+          task: fixture.tasks.c.id,
+          assignee: fixture.users.annotator_a.id,
+        },
+      }).its("status").should("be.oneOf", [403, 404]);
+
+      cy.request({
+        url: `/api/task-assignments/${assignmentId}/`,
+        method: "DELETE",
+        failOnStatusCode: false,
+      }).its("status").should("be.oneOf", [403, 404]);
+    });
   });
 
   it("does not expose assignment mutation controls to an assigned annotator", () => {
