@@ -123,8 +123,8 @@ describe("task assignment management UI", () => {
     });
   });
 
-  it("does not expose assignment mutation controls to a reviewer", () => {
-    openTaskAs(fixture.users.reviewer.email);
+  it("does not expose assignment mutation controls to an assigned annotator", () => {
+    openTaskAs(fixture.users.annotator_b.email);
     cy.get('[data-testid="manage-task-assignments"]').should("not.exist");
   });
 });
