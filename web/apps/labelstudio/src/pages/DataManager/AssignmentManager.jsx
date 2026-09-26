@@ -189,6 +189,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
           ))}
         </select>
         <Button
+          data-testid="assignment-submit"
           disabled={!selectedAssigneeId || processing !== null}
           waiting={processing === "assign"}
           onClick={assign}
@@ -242,7 +243,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
               <div
                 key={assignment.id}
                 className={cn("assignment-manager").elem("row").toClassName()}
-                data-testid={`assignment-${assignment.id}`}
+                data-testid={`assignment-row-${assignment.id}`}
               >
                 <div>
                   <strong>{identity}</strong>
