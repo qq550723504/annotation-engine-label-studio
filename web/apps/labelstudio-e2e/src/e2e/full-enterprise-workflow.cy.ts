@@ -77,6 +77,40 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.get('button[aria-label="Close modal"]').first().click();
   };
 
+  const assertRestrictedManagerWrites = () => {
+    cy.request({
+      url: `/api/projects/${projectId()}/export`,
+      failOnStatusCode: false,
+    }).its("status").should("be.oneOf", [403, 404]);
+
+    cy.request({
+      url: "/api/storages/s3/",
+      method: "POST",
+      failOnStatusCode: false,
+      body: {
+        project: projectId(),
+        bucket: "full-flow-denied",
+        title: "should-not-create",
+      },
+    }).its("status").should("be.oneOf", [403, 404]);
+
+    cy.request({
+      url: "/api/webhooks/",
+      method: "POST",
+      failOnStatusCode: false,
+      body: {
+        project: projectId(),
+        url: "http://127.0.0.1:9/full-flow-denied",
+      },
+    }).its("status").should("be.oneOf", [403, 404]);
+
+    cy.request({
+      url: `/api/dm/views/reset/?project=${projectId()}`,
+      method: "DELETE",
+      failOnStatusCode: false,
+    }).its("status").should("be.oneOf", [403, 404]);
+  };
+
   it("runs Manager -> Assign -> Annotate -> Reject -> Revise -> Approve -> Release -> Revoke", () => {
     // 1-4: Manager adds isolated project members and roles through UI.
     loginAndVisit(fixture.users.manager.email, settingsPage());
@@ -102,6 +136,7 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.request(`/api/tasks/${fixture.full_flow.tasks.a.id}/`).its("status").should("eq", 200);
     cy.request({ url: `/api/tasks/${fixture.full_flow.tasks.b.id}/`, failOnStatusCode: false })
       .its("status").should("eq", 404);
+    assertRestrictedManagerWrites();
 
     loginAndVisit(fixture.users.annotator_b.email, dataPage());
     cy.request(`/api/tasks/${fixture.full_flow.tasks.b.id}/`).its("status").should("eq", 200);
@@ -287,16 +322,6 @@ describe("full enterprise collaboration browser workflow", () => {
       url: `/api/projects/${projectId()}/members/`,
       failOnStatusCode: false,
     }).its("status").should("eq", 403);
-    cy.request({
-      url: `/api/projects/${projectId()}/import`,
-      method: "POST",
-      failOnStatusCode: false,
-      body: {},
-    }).then((response) => {
-      expect(response.status).to.be.oneOf([403, 404]);
-      expect(response.status).not.to.eq(500);
-    });
-
     loginAndVisit(fixture.users.reviewer.email, dataPage());
     cy.get('[data-testid="manage-task-assignments"]').should("not.exist");
     cy.get('[data-testid="open-release-workspace"]').should("not.exist");
@@ -311,6 +336,7 @@ describe("full enterprise collaboration browser workflow", () => {
       url: `/api/projects/${projectId()}/members/`,
       failOnStatusCode: false,
     }).its("status").should("eq", 403);
+    assertRestrictedManagerWrites();
 
     // Restore membership for repeatable local reruns; assignment intentionally remains cancelled.
     cy.task("setEnterpriseE2EMember", {
