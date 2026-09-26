@@ -110,9 +110,10 @@ class TestTaskAssignmentAuthorization(APITestCase):
         )
 
         assert response.status_code == 200
-        ids = {item['id'] for item in response.json()}
+        payload = response.json()
+        ids = {item['id'] for item in payload['results']}
         assert ids == {submission.id}
-        item = response.json()[0]
+        item = payload['results'][0]
         assert item['revision'] == 1
         assert item['result_hash'] == submission.result_hash
         assert item['result_snapshot'] == submission.result_snapshot
@@ -138,6 +139,91 @@ class TestTaskAssignmentAuthorization(APITestCase):
         response = self.client.get('/api/submissions/?reviewable=true')
 
         assert response.status_code == 400
+
+    def test_revoked_reviewer_cannot_list_or_review_submission(self):
+        annotation = self._create_annotation(self.annotator_a, self.shared_task)
+        submission = create_submission(
+            assignment=self.assignment_a,
+            annotation=annotation,
+            actor=self.annotator_a,
+        )
+
+        membership = ProjectMember.objects.get(
+            project=self.project,
+            user=self.reviewer,
+        )
+
+        self.client.force_authenticate(user=self.reviewer)
+        before = self.client.get(
+            f'/api/submissions/?project={self.project.id}&reviewable=true'
+        )
+        assert before.status_code == 200
+        assert submission.id in {item['id'] for item in before.json()['results']}
+
+        membership.enabled = False
+        membership.save(update_fields=['enabled'])
+
+        queue_response = self.client.get(
+            f'/api/submissions/?project={self.project.id}&reviewable=true'
+        )
+        review_response = self.client.post(
+            f'/api/submissions/{submission.id}/review/',
+            data={'decision': 'approved'},
+            format='json',
+        )
+
+        assert queue_response.status_code in (403, 404)
+        assert review_response.status_code == 403
+        submission.refresh_from_db()
+        assert submission.status == Submission.Status.PENDING
+
+    def test_reviewer_cannot_swap_project_id_to_read_other_project_queue(self):
+        annotation = self._create_annotation(self.annotator_a, self.shared_task)
+        create_submission(
+            assignment=self.assignment_a,
+            annotation=annotation,
+            actor=self.annotator_a,
+        )
+
+        other_creator = UserFactory(active_organization=self.organization)
+        self.organization.add_user(other_creator)
+        other_project = ProjectFactory(
+            organization=self.organization,
+            created_by=other_creator,
+        )
+
+        self.client.force_authenticate(user=self.reviewer)
+        response = self.client.get(
+            f'/api/submissions/?project={other_project.id}&reviewable=true'
+        )
+
+        assert response.status_code == 404
+
+    def test_reviewer_capability_is_reviewer_only_and_revocation_sensitive(self):
+        self.client.force_authenticate(user=self.reviewer)
+        allowed = self.client.get(
+            f'/api/projects/{self.project.id}/review-capability/'
+        )
+        assert allowed.status_code == 200
+        assert allowed.json()['can_review'] is True
+
+        membership = ProjectMember.objects.get(
+            project=self.project,
+            user=self.reviewer,
+        )
+        membership.enabled = False
+        membership.save(update_fields=['enabled'])
+
+        revoked = self.client.get(
+            f'/api/projects/{self.project.id}/review-capability/'
+        )
+        assert revoked.status_code in (403, 404)
+
+        self.client.force_authenticate(user=self.manager)
+        manager = self.client.get(
+            f'/api/projects/{self.project.id}/review-capability/'
+        )
+        assert manager.status_code == 403
 
     def test_reviewer_project_membership_does_not_grant_task_access(self):
         self.client.force_authenticate(user=self.reviewer)
