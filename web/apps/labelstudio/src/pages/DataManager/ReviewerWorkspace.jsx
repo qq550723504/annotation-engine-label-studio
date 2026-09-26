@@ -25,8 +25,14 @@ export const ReviewerWorkspace = ({ projectId }) => {
   const callApiRef = useRef(api.callApi);
   callApiRef.current = api.callApi;
 
-  const [submissions, setSubmissions] = useState([]);
-  const [reviewableIds, setReviewableIds] = useState(new Set());
+  const [pendingSubmissions, setPendingSubmissions] = useState([]);
+  const [historySubmissions, setHistorySubmissions] = useState([]);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [pendingHasNext, setPendingHasNext] = useState(false);
+  const [pendingHasPrevious, setPendingHasPrevious] = useState(false);
+  const [historyHasNext, setHistoryHasNext] = useState(false);
+  const [historyHasPrevious, setHistoryHasPrevious] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
   const [loading, setLoading] = useState(true);
@@ -35,17 +41,27 @@ export const ReviewerWorkspace = ({ projectId }) => {
   const [notice, setNotice] = useState("");
   const generationRef = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (nextPendingPage = pendingPage, nextHistoryPage = historyPage) => {
     const generation = ++generationRef.current;
     setLoading(true);
 
     const [reviewableResult, historyResult] = await Promise.all([
       callApiRef.current("reviewableSubmissions", {
-        params: { project: projectId, reviewable: true },
+        params: {
+          project: projectId,
+          reviewable: true,
+          page: nextPendingPage,
+          page_size: 50,
+        },
         errorFilter: () => true,
       }),
       callApiRef.current("projectSubmissions", {
-        params: { project: projectId },
+        params: {
+          project: projectId,
+          history: true,
+          page: nextHistoryPage,
+          page_size: 50,
+        },
         errorFilter: () => true,
       }),
     ]);
@@ -60,6 +76,13 @@ export const ReviewerWorkspace = ({ projectId }) => {
       historyResult?.error ||
       historyResult?.$meta?.ok === false
     ) {
+      setPendingSubmissions([]);
+      setHistorySubmissions([]);
+      setSelectedId(null);
+      setPendingHasNext(false);
+      setPendingHasPrevious(false);
+      setHistoryHasNext(false);
+      setHistoryHasPrevious(false);
       setError(
         errorMessage(
           reviewableResult?.error ? reviewableResult : historyResult,
@@ -70,38 +93,37 @@ export const ReviewerWorkspace = ({ projectId }) => {
       return;
     }
 
-    const reviewableItems = Array.isArray(reviewableResult) ? reviewableResult : reviewableResult?.results ?? [];
-    const historyItems = Array.isArray(historyResult) ? historyResult : historyResult?.results ?? [];
-    const pendingIds = new Set(reviewableItems.map((item) => item.id));
-    setReviewableIds(pendingIds);
-    setSubmissions(historyItems);
+    const pendingItems = reviewableResult?.results ?? [];
+    const historyItems = (historyResult?.results ?? []).filter((item) => item.status !== "pending");
+
+    setPendingSubmissions(pendingItems);
+    setHistorySubmissions(historyItems);
+    setPendingHasNext(Boolean(reviewableResult?.next));
+    setPendingHasPrevious(Boolean(reviewableResult?.previous));
+    setHistoryHasNext(Boolean(historyResult?.next));
+    setHistoryHasPrevious(Boolean(historyResult?.previous));
     setSelectedId((current) => {
-      if (current && historyItems.some((item) => item.id === current)) return current;
-      return reviewableItems[0]?.id ?? historyItems[0]?.id ?? null;
+      if (current && [...pendingItems, ...historyItems].some((item) => item.id === current)) return current;
+      return pendingItems[0]?.id ?? historyItems[0]?.id ?? null;
     });
     setLoading(false);
-  }, [projectId]);
+  }, [historyPage, pendingPage, projectId]);
 
   useEffect(() => {
-    refresh();
+    refresh(pendingPage, historyPage);
     return () => {
       generationRef.current += 1;
     };
-  }, [refresh]);
+  }, [historyPage, pendingPage, refresh]);
 
   const selected = useMemo(
-    () => submissions.find((submission) => submission.id === selectedId) ?? null,
-    [submissions, selectedId],
+    () =>
+      [...pendingSubmissions, ...historySubmissions].find((submission) => submission.id === selectedId) ?? null,
+    [historySubmissions, pendingSubmissions, selectedId],
   );
-  const pendingSubmissions = useMemo(
-    () => submissions.filter((submission) => reviewableIds.has(submission.id)),
-    [submissions, reviewableIds],
-  );
-  const historicalSubmissions = useMemo(
-    () => submissions.filter((submission) => !reviewableIds.has(submission.id)),
-    [submissions, reviewableIds],
-  );
-  const selectedIsReviewable = selected ? reviewableIds.has(selected.id) : false;
+  const selectedIsReviewable = selected
+    ? pendingSubmissions.some((submission) => submission.id === selected.id)
+    : false;
 
   useEffect(() => {
     setRejectReason("");
@@ -131,13 +153,13 @@ export const ReviewerWorkspace = ({ projectId }) => {
     if (!result || result?.error || result?.$meta?.ok === false) {
       setError(errorMessage(result, "The review decision could not be saved."));
       setProcessing(null);
-      await refresh();
+      await refresh(pendingPage, historyPage);
       return;
     }
 
     setNotice(`Submission #${selected.id} revision ${selected.revision} was ${decision}.`);
     setRejectReason("");
-    await refresh();
+    await refresh(pendingPage, historyPage);
     setProcessing(null);
   };
 
@@ -182,12 +204,37 @@ export const ReviewerWorkspace = ({ projectId }) => {
               </button>
             ))
           )}
+          <div className={cn("reviewer-workspace").elem("pagination").toClassName()}>
+            <Button
+              size="small"
+              look="outlined"
+              disabled={!pendingHasPrevious || processing !== null}
+              onClick={() => {
+                setPendingPage((page) => Math.max(1, page - 1));
+                setSelectedId(null);
+              }}
+            >
+              Previous pending
+            </Button>
+            <span>Page {pendingPage}</span>
+            <Button
+              size="small"
+              look="outlined"
+              disabled={!pendingHasNext || processing !== null}
+              onClick={() => {
+                setPendingPage((page) => page + 1);
+                setSelectedId(null);
+              }}
+            >
+              Next pending
+            </Button>
+          </div>
 
           <Typography variant="headline" size="small">Submission history</Typography>
-          {historicalSubmissions.length === 0 ? (
+          {historySubmissions.length === 0 ? (
             <div data-testid="review-history-empty">No reviewed submissions.</div>
           ) : (
-            historicalSubmissions.map((submission) => (
+            historySubmissions.map((submission) => (
               <button
                 key={submission.id}
                 type="button"
@@ -201,6 +248,31 @@ export const ReviewerWorkspace = ({ projectId }) => {
               </button>
             ))
           )}
+          <div className={cn("reviewer-workspace").elem("pagination").toClassName()}>
+            <Button
+              size="small"
+              look="outlined"
+              disabled={!historyHasPrevious || processing !== null}
+              onClick={() => {
+                setHistoryPage((page) => Math.max(1, page - 1));
+                setSelectedId(null);
+              }}
+            >
+              Previous history
+            </Button>
+            <span>Page {historyPage}</span>
+            <Button
+              size="small"
+              look="outlined"
+              disabled={!historyHasNext || processing !== null}
+              onClick={() => {
+                setHistoryPage((page) => page + 1);
+                setSelectedId(null);
+              }}
+            >
+              Next history
+            </Button>
+          </div>
         </aside>
 
         <section className={cn("reviewer-workspace").elem("detail").toClassName()}>
