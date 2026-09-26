@@ -5,6 +5,7 @@ type Fixture = {
   project_id: number;
   users: {
     manager: { id: number; email: string };
+    manager_b: { id: number; email: string };
     annotator_a: { id: number; email: string };
     annotator_b: { id: number; email: string };
     reviewer: { id: number; email: string };
