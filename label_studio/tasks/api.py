@@ -1048,10 +1048,26 @@ class SubmissionListAPI(generics.ListAPIView):
 
         project_id = self.request.query_params.get('project')
         status_value = self.request.query_params.get('status')
-        if project_id:
-            queryset = queryset.filter(assignment__project_id=project_id)
-        if status_value:
-            queryset = queryset.filter(status=status_value)
+        reviewable = bool_from_request(self.request.GET, 'reviewable', False)
+
+        if reviewable:
+            if not project_id:
+                raise ValidationError({'project': 'Project is required for the review queue.'})
+            project = generics.get_object_or_404(Project.objects.for_user(user), pk=project_id)
+            principal = resolve_principal(self.request)
+            authorization.require(
+                authorization.can_review_project(principal, project),
+                'Project reviewer role is required to access the review queue.',
+            )
+            queryset = queryset.filter(
+                assignment__project=project,
+                status=Submission.Status.PENDING,
+            ).exclude(submitted_by=user)
+        else:
+            if project_id:
+                queryset = queryset.filter(assignment__project_id=project_id)
+            if status_value:
+                queryset = queryset.filter(status=status_value)
 
         return queryset.select_related(
             'assignment',
