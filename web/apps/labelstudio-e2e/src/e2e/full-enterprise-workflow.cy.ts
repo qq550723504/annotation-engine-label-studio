@@ -31,14 +31,22 @@ describe("full enterprise collaboration browser workflow", () => {
   const settingsPage = () => `/projects/${projectId()}/settings/`;
   const membersPage = () => `/projects/${projectId()}/settings/members`;
 
+  const loginActor = (email: string, nextPath: string) => {
+    cy.request({
+      url: "/logout",
+      failOnStatusCode: false,
+    });
+    cy.loginAs(email, fixture.password, nextPath);
+  };
+
   const loginAndVisit = (email: string, path: string) => {
-    cy.loginAs(email, fixture.password, path);
+    loginActor(email, path);
     cy.visit(path);
     cy.location("pathname", { timeout: 30000 }).should("eq", path.split("?")[0]);
   };
 
   const openTaskPanel = (email: string, taskId: number) => {
-    cy.loginAs(email, fixture.password, dataPage());
+    loginActor(email, dataPage());
     cy.visit(`${dataPage()}?task=${taskId}`);
     cy.location("pathname", { timeout: 30000 }).should("eq", dataPage());
     cy.window({ timeout: 30000 }).should((win) => {
