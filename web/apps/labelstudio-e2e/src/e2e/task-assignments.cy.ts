@@ -42,8 +42,7 @@ describe("task assignment management UI", () => {
     cy.get('[data-testid="manage-task-assignments"]', { timeout: 30000 })
       .should("be.visible")
       .and("not.be.disabled")
-      .focus()
-      .type("{enter}");
+      .click();
 
     cy.get('[data-testid="assignment-manager"]', { timeout: 30000 }).should("exist");
   };
