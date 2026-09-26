@@ -44,9 +44,9 @@ yarn cypress run \
 | Four distinct identities can authenticate with isolated sessions | PASS | Browser uses the real `/user/login/` form for each role. |
 | Annotator task scope is enforced by the backend from the browser session | PASS | From a real logged-in browser session, assigned task returns 200 and another annotator's task returns 404. |
 | Reviewer project visibility does not grant labeling/task access | PASS | Reviewer session cannot retrieve assigned annotator task; Browser E2E passed this scenario. |
-| Existing editor explicit Submit creates immutable Submission | GAP | Backend/API contract is verified, but the current Data Manager UI does not expose a labeling entry action for these assignment-scoped annotator sessions, so the editor Submit button cannot be reached through current UI. |
+| Existing editor explicit Submit creates immutable Submission | GAP | Backend/API contract is verified, but the current acceptance suite does not yet complete the formal Submission workflow through the editor; project-level labeling entry visibility is not treated as an authorization boundary. |
 | Membership revocation invalidates backend access | PASS | A logged-in annotator loses task API access immediately after out-of-band membership disablement. |
-| Stale already-open editor Save/Submit after revocation | GAP | Current UI cannot reach/open the assignment-scoped editor from Data Manager for these users, so the stale-open-editor browser interaction cannot yet be exercised. Backend stale-token behavior remains covered by API acceptance tests. |
+| Stale already-open editor Save/Submit after revocation | GAP | The full stale-open-editor Save/Submit interaction remains outside this current-UI acceptance case; backend stale-token behavior and focused assignment browser coverage enforce the security boundary. |
 | Project member/role management through browser UI | IMPLEMENTED | #17 adds the project Settings → Members workflow; CI must pass before this row is promoted to PASS. |
 | Task assignment administration through browser UI | IMPLEMENTED | #18 adds a Manager-only Data Manager assignment workflow with active assignment inspection, assign, cancel, reassign, and server-filtered eligible assignees; CI must pass before this row is promoted to PASS. |
 | Reviewer pending queue / immutable snapshot review UI | IMPLEMENTED | #19 adds a Reviewer-only workspace backed by the immutable Submission snapshot/revision/hash contract; CI must pass before this row is promoted to PASS. |
@@ -76,14 +76,14 @@ Browser execution confirmed a new current-UI gap:
 - another annotator's Task API returns 404;
 - the project Data Manager route loads successfully;
 - the same authenticated browser session can access its assigned Task API and is denied another annotator's Task API;
-- the current rendered UI does not expose a usable **Label All Tasks** entry action for the assignment-scoped annotator session.
+- project-level labeling entry visibility can vary with seeded task state and is not itself an authorization boundary; protected task access and editor writes remain server-authoritative.
 
 Therefore #16 does not implement or synthesize a labeling entry UI. The missing projection/navigation is a product UI gap and belongs with the task-assignment UI work in #18.
 
 
 The Data Manager explorer does not guarantee that raw `task.data.text` is rendered as visible table text in the default view. Therefore task isolation is validated from the actual Data Manager task store plus the authenticated API response, not by assuming a particular default column configuration.
 
-The supported programmatic action used by the current UI to open a task is Data Manager's `startLabeling(item)`; a bare `?task=` URL is primarily a history/state restoration mechanism and is not used by this acceptance test as the canonical task-opening interaction.
+The supported programmatic action used by the current UI to open a task is Data Manager's `startLabeling(item)`; a bare `?task=` URL is primarily a history/state restoration mechanism. Current acceptance therefore asserts protected API/editor state rather than the presence or absence of a project-level labeling-entry button.
 
 ## Explicit gaps
 
