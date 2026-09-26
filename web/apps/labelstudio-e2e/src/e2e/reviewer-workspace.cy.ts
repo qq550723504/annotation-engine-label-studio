@@ -26,6 +26,12 @@ describe("immutable submission reviewer workspace", () => {
     });
   });
 
+  afterEach(() => {
+    if (fixture?.users?.reviewer) {
+      cy.task("setEnterpriseE2EMember", { actor: "reviewer", enabled: true });
+    }
+  });
+
   const dataPage = () => `/projects/${fixture.project_id}/data`;
 
   const openReviewsAs = (email: string) => {
@@ -46,7 +52,7 @@ describe("immutable submission reviewer workspace", () => {
     openReviewsAs(fixture.users.reviewer.email);
 
     cy.get(`[data-testid="review-submission-${fixture.tasks.review.submission_id}"]`).click();
-    cy.contains("Submission", `revision 1`).should("exist");
+    cy.get('[data-testid="reviewer-workspace"]').should("contain.text", "revision 1");
     cy.get('[data-testid="review-result-snapshot"]').should("contain.text", "Positive");
     cy.get('[data-testid="review-result-hash"]').invoke("text").as("revision1Hash");
 
@@ -106,6 +112,30 @@ describe("immutable submission reviewer workspace", () => {
       failOnStatusCode: false,
       body: { decision: "approved" },
     }).its("status").should("eq", 403);
+  });
+
+  it("clears stale review controls after reviewer membership is revoked", () => {
+    cy.task("createEnterpriseE2ESubmission", {
+      taskId: fixture.tasks.review.id,
+      actor: "annotator_a",
+    });
+
+    openReviewsAs(fixture.users.reviewer.email);
+    cy.contains('[data-testid^="review-submission-"]', "Revision 3", { timeout: 30000 }).click();
+    cy.get('[data-testid="review-approve"]').should("be.visible");
+
+    cy.task("setEnterpriseE2EMember", { actor: "reviewer", enabled: false });
+
+    cy.get('[data-testid="review-approve"]').click();
+    cy.get('[data-testid="review-error"]', { timeout: 30000 }).should("exist");
+    cy.get('[data-testid="review-approve"]').should("not.exist");
+    cy.get('[data-testid="review-reject"]').should("not.exist");
+    cy.get('[data-testid="review-detail-empty"]').should("exist");
+
+    cy.request({
+      url: `/api/submissions/?project=${fixture.project_id}&reviewable=true`,
+      failOnStatusCode: false,
+    }).its("status").should("be.oneOf", [403, 404]);
   });
 });
 
