@@ -1147,6 +1147,15 @@ class TaskAssignmentListCreateAPI(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            project = generics.get_object_or_404(Project.objects.for_user(user), pk=project_id)
+            principal = resolve_principal(self.request)
+            authorization.require(
+                authorization.can_manage_project(principal, project),
+                'Project manager role is required to manage task assignments.',
+            )
+
         queryset = TaskAssignment.objects.filter(project__organization=user.active_organization)
         queryset = queryset.filter(
             Q(project__created_by=user)
@@ -1157,7 +1166,6 @@ class TaskAssignmentListCreateAPI(generics.ListCreateAPIView):
             )
         ).distinct()
 
-        project_id = self.request.query_params.get('project')
         task_id = self.request.query_params.get('task')
         if project_id:
             queryset = queryset.filter(project_id=project_id)
@@ -1165,7 +1173,9 @@ class TaskAssignmentListCreateAPI(generics.ListCreateAPIView):
             queryset = queryset.filter(task_id=task_id)
         if bool_from_request(self.request.GET, 'active', False):
             queryset = queryset.filter(status__in=TaskAssignment.ACTIVE_STATUSES)
-        return queryset.select_related('task', 'project', 'assignee', 'assigned_by', 'annotation')
+        return queryset.select_related('task', 'project', 'assignee', 'assigned_by', 'annotation').prefetch_related(
+            'assignee__om_through'
+        )
 
     def perform_create(self, serializer):
         task = serializer.validated_data['task']
@@ -1216,7 +1226,7 @@ class TaskAssignmentEligibleAssigneeListAPI(generics.ListAPIView):
             id__in=active_org_user_ids,
             is_active=True,
         )
-        return eligible_users.order_by('email', 'id')
+        return eligible_users.prefetch_related('om_through').order_by('email', 'id')
 
 
 class TaskAssignmentAPI(generics.RetrieveDestroyAPIView):
@@ -1239,6 +1249,8 @@ class TaskAssignmentAPI(generics.RetrieveDestroyAPIView):
                 )
             )
             .distinct()
+            .select_related('task', 'project', 'assignee', 'assigned_by', 'annotation')
+            .prefetch_related('assignee__om_through')
         )
 
     def perform_destroy(self, instance):
