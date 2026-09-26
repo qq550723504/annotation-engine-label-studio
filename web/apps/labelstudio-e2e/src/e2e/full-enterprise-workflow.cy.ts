@@ -41,6 +41,9 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.loginAs(email, fixture.password, dataPage());
     cy.visit(`${dataPage()}?task=${taskId}`);
     cy.location("pathname", { timeout: 30000 }).should("eq", dataPage());
+    cy.window({ timeout: 30000 }).should((win) => {
+      expect(win.dataManager?.store?.taskStore?.selected?.id).to.eq(taskId);
+    });
   };
 
   const addMember = (userId: number, role: "annotator" | "reviewer") => {
