@@ -72,10 +72,9 @@ export const ReviewerWorkspace = ({ projectId }) => {
 
     if (generationRef.current !== generation) return;
 
-    const reviewableStatus = reviewableResult?.status ?? reviewableResult?.$meta?.status;
     if (
       nextPendingPage > 1 &&
-      (reviewableStatus === 404 || reviewableResult?.response?.detail === "Invalid page.")
+      reviewableResult?.response?.detail === "Invalid page."
     ) {
       const fallbackPendingPage = nextPendingPage - 1;
       [reviewableResult, historyResult] = await loadPages(fallbackPendingPage, nextHistoryPage);
