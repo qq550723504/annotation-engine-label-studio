@@ -103,7 +103,7 @@ def async_import_background(
             summary = ProjectSummary.objects.select_for_update().get(project=project)
 
             # Immediately create project tasks and update project states and counters
-            serializer = ImportApiSerializer(data=tasks, many=True, context={'project': project})
+            serializer = ImportApiSerializer(data=tasks, many=True, context={'project': project, 'user': user})
             serializer.is_valid(raise_exception=True)
 
             try:
@@ -486,7 +486,7 @@ def _async_import_background_streaming(project_import, user):
                 with transaction.atomic():
                     summary = ProjectSummary.objects.select_for_update().get(project=project)
 
-                    serializer = ImportApiSerializer(data=batch_tasks, many=True, context={'project': project})
+                    serializer = ImportApiSerializer(data=batch_tasks, many=True, context={'project': project, 'user': user})
                     serializer.is_valid(raise_exception=True)
                     batch_db_tasks = serializer.save(project_id=project.id)
 
