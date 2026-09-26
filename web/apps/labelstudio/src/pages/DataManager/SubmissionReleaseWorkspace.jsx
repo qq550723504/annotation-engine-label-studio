@@ -20,6 +20,8 @@ const errorMessage = (result, fallback) => {
 const displayIdentity = (user) =>
   user?.email || [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "Unknown submitter";
 
+const stableJson = (value) => JSON.stringify(value);
+
 export const SubmissionReleaseWorkspace = ({ projectId }) => {
   const api = useAPI();
   const callApiRef = useRef(api.callApi);
@@ -40,12 +42,23 @@ export const SubmissionReleaseWorkspace = ({ projectId }) => {
     const generation = ++generationRef.current;
     setLoading(true);
 
-    const result = await callApiRef.current("projectSubmissions", {
+    let result = await callApiRef.current("projectSubmissions", {
       params: { project: projectId, page: nextPage, page_size: 50 },
       errorFilter: () => true,
     });
 
     if (generationRef.current !== generation) return;
+
+    if (nextPage > 1 && result?.response?.detail === "Invalid page.") {
+      const fallbackPage = nextPage - 1;
+      result = await callApiRef.current("projectSubmissions", {
+        params: { project: projectId, page: fallbackPage, page_size: 50 },
+        errorFilter: () => true,
+      });
+      if (generationRef.current !== generation) return;
+      nextPage = fallbackPage;
+      setPage(fallbackPage);
+    }
 
     if (!result || result?.error || result?.$meta?.ok === false) {
       setSubmissions([]);
@@ -107,7 +120,8 @@ export const SubmissionReleaseWorkspace = ({ projectId }) => {
     if (
       result.submission_id !== selected.id ||
       result.revision !== selected.revision ||
-      result.result_hash !== selected.result_hash
+      result.result_hash !== selected.result_hash ||
+      stableJson(result.result_snapshot) !== stableJson(selected.result_snapshot)
     ) {
       setError("Release response did not match the selected immutable submission.");
       setReleasing(false);
