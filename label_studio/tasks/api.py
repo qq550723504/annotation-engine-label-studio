@@ -3,7 +3,7 @@
 import logging
 
 from access_control.authorization import authorization
-from access_control.identity import resolve_principal
+from access_control.identity import resolve_actor, resolve_principal
 from core.feature_flags import flag_set
 from core.mixins import GetParentObjectMixin
 from core.permissions import ViewClassPermission, all_permissions
@@ -709,7 +709,7 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
     @transaction.atomic
     def update(self, request, *args, **kwargs):
         # Resolve the trusted server-side actor before touching audit fields.
-        principal = resolve_principal(request)
+        principal, actor = resolve_actor(request)
         user = request.user
 
         # save user history with annotator_id, time & annotation result
@@ -721,7 +721,7 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
         assignment = authorization.active_task_assignment(principal, annotation.task)
         require_assignment_token(request, assignment)
         # use updated instead of save to avoid duplicated signals
-        Annotation.objects.filter(id=annotation.id).update(updated_by=user)
+        Annotation.objects.filter(id=annotation.id).update(updated_by=actor)
 
         task = annotation.task
         if self.request.data.get('ground_truth'):
@@ -734,7 +734,7 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
 
         if submit_for_review:
             annotation.refresh_from_db()
-            create_submission(assignment=assignment, annotation=annotation, actor=user)
+            create_submission(assignment=assignment, annotation=annotation, actor=actor)
 
         task.update_is_labeled()
         task.save(update_fields=['updated_at'])  # refresh task metrics
@@ -868,7 +868,7 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
     @transaction.atomic
     def perform_create(self, ser):
         task = self.parent_object
-        principal = resolve_principal(self.request)
+        principal, actor = resolve_actor(self.request)
         authorization.require(
             authorization.can_label_task(principal, task),
             'An active task assignment is required to create an annotation.',
@@ -898,8 +898,8 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         extra_args = {
             'task_id': self.kwargs['pk'],
             'project_id': task.project_id,
-            'completed_by': user,
-            'updated_by': user,
+            'completed_by': actor,
+            'updated_by': actor,
         }
 
         # save stats about how well annotator annotations coincide with current prediction
@@ -938,7 +938,7 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         assignment.save(update_fields=['annotation', 'status', 'updated_at'])
 
         if submit_for_review:
-            create_submission(assignment=assignment, annotation=annotation, actor=user)
+            create_submission(assignment=assignment, annotation=annotation, actor=actor)
 
         logger.debug(f'Save activity for user={self.request.user}')
         self.request.user.activity_at = timezone.now()
