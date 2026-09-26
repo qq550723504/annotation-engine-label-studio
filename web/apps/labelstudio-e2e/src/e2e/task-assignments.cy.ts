@@ -23,6 +23,12 @@ describe("task assignment management UI", () => {
     });
   });
 
+  afterEach(() => {
+    if (fixture?.users?.manager_b) {
+      cy.task("setEnterpriseE2EMember", { actor: "manager_b", enabled: true });
+    }
+  });
+
   const dataPage = () => `/projects/${fixture.project_id}/data`;
 
   const openTaskAs = (email: string) => {
@@ -121,6 +127,40 @@ describe("task assignment management UI", () => {
       cy.loginAs(fixture.users.annotator_b.email, fixture.password, dataPage());
       cy.request(`/api/tasks/${fixture.tasks.c.id}/`).its("status").should("eq", 200);
     });
+  });
+
+  it("rejects assignment management after manager membership is revoked in the same session", () => {
+    openTaskAs(fixture.users.manager_b.email);
+    openAssignmentManager();
+
+    cy.task("setEnterpriseE2EMember", { actor: "manager_b", enabled: false });
+
+    cy.request({
+      url: `/api/task-assignments/eligible-assignees/?project=${fixture.project_id}`,
+      failOnStatusCode: false,
+    }).its("status").should("be.oneOf", [403, 404]);
+
+    cy.request({
+      url: `/api/task-assignments/?project=${fixture.project_id}&task=${fixture.tasks.c.id}&active=true`,
+      failOnStatusCode: false,
+    }).its("status").should("be.oneOf", [403, 404]);
+
+    cy.request({
+      url: "/api/task-assignments/",
+      method: "POST",
+      failOnStatusCode: false,
+      body: {
+        task: fixture.tasks.c.id,
+        assignee: fixture.users.annotator_a.id,
+      },
+    }).its("status").should("be.oneOf", [403, 404]);
+
+    cy.request(
+      `/api/task-assignments/?project=${fixture.project_id}&task=${fixture.tasks.c.id}&active=true`,
+      { failOnStatusCode: false },
+    );
+
+    cy.task("setEnterpriseE2EMember", { actor: "manager_b", enabled: true });
   });
 
   it("does not expose assignment mutation controls to an assigned annotator", () => {
