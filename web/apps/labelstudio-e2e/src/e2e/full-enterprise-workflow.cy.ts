@@ -109,8 +109,24 @@ describe("full enterprise collaboration browser workflow", () => {
     }).should("be.visible");
   };
 
-  const choose = (value: "Positive" | "Negative") => {
-    cy.contains("span", value, { timeout: 30000 }).click();
+  const choose = (value: "Positive" | "Negative", taskId: number) => {
+    // Controls can render before startAutosave attaches its next-tick snapshot
+    // listener. Wait for the live editor, not just a visible Submit button.
+    cy.window({ timeout: 30000 }).should((win) => {
+      const editor = win.Htx;
+      const annotation = editor?.annotationStore?.selected;
+      expect(Number(editor?.task?.id), "editor task").to.eq(taskId);
+      expect(editor?.isLoading, "editor initialization complete").to.eq(false);
+      expect(annotation?.editable, "editable annotation").to.eq(true);
+      expect(annotation?.isReadOnly(), "annotation is not read-only").to.eq(false);
+      expect(annotation?.autosave, "autosave listener attached").to.be.a("function");
+      expect(annotation?.autosave?.paused, "autosave is not paused").not.to.eq(true);
+    });
+
+    const choice = `#label-studio-dm input[type="checkbox"][name="${value}"]`;
+    cy.get(choice, { timeout: 30000 }).should("not.be.disabled").check();
+    // Re-query after the action because React can replace the input on change.
+    cy.get(choice).should("be.checked");
   };
 
   const closeModal = () => {
@@ -196,7 +212,7 @@ describe("full enterprise collaboration browser workflow", () => {
       "Full flow Annotator A task",
     );
     cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.a.id}/drafts*`).as("draftRevision1");
-    choose("Positive");
+    choose("Positive", fixture.full_flow.tasks.a.id);
 
     cy.wait("@draftRevision1", { timeout: 30000 }).its("response.statusCode").should("be.oneOf", [200, 201]);
     cy.request(`/api/tasks/${fixture.full_flow.tasks.a.id}/drafts`).then((drafts) => {
@@ -246,7 +262,7 @@ describe("full enterprise collaboration browser workflow", () => {
       fixture.full_flow.tasks.a.id,
       "Full flow Annotator A task",
     );
-    choose("Negative");
+    choose("Negative", fixture.full_flow.tasks.a.id);
     cy.intercept("PATCH", `**/api/annotations/**`).as("submitRevision2");
     cy.get('[data-testid="bottombar-update-button"]', { timeout: 30000 }).should("be.visible").click();
     cy.wait("@submitRevision2").its("response.statusCode").should("eq", 200);
@@ -331,7 +347,7 @@ describe("full enterprise collaboration browser workflow", () => {
     );
 
     cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.stale.id}/drafts*`).as("staleWritableDraft");
-    choose("Positive");
+    choose("Positive", fixture.full_flow.tasks.stale.id);
     cy.wait("@staleWritableDraft", { timeout: 30000 })
       .its("response.statusCode")
       .should("be.oneOf", [200, 201]);
