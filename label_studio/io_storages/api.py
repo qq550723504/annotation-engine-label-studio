@@ -12,12 +12,19 @@ from django.conf import settings
 from drf_spectacular.utils import extend_schema
 from io_storages.serializers import ExportStorageSerializer, ImportStorageSerializer
 from projects.models import Project
-from rest_framework import generics, status
+from rest_framework import generics, serializers, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 logger = logging.getLogger(__name__)
+
+
+def _validated_project_id(request):
+    project_id = request.data.get('project')
+    if project_id is None:
+        return None
+    return serializers.IntegerField(min_value=1).run_validation(project_id)
 
 
 class ImportStorageListAPI(generics.ListCreateAPIView):
@@ -30,7 +37,7 @@ class ImportStorageListAPI(generics.ListCreateAPIView):
     serializer_class = ImportStorageSerializer
 
     def create(self, request, *args, **kwargs):
-        project_id = request.data.get('project')
+        project_id = _validated_project_id(request)
         if project_id is not None:
             project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=project_id)
             require_project_manager(request, project)
@@ -86,7 +93,7 @@ class ExportStorageListAPI(generics.ListCreateAPIView):
     serializer_class = ExportStorageSerializer
 
     def create(self, request, *args, **kwargs):
-        project_id = request.data.get('project')
+        project_id = _validated_project_id(request)
         if project_id is not None:
             project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=project_id)
             require_project_manager(request, project)
