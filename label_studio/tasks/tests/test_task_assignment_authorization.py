@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from organizations.models import OrganizationMember
 from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
@@ -75,6 +77,37 @@ class TestTaskAssignmentAuthorization(APITestCase):
         )
         assert response.status_code == 201, response.json()
         return Annotation.objects.get(pk=response.json()['id'])
+
+    def test_non_manager_storage_create_is_denied_before_connection_validation(self):
+        for user in (self.annotator_a, self.reviewer):
+            self.client.force_authenticate(user=user)
+            with (
+                patch('io_storages.s3.models.S3ImportStorage.validate_connection') as import_validate,
+                patch('io_storages.s3.models.S3ExportStorage.validate_connection') as export_validate,
+            ):
+                import_response = self.client.post(
+                    '/api/storages/s3/',
+                    data={
+                        'project': self.project.id,
+                        'bucket': 'authorization-test-import',
+                        'title': 'authorization-test-import',
+                    },
+                    format='json',
+                )
+                export_response = self.client.post(
+                    '/api/storages/export/s3',
+                    data={
+                        'project': self.project.id,
+                        'bucket': 'authorization-test-export',
+                        'title': 'authorization-test-export',
+                    },
+                    format='json',
+                )
+
+            assert import_response.status_code == 403
+            assert export_response.status_code == 403
+            import_validate.assert_not_called()
+            export_validate.assert_not_called()
 
     def test_assignee_can_open_assigned_task_but_not_someone_elses_task(self):
         self.client.force_authenticate(user=self.annotator_a)
