@@ -241,11 +241,13 @@ GAP means that the backend contract exists but the corresponding product UI is n
 The full workflow must not be declared browser-complete until the #21 full-flow spec passes in CI. Focused #17–#20 PASS rows remain supporting evidence, not a substitute for the composed journey.
 
 
-## Final CI result
+## Historical #16 CI result
+
+The following result belongs only to the earlier #16 current-UI milestone. It does **not** prove the composed #21 enterprise workflow:
 
 - Fork PR Gate: PASS
 - Enterprise Browser E2E: PASS
 - PR: #22
 - Merge commit: `7f99a7dad88340c148a3dae0f2190683f548dd00`
 
-The current-UI validation milestone is complete. Remaining GAP items are intentionally tracked in #17–#20 and are not failures of #16.
+#16 is complete as a historical focused milestone. Its former GAP items were subsequently implemented in #17–#20. Browser-complete enterprise collaboration remains pending until the #21 full-flow spec itself passes in CI.
