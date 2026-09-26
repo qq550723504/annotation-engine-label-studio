@@ -1066,6 +1066,7 @@ class SubmissionListAPI(generics.ListAPIView):
         project_id = self.request.query_params.get('project')
         status_value = self.request.query_params.get('status')
         reviewable = bool_from_request(self.request.GET, 'reviewable', False)
+        history = bool_from_request(self.request.GET, 'history', False)
 
         if reviewable:
             if not project_id:
@@ -1083,7 +1084,9 @@ class SubmissionListAPI(generics.ListAPIView):
         else:
             if project_id:
                 queryset = queryset.filter(assignment__project_id=project_id)
-            if status_value:
+            if history:
+                queryset = queryset.exclude(status=Submission.Status.PENDING)
+            elif status_value:
                 queryset = queryset.filter(status=status_value)
 
         return queryset.select_related(
