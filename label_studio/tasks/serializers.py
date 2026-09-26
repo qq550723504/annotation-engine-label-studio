@@ -525,39 +525,16 @@ class BaseTaskSerializerBulk(serializers.ListSerializer):
 
     @staticmethod
     def _insert_valid_completed_by(annotations, members_email_to_id, members_ids, default_user):
-        """Insert the correct id for completed_by by email in annotations"""
+        """Bind imported annotation authorship to the trusted importing actor.
+
+        Ordinary project imports are write operations, not a privileged audit-log
+        restoration channel. Nested completed_by values are therefore ignored
+        rather than allowed to impersonate another organization member.
+        """
         for annotation in annotations:
-            completed_by = annotation.get('completed_by')
-            # no completed_by info found - just skip it, will be assigned to the user who imports
-            if completed_by is None:
-                annotation['completed_by_id'] = default_user.id
-
-            # resolve annotators by email
-            elif isinstance(completed_by, dict):
-                if 'email' not in completed_by:
-                    raise ValidationError("It's expected to have 'email' field in 'completed_by' data in annotations")
-
-                email = completed_by['email']
-                if email not in members_email_to_id:
-                    if settings.ALLOW_IMPORT_TASKS_WITH_UNKNOWN_EMAILS:
-                        annotation['completed_by_id'] = default_user.id
-                    else:
-                        raise ValidationError(f"Unknown annotator's email {email}")
-                else:
-                    # overwrite an actual member ID
-                    annotation['completed_by_id'] = members_email_to_id[email]
-
-            # old style annotators specification - try to find them by ID
-            elif isinstance(completed_by, int) and completed_by in members_ids:
-                if completed_by not in members_ids:
-                    raise ValidationError(f"Unknown annotator's ID {completed_by}")
-                annotation['completed_by_id'] = completed_by
-
-            # in any other cases - import validation error
-            else:
-                raise ValidationError(
-                    f"Import data contains completed_by={completed_by} which is not a valid annotator's email or ID"
-                )
+            if not isinstance(annotation, dict):
+                continue
+            annotation['completed_by_id'] = default_user.id
             annotation.pop('completed_by', None)
 
     @staticmethod
