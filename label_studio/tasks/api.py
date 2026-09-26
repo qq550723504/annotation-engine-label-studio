@@ -731,6 +731,10 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
 
         submit_for_review = bool(request.data.get('submit_for_review', False))
         result = super(AnnotationAPI, self).update(request, *args, **kwargs)
+        # Annotation.save() preserves upstream CurrentContext behavior and may
+        # rewrite updated_by from request.user. Reassert the provider-mapped
+        # audit actor after serializer persistence without changing global model semantics.
+        Annotation.objects.filter(id=annotation.id).update(updated_by=actor)
 
         if submit_for_review:
             annotation.refresh_from_db()
@@ -933,6 +937,11 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         logger.debug(f'User={self.request.user}: save annotation')
         submit_for_review = bool(ser.validated_data.get('submit_for_review', False))
         annotation = ser.save(**extra_args)
+        # Annotation.save() may apply CurrentContext.request.user after DRF's
+        # explicit save kwargs; make the trusted provider mapping authoritative
+        # for the persisted annotation audit actor.
+        Annotation.objects.filter(id=annotation.id).update(updated_by=actor)
+        annotation.updated_by = actor
         assignment.annotation = annotation
         assignment.status = TaskAssignment.Status.IN_PROGRESS
         assignment.save(update_fields=['annotation', 'status', 'updated_at'])
