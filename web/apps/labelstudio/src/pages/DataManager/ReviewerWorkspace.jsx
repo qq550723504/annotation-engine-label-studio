@@ -41,11 +41,8 @@ export const ReviewerWorkspace = ({ projectId }) => {
   const [notice, setNotice] = useState("");
   const generationRef = useRef(0);
 
-  const refresh = useCallback(async (nextPendingPage = pendingPage, nextHistoryPage = historyPage) => {
-    const generation = ++generationRef.current;
-    setLoading(true);
-
-    const [reviewableResult, historyResult] = await Promise.all([
+  const loadPages = useCallback(async (nextPendingPage, nextHistoryPage) => {
+    return Promise.all([
       callApiRef.current("reviewableSubmissions", {
         params: {
           project: projectId,
@@ -65,8 +62,27 @@ export const ReviewerWorkspace = ({ projectId }) => {
         errorFilter: () => true,
       }),
     ]);
+  }, [projectId]);
+
+  const refresh = useCallback(async (nextPendingPage = pendingPage, nextHistoryPage = historyPage) => {
+    const generation = ++generationRef.current;
+    setLoading(true);
+
+    let [reviewableResult, historyResult] = await loadPages(nextPendingPage, nextHistoryPage);
 
     if (generationRef.current !== generation) return;
+
+    const reviewableStatus = reviewableResult?.status ?? reviewableResult?.$meta?.status;
+    if (
+      nextPendingPage > 1 &&
+      (reviewableStatus === 404 || reviewableResult?.response?.detail === "Invalid page.")
+    ) {
+      const fallbackPendingPage = nextPendingPage - 1;
+      [reviewableResult, historyResult] = await loadPages(fallbackPendingPage, nextHistoryPage);
+      if (generationRef.current !== generation) return;
+      nextPendingPage = fallbackPendingPage;
+      setPendingPage(fallbackPendingPage);
+    }
 
     if (
       !reviewableResult ||
@@ -96,6 +112,8 @@ export const ReviewerWorkspace = ({ projectId }) => {
     const pendingItems = reviewableResult?.results ?? [];
     const historyItems = (historyResult?.results ?? []).filter((item) => item.status !== "pending");
 
+    setPendingPage(nextPendingPage);
+    setHistoryPage(nextHistoryPage);
     setPendingSubmissions(pendingItems);
     setHistorySubmissions(historyItems);
     setPendingHasNext(Boolean(reviewableResult?.next));
@@ -107,7 +125,7 @@ export const ReviewerWorkspace = ({ projectId }) => {
       return pendingItems[0]?.id ?? historyItems[0]?.id ?? null;
     });
     setLoading(false);
-  }, [historyPage, pendingPage, projectId]);
+  }, [historyPage, loadPages, pendingPage, projectId]);
 
   useEffect(() => {
     refresh(pendingPage, historyPage);
