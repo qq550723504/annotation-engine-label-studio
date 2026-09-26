@@ -115,9 +115,10 @@ describe("full enterprise collaboration browser workflow", () => {
 
     // 12-14: Annotator A edits in the real Editor; draft exists before explicit Submit.
     openAssignedEditor(fixture.users.annotator_a.email, "Full flow Annotator A task");
+    cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.a.id}/drafts*`).as("draftRevision1");
     choose("Positive");
 
-    cy.wait(1200);
+    cy.wait("@draftRevision1", { timeout: 30000 }).its("response.statusCode").should("be.oneOf", [200, 201]);
     cy.request(`/api/tasks/${fixture.full_flow.tasks.a.id}/drafts`).then((drafts) => {
       expect(drafts.status).to.eq(200);
       expect(drafts.body.length).to.be.greaterThan(0);
@@ -250,10 +251,21 @@ describe("full enterprise collaboration browser workflow", () => {
     });
 
     cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.a.id}/annotations/**`).as("staleSubmit");
-    cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible").click();
-    cy.wait("@staleSubmit").then((interception) => {
-      expect(interception.response?.statusCode).to.be.oneOf([403, 404, 409]);
-      expect(interception.response?.statusCode).not.to.eq(500);
+    cy.intercept("PATCH", "**/api/annotations/**").as("staleUpdate");
+    cy.get("body").then(($body) => {
+      if ($body.find('[data-testid="bottombar-update-button"]').length) {
+        cy.get('[data-testid="bottombar-update-button"]').should("be.visible").click();
+        cy.wait("@staleUpdate").then((interception) => {
+          expect(interception.response?.statusCode).to.be.oneOf([403, 404, 409]);
+          expect(interception.response?.statusCode).not.to.eq(500);
+        });
+      } else {
+        cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible").click();
+        cy.wait("@staleSubmit").then((interception) => {
+          expect(interception.response?.statusCode).to.be.oneOf([403, 404, 409]);
+          expect(interception.response?.statusCode).not.to.eq(500);
+        });
+      }
     });
 
     cy.request({
