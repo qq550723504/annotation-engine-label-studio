@@ -913,7 +913,7 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
                 logger.debug(f'User={self.request.user}: there are no predictions for task={task}')
                 prediction_ser = {}
             # serialize annotation
-            extra_args.update({'prediction': prediction_ser, 'updated_by': user})
+            extra_args.update({'prediction': prediction_ser, 'updated_by': actor})
 
         if 'was_cancelled' in self.request.GET:
             extra_args['was_cancelled'] = bool_from_request(self.request.GET, 'was_cancelled', False)
@@ -956,7 +956,7 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         if self.request.data.get('ground_truth'):
             annotation.task.ensure_unique_groundtruth(annotation_id=annotation.id)
 
-        fill_history_annotation(user, task, annotation)
+        fill_history_annotation(actor, task, annotation)
 
         return annotation
 
