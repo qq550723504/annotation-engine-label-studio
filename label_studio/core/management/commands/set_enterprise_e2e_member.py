@@ -21,6 +21,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('actor', choices=sorted(EMAILS))
         parser.add_argument('--enabled', choices=['true', 'false'], required=True)
+        parser.add_argument('--project-id', type=int)
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -28,7 +29,10 @@ class Command(BaseCommand):
         if user is None:
             raise CommandError('Enterprise E2E fixture is not seeded.')
 
-        membership = ProjectMember.objects.select_related('project').filter(user=user).first()
+        memberships = ProjectMember.objects.select_related('project').filter(user=user)
+        if options.get('project_id'):
+            memberships = memberships.filter(project_id=options['project_id'])
+        membership = memberships.first()
         if membership is None:
             raise CommandError('Enterprise E2E project membership is missing.')
 
