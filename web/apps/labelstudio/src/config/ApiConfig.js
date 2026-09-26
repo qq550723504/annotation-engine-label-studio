@@ -34,6 +34,7 @@ export const API_CONFIG = {
     deleteTaskAssignment: "DELETE:/task-assignments/:assignmentPk/",
     eligibleTaskAssignees: "GET:/task-assignments/eligible-assignees/",
     reviewableSubmissions: "GET:/submissions/",
+    projectSubmissions: "GET:/submissions/",
     reviewSubmission: "POST:/submissions/:submissionPk/review/",
 
     // Presigning
