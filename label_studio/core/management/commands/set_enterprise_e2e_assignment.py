@@ -16,7 +16,7 @@ class Command(BaseCommand):
     help = 'Mutate deterministic enterprise E2E task assignments without browser UI.'
 
     def add_arguments(self, parser):
-        parser.add_argument('action', choices=['assign', 'cancel'])
+        parser.add_argument('action', choices=['assign', 'cancel', 'clear'])
         parser.add_argument('task_id', type=int)
         parser.add_argument('actor', choices=sorted(EMAILS))
 
@@ -30,6 +30,16 @@ class Command(BaseCommand):
         manager = User.objects.filter(email=EMAILS['manager']).first()
         if user is None or manager is None:
             raise CommandError('Enterprise E2E fixture is not seeded.')
+
+        if options['action'] == 'clear':
+            assignments = TaskAssignment.objects.select_for_update().filter(
+                task=task,
+                status__in=TaskAssignment.ACTIVE_STATUSES,
+            )
+            for assignment in assignments:
+                assignment.cancel()
+            self.stdout.write(self.style.SUCCESS('Cancelled all active assignments for task.'))
+            return
 
         assignments = TaskAssignment.objects.select_for_update().filter(
             task=task,
