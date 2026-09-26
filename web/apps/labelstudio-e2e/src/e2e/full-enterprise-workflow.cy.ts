@@ -192,7 +192,7 @@ describe("full enterprise collaboration browser workflow", () => {
       expect(submissions.body).to.have.length(0);
     });
 
-    cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.a.id}/annotations/**`).as("submitRevision1");
+    cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.a.id}/annotations*`).as("submitRevision1");
     cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible").click();
     cy.wait("@submitRevision1").its("response.statusCode").should("be.oneOf", [200, 201]);
 
@@ -333,7 +333,7 @@ describe("full enterprise collaboration browser workflow", () => {
       projectId: projectId(),
     });
 
-    cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.stale.id}/annotations/**`).as("staleSubmit");
+    cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.stale.id}/annotations*`).as("staleSubmit");
     cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible").click();
     cy.wait("@staleSubmit").then((interception) => {
       expect(interception.response?.statusCode).to.be.oneOf([403, 404, 409]);
