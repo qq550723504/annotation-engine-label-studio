@@ -26,6 +26,7 @@ export const ReviewerWorkspace = ({ projectId }) => {
   callApiRef.current = api.callApi;
 
   const [submissions, setSubmissions] = useState([]);
+  const [reviewableIds, setReviewableIds] = useState(new Set());
   const [selectedId, setSelectedId] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
   const [loading, setLoading] = useState(true);
@@ -38,24 +39,45 @@ export const ReviewerWorkspace = ({ projectId }) => {
     const generation = ++generationRef.current;
     setLoading(true);
 
-    const result = await callApiRef.current("reviewableSubmissions", {
-      params: { project: projectId, reviewable: true },
-      errorFilter: () => true,
-    });
+    const [reviewableResult, historyResult] = await Promise.all([
+      callApiRef.current("reviewableSubmissions", {
+        params: { project: projectId, reviewable: true },
+        errorFilter: () => true,
+      }),
+      callApiRef.current("projectSubmissions", {
+        params: { project: projectId },
+        errorFilter: () => true,
+      }),
+    ]);
 
     if (generationRef.current !== generation) return;
 
-    if (!result || result?.error || result?.$meta?.ok === false) {
-      setError(errorMessage(result, "Review queue could not be loaded."));
+    if (
+      !reviewableResult ||
+      reviewableResult?.error ||
+      reviewableResult?.$meta?.ok === false ||
+      !historyResult ||
+      historyResult?.error ||
+      historyResult?.$meta?.ok === false
+    ) {
+      setError(
+        errorMessage(
+          reviewableResult?.error ? reviewableResult : historyResult,
+          "Review workspace could not be loaded.",
+        ),
+      );
       setLoading(false);
       return;
     }
 
-    const items = Array.isArray(result) ? result : result?.results ?? [];
-    setSubmissions(items);
+    const reviewableItems = Array.isArray(reviewableResult) ? reviewableResult : reviewableResult?.results ?? [];
+    const historyItems = Array.isArray(historyResult) ? historyResult : historyResult?.results ?? [];
+    const pendingIds = new Set(reviewableItems.map((item) => item.id));
+    setReviewableIds(pendingIds);
+    setSubmissions(historyItems);
     setSelectedId((current) => {
-      if (current && items.some((item) => item.id === current)) return current;
-      return items[0]?.id ?? null;
+      if (current && historyItems.some((item) => item.id === current)) return current;
+      return reviewableItems[0]?.id ?? historyItems[0]?.id ?? null;
     });
     setLoading(false);
   }, [projectId]);
@@ -71,6 +93,15 @@ export const ReviewerWorkspace = ({ projectId }) => {
     () => submissions.find((submission) => submission.id === selectedId) ?? null,
     [submissions, selectedId],
   );
+  const pendingSubmissions = useMemo(
+    () => submissions.filter((submission) => reviewableIds.has(submission.id)),
+    [submissions, reviewableIds],
+  );
+  const historicalSubmissions = useMemo(
+    () => submissions.filter((submission) => !reviewableIds.has(submission.id)),
+    [submissions, reviewableIds],
+  );
+  const selectedIsReviewable = selected ? reviewableIds.has(selected.id) : false;
 
   useEffect(() => {
     setRejectReason("");
@@ -134,10 +165,10 @@ export const ReviewerWorkspace = ({ projectId }) => {
       <div className={cn("reviewer-workspace").elem("layout").toClassName()}>
         <aside className={cn("reviewer-workspace").elem("queue").toClassName()}>
           <Typography variant="headline" size="small">Pending reviews</Typography>
-          {submissions.length === 0 ? (
+          {pendingSubmissions.length === 0 ? (
             <div data-testid="review-queue-empty">No pending submissions.</div>
           ) : (
-            submissions.map((submission) => (
+            pendingSubmissions.map((submission) => (
               <button
                 key={submission.id}
                 type="button"
@@ -148,6 +179,25 @@ export const ReviewerWorkspace = ({ projectId }) => {
                 <strong>Revision {submission.revision}</strong>
                 <span>{displayIdentity(submission.submitted_by)}</span>
                 <span>#{submission.id}</span>
+              </button>
+            ))
+          )}
+
+          <Typography variant="headline" size="small">Submission history</Typography>
+          {historicalSubmissions.length === 0 ? (
+            <div data-testid="review-history-empty">No reviewed submissions.</div>
+          ) : (
+            historicalSubmissions.map((submission) => (
+              <button
+                key={submission.id}
+                type="button"
+                className={cn("reviewer-workspace").elem("queue-item").mod({ active: submission.id === selectedId }).toClassName()}
+                onClick={() => setSelectedId(submission.id)}
+                data-testid={`review-history-${submission.id}`}
+              >
+                <strong>Revision {submission.revision}</strong>
+                <span>{submission.status}</span>
+                <span>{displayIdentity(submission.submitted_by)}</span>
               </button>
             ))
           )}
@@ -162,6 +212,7 @@ export const ReviewerWorkspace = ({ projectId }) => {
                 </Typography>
                 <span>Submitted by {displayIdentity(selected.submitted_by)}</span>
                 <span>{selected.submitted_at}</span>
+                <span data-testid="review-status">{selected.status}</span>
                 <code data-testid="review-result-hash">{selected.result_hash}</code>
               </div>
 
@@ -172,36 +223,40 @@ export const ReviewerWorkspace = ({ projectId }) => {
                 </pre>
               </div>
 
-              <label htmlFor="review-reject-reason">Rejection reason</label>
-              <textarea
-                id="review-reject-reason"
-                data-testid="review-reject-reason"
-                value={rejectReason}
-                onChange={(event) => setRejectReason(event.target.value)}
-                disabled={processing !== null}
-                rows={3}
-              />
+              {selectedIsReviewable && (
+                <>
+                  <label htmlFor="review-reject-reason">Rejection reason</label>
+                  <textarea
+                    id="review-reject-reason"
+                    data-testid="review-reject-reason"
+                    value={rejectReason}
+                    onChange={(event) => setRejectReason(event.target.value)}
+                    disabled={processing !== null}
+                    rows={3}
+                  />
 
-              <div className={cn("reviewer-workspace").elem("actions").toClassName()}>
-                <Button
-                  data-testid="review-approve"
-                  disabled={processing !== null}
-                  waiting={processing === "approved"}
-                  onClick={() => decide("approved")}
-                >
-                  Approve
-                </Button>
-                <Button
-                  data-testid="review-reject"
-                  variant="negative"
-                  look="outlined"
-                  disabled={processing !== null}
-                  waiting={processing === "rejected"}
-                  onClick={() => decide("rejected")}
-                >
-                  Reject
-                </Button>
-              </div>
+                  <div className={cn("reviewer-workspace").elem("actions").toClassName()}>
+                    <Button
+                      data-testid="review-approve"
+                      disabled={processing !== null}
+                      waiting={processing === "approved"}
+                      onClick={() => decide("approved")}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      data-testid="review-reject"
+                      variant="negative"
+                      look="outlined"
+                      disabled={processing !== null}
+                      waiting={processing === "rejected"}
+                      onClick={() => decide("rejected")}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </>
+              )}
             </>
           ) : (
             <div data-testid="review-detail-empty">Select a pending submission.</div>
