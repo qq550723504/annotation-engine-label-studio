@@ -318,6 +318,43 @@ class TestTaskAssignmentAuthorization(APITestCase):
         assert self.assignment_a.id not in assignment_ids
         assert self.assignment_b.id in assignment_ids
 
+    def test_assignment_list_keeps_identity_for_revoked_assignee(self):
+        revoked = UserFactory(active_organization=self.organization)
+        self.organization.add_user(revoked)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=revoked,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+        task = TaskFactory(project=self.project)
+        assignment = TaskAssignment.objects.create(
+            task=task,
+            project=self.project,
+            assignee=revoked,
+            assigned_by=self.manager,
+        )
+
+        org_membership = OrganizationMember.objects.get(
+            organization=self.organization,
+            user=revoked,
+        )
+        org_membership.deleted_at = org_membership.created_at
+        org_membership.save(update_fields=['deleted_at'])
+        revoked.is_active = False
+        revoked.save(update_fields=['is_active'])
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(
+            f'/api/task-assignments/?project={self.project.id}&task={task.id}&active=true'
+        )
+
+        assert response.status_code == 200
+        item = next(item for item in response.json() if item['id'] == assignment.id)
+        assert item['assignee'] == revoked.id
+        assert item['assignee_identity']['id'] == revoked.id
+        assert item['assignee_identity']['email'] == revoked.email
+
     def test_manager_can_assign_active_annotator(self):
         new_task = TaskFactory(project=self.project)
         self.client.force_authenticate(user=self.manager)
