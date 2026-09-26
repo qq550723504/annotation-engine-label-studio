@@ -269,12 +269,14 @@ describe("full enterprise collaboration browser workflow", () => {
         .should("contain.text", "approved")
         .click();
     });
-    cy.get('[data-testid="release-result-hash"]').should("contain.text", revision2Hash);
-    cy.get('[data-testid="release-result-snapshot"]').should("contain.text", "Negative");
-    cy.get('[data-testid="release-approved-submission"]').click();
-    cy.get('[data-testid="release-success"]', { timeout: 30000 })
-      .should("contain.text", "Released revision 2")
-      .and("contain.text", revision2Hash);
+    cy.then(() => {
+      cy.get('[data-testid="release-result-hash"]').should("contain.text", revision2Hash);
+      cy.get('[data-testid="release-result-snapshot"]').should("contain.text", "Negative");
+      cy.get('[data-testid="release-approved-submission"]').click();
+      cy.get('[data-testid="release-success"]', { timeout: 30000 })
+        .should("contain.text", "Released revision 2")
+        .and("contain.text", revision2Hash);
+    });
     closeModal();
 
     // 25-29: prove Manager UI revocation, then exercise a truly stale open Editor.
@@ -338,12 +340,14 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.get('[data-testid="bottombar-submit-button"]').should("not.exist");
 
     // 30-34: role separation / hardened mutation surfaces remain server-authoritative.
-    cy.request({
-      url: `/api/submissions/${revision2Id}/review/`,
-      method: "POST",
-      failOnStatusCode: false,
-      body: { decision: "approved" },
-    }).its("status").should("eq", 403);
+    cy.then(() => {
+      cy.request({
+        url: `/api/submissions/${revision2Id}/review/`,
+        method: "POST",
+        failOnStatusCode: false,
+        body: { decision: "approved" },
+      }).its("status").should("eq", 403);
+    });
     cy.request({
       url: `/api/projects/${projectId()}/members/`,
       failOnStatusCode: false,
@@ -356,7 +360,7 @@ describe("full enterprise collaboration browser workflow", () => {
       url: `/api/task-assignments/?project=${projectId()}`,
       method: "POST",
       failOnStatusCode: false,
-      body: { task: fixture.full_flow.tasks.a.id, assignee: fixture.users.reviewer.id },
+      body: { task: fixture.full_flow.tasks.a.id, assignee: fixture.users.annotator_b.id },
     }).its("status").should("eq", 403);
     cy.request({
       url: `/api/projects/${projectId()}/members/`,
