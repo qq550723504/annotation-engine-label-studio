@@ -173,7 +173,7 @@ class Command(BaseCommand):
         )
         assignment_review.annotation = review_annotation
         assignment_review.save(update_fields=['annotation', 'updated_at'])
-        review_submission = create_submission(
+        reviewer_submission = create_submission(
             assignment=assignment_review,
             annotation=review_annotation,
             actor=users['annotator_a'],
@@ -252,7 +252,7 @@ class Command(BaseCommand):
                 'review': {
                     'id': task_review.id,
                     'assignment_id': assignment_review.id,
-                    'submission_id': review_submission.id,
+                    'submission_id': reviewer_submission.id,
                     'annotation_id': review_annotation.id,
                 },
                 'release': {
