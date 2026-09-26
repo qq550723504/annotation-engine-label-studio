@@ -1095,6 +1095,8 @@ class SubmissionListAPI(generics.ListAPIView):
             'assignment__assignee',
             'annotation',
             'submitted_by',
+            'review',
+            'review__reviewer',
         ).order_by('-submitted_at', '-id')
 
 
