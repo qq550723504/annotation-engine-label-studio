@@ -121,7 +121,8 @@ describe("immutable submission reviewer workspace", () => {
     });
 
     openReviewsAs(fixture.users.reviewer.email);
-    cy.contains('[data-testid^="review-submission-"]', "Revision 3", { timeout: 30000 }).click();
+    cy.get('[data-testid^="review-submission-"]', { timeout: 30000 }).first().click();
+    cy.get('[data-testid="review-status"]').should("contain.text", "pending");
     cy.get('[data-testid="review-approve"]').should("be.visible");
 
     cy.task("setEnterpriseE2EMember", { actor: "reviewer", enabled: false });
