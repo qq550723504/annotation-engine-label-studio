@@ -282,14 +282,14 @@ DataManagerPage.context = ({ dmRef }) => {
         return;
       }
 
-      const result = await api.callApi("reviewableSubmissions", {
-        params: { project: project.id, reviewable: true },
+      const result = await api.callApi("projectReviewCapability", {
+        params: { pk: project.id },
         errorFilter: (apiError) => [403, 404].includes(apiError?.status),
       });
 
       if (!active) return;
       const status = result?.status ?? result?.$meta?.status;
-      setCanReviewSubmissions(Boolean(!result?.error && status !== 403 && status !== 404));
+      setCanReviewSubmissions(Boolean(result?.can_review && !result?.error && status !== 403 && status !== 404));
     };
 
     probe();
