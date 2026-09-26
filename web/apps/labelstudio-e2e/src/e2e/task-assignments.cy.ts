@@ -114,7 +114,7 @@ describe("task assignment management UI", () => {
       openAssignmentManager();
       cy.get('[data-testid="assignment-empty"]').should("exist");
       cy.get('[data-testid="assignment-assignee-select"]').select(String(fixture.users.annotator_b.id));
-      cy.contains("button", "Assign").click();
+      cy.get('[data-testid="assignment-submit"]').click();
       cy.contains('[data-testid^="assignment-row-"]', fixture.users.annotator_b.email).should("exist");
       closeAssignmentManager();
 
