@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def async_import_background(
-    import_id, user_id, recalculate_stats_func: Optional[Callable[..., None]] = None, **kwargs
+    import_id, user_id, recalculate_stats_func: Optional[Callable[..., None]] = None, actor_id=None, **kwargs
 ):
     with transaction.atomic():
         try:
@@ -40,10 +40,11 @@ def async_import_background(
         project_import.save(update_fields=['status'])
 
     user = User.objects.get(id=user_id)
+    actor = User.objects.get(id=actor_id) if actor_id is not None else user
 
     if flag_set('fflag_fix_back_plt_902_async_import_background_oom_fix_22092025_short', user='auto'):
         logger.info(f'Using streaming import for project {project_import.project.id}')
-        _async_import_background_streaming(project_import, user)
+        _async_import_background_streaming(project_import, user, actor)
         return
 
     start = time.time()
@@ -103,12 +104,12 @@ def async_import_background(
             summary = ProjectSummary.objects.select_for_update().get(project=project)
 
             # Immediately create project tasks and update project states and counters
-            serializer = ImportApiSerializer(data=tasks, many=True, context={'project': project})
+            serializer = ImportApiSerializer(data=tasks, many=True, context={'project': project, 'user': actor})
             serializer.is_valid(raise_exception=True)
 
             try:
                 tasks = serializer.save(project_id=project.id)
-                emit_webhooks_for_instance(user.active_organization, project, WebhookAction.TASKS_CREATED, tasks)
+                emit_webhooks_for_instance(project.organization, project, WebhookAction.TASKS_CREATED, tasks)
 
                 task_count = len(tasks)
                 annotation_count = len(serializer.db_annotations)
@@ -400,8 +401,9 @@ def _async_reimport_background_streaming(reimport, project, organization_id, use
         raise
 
 
-def _async_import_background_streaming(project_import, user):
+def _async_import_background_streaming(project_import, user, actor=None):
     try:
+        actor = actor or user
         batch_size = settings.IMPORT_BATCH_SIZE
 
         total_task_count = 0
@@ -486,7 +488,7 @@ def _async_import_background_streaming(project_import, user):
                 with transaction.atomic():
                     summary = ProjectSummary.objects.select_for_update().get(project=project)
 
-                    serializer = ImportApiSerializer(data=batch_tasks, many=True, context={'project': project})
+                    serializer = ImportApiSerializer(data=batch_tasks, many=True, context={'project': project, 'user': actor})
                     serializer.is_valid(raise_exception=True)
                     batch_db_tasks = serializer.save(project_id=project.id)
 
@@ -515,7 +517,7 @@ def _async_import_background_streaming(project_import, user):
             )
 
             emit_webhooks_for_instance(
-                user.active_organization, project, WebhookAction.TASKS_CREATED, all_created_task_ids
+                project.organization, project, WebhookAction.TASKS_CREATED, all_created_task_ids
             )
 
             recalculate_stats_counts = {
@@ -560,7 +562,7 @@ def _async_import_background_streaming(project_import, user):
         raise
 
 
-def async_reimport_background(reimport_id, organization_id, user, **kwargs):
+def async_reimport_background(reimport_id, organization_id, user_id, actor_id=None, **kwargs):
 
     with transaction.atomic():
         try:
@@ -575,11 +577,15 @@ def async_reimport_background(reimport_id, organization_id, user, **kwargs):
         reimport.save(update_fields=['status'])
 
     project = reimport.project
+    # Backward compatibility for jobs queued by older code that serialized
+    # the User object directly instead of its primary key.
+    user = user_id if isinstance(user_id, User) else User.objects.get(id=user_id)
+    actor = User.objects.get(id=actor_id) if actor_id is not None else user
 
     # Check feature flag for memory improvement
     if flag_set('fflag_fix_back_plt_838_reimport_memory_improvement_05082025_short', user='auto'):
         logger.info(f'Using streaming reimport for project {project.id}')
-        _async_reimport_background_streaming(reimport, project, organization_id, user)
+        _async_reimport_background_streaming(reimport, project, organization_id, actor)
     else:
         # Original implementation
         tasks, found_formats, data_columns = FileUpload.load_tasks_from_uploaded_files(
@@ -591,7 +597,7 @@ def async_reimport_background(reimport_id, organization_id, user, **kwargs):
             summary = ProjectSummary.objects.select_for_update().get(project=project)
 
             project.remove_tasks_by_file_uploads(reimport.file_upload_ids)
-            serializer = ImportApiSerializer(data=tasks, many=True, context={'project': project, 'user': user})
+            serializer = ImportApiSerializer(data=tasks, many=True, context={'project': project, 'user': actor})
             serializer.is_valid(raise_exception=True)
             tasks = serializer.save(project_id=project.id)
             emit_webhooks_for_instance(organization_id, project, WebhookAction.TASKS_CREATED, tasks)

@@ -3,7 +3,7 @@
 import logging
 
 from access_control.authorization import authorization
-from access_control.identity import resolve_principal
+from access_control.identity import resolve_actor, resolve_principal
 from core.feature_flags import flag_set
 from core.mixins import GetParentObjectMixin
 from core.permissions import ViewClassPermission, all_permissions
@@ -699,17 +699,20 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
     queryset = Annotation.objects.all()
 
     def perform_destroy(self, annotation):
-        principal = resolve_principal(self.request)
+        principal, actor = resolve_actor(self.request)
         authorization.require(
             authorization.can_update_annotation(principal, annotation),
             'Only the active assignment owner can delete this annotation.',
         )
+        task_id = annotation.task_id
         annotation.delete()
+        if task_id is not None:
+            Task.objects.filter(id=task_id).update(updated_by=actor)
 
     @transaction.atomic
     def update(self, request, *args, **kwargs):
         # Resolve the trusted server-side actor before touching audit fields.
-        principal = resolve_principal(request)
+        principal, actor = resolve_actor(request)
         user = request.user
 
         # save user history with annotator_id, time & annotation result
@@ -721,7 +724,7 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
         assignment = authorization.active_task_assignment(principal, annotation.task)
         require_assignment_token(request, assignment)
         # use updated instead of save to avoid duplicated signals
-        Annotation.objects.filter(id=annotation.id).update(updated_by=user)
+        Annotation.objects.filter(id=annotation.id).update(updated_by=actor)
 
         task = annotation.task
         if self.request.data.get('ground_truth'):
@@ -731,13 +734,24 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
 
         submit_for_review = bool(request.data.get('submit_for_review', False))
         result = super(AnnotationAPI, self).update(request, *args, **kwargs)
+        # Annotation.save() preserves upstream CurrentContext behavior and may
+        # rewrite updated_by from request.user. Reassert the provider-mapped
+        # audit actor after serializer persistence without changing global model semantics.
+        Annotation.objects.filter(id=annotation.id).update(updated_by=actor)
+        Task.objects.filter(id=task.id).update(updated_by=actor)
+        task.updated_by = actor
+        annotation.refresh_from_db()
 
         if submit_for_review:
-            annotation.refresh_from_db()
-            create_submission(assignment=assignment, annotation=annotation, actor=user)
+            create_submission(assignment=assignment, annotation=annotation, actor=actor)
 
         task.update_is_labeled()
         task.save(update_fields=['updated_at'])  # refresh task metrics
+
+        # super().update() serialized before the mapped actor was reasserted.
+        # Re-serialize the refreshed instance so the write response matches
+        # the authoritative persisted audit identity.
+        result.data = self.get_serializer(annotation).data
         return result
 
     def get(self, request, *args, **kwargs):
@@ -868,7 +882,7 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
     @transaction.atomic
     def perform_create(self, ser):
         task = self.parent_object
-        principal = resolve_principal(self.request)
+        principal, actor = resolve_actor(self.request)
         authorization.require(
             authorization.can_label_task(principal, task),
             'An active task assignment is required to create an annotation.',
@@ -898,8 +912,8 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         extra_args = {
             'task_id': self.kwargs['pk'],
             'project_id': task.project_id,
-            'completed_by': user,
-            'updated_by': user,
+            'completed_by': actor,
+            'updated_by': actor,
         }
 
         # save stats about how well annotator annotations coincide with current prediction
@@ -913,7 +927,7 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
                 logger.debug(f'User={self.request.user}: there are no predictions for task={task}')
                 prediction_ser = {}
             # serialize annotation
-            extra_args.update({'prediction': prediction_ser, 'updated_by': user})
+            extra_args.update({'prediction': prediction_ser, 'updated_by': actor})
 
         if 'was_cancelled' in self.request.GET:
             extra_args['was_cancelled'] = bool_from_request(self.request.GET, 'was_cancelled', False)
@@ -933,12 +947,19 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         logger.debug(f'User={self.request.user}: save annotation')
         submit_for_review = bool(ser.validated_data.get('submit_for_review', False))
         annotation = ser.save(**extra_args)
+        # Annotation.save() may apply CurrentContext.request.user after DRF's
+        # explicit save kwargs; make the trusted provider mapping authoritative
+        # for the persisted annotation audit actor.
+        Annotation.objects.filter(id=annotation.id).update(updated_by=actor)
+        Task.objects.filter(id=task.id).update(updated_by=actor)
+        annotation.updated_by = actor
+        task.updated_by = actor
         assignment.annotation = annotation
         assignment.status = TaskAssignment.Status.IN_PROGRESS
         assignment.save(update_fields=['annotation', 'status', 'updated_at'])
 
         if submit_for_review:
-            create_submission(assignment=assignment, annotation=annotation, actor=user)
+            create_submission(assignment=assignment, annotation=annotation, actor=actor)
 
         logger.debug(f'Save activity for user={self.request.user}')
         self.request.user.activity_at = timezone.now()

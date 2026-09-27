@@ -9,6 +9,7 @@ from functools import lru_cache
 from typing import Optional, Protocol
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.utils.module_loading import import_string
 from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated
 
@@ -85,3 +86,24 @@ def resolve_principal(request, provider: Optional[IdentityProvider] = None) -> P
     """
 
     return (provider or get_identity_provider()).resolve(request)
+
+
+def resolve_actor(request, provider: Optional[IdentityProvider] = None):
+    """Resolve the trusted principal and its active local audit actor.
+
+    Authentication may be handled by a gateway or external identity provider,
+    but persisted human audit fields must use the provider's mapped local user,
+    never the mutable/request-session identity by assumption.
+    """
+
+    principal = resolve_principal(request, provider=provider)
+    if principal.local_user_id is None:
+        raise AuthenticationFailed("Trusted principal is not mapped to a local user.")
+
+    User = get_user_model()
+    try:
+        actor = User.objects.get(pk=principal.local_user_id, is_active=True)
+    except User.DoesNotExist as exc:
+        raise AuthenticationFailed("Trusted principal is not mapped to an active local user.") from exc
+
+    return principal, actor

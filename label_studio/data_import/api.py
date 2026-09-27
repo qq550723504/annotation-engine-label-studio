@@ -7,6 +7,8 @@ import time
 from urllib.parse import unquote, urlparse
 
 from core.decorators import override_report_only_csp
+from access_control.authorization import authorization
+from access_control.identity import resolve_actor
 from access_control.project_access import get_managed_project_or_404, managed_projects_for_user, require_project_manager
 from core.feature_flags import flag_set
 from core.permissions import ViewClassPermission, all_permissions
@@ -266,7 +268,8 @@ class ImportAPI(generics.CreateAPIView):
             project = get_managed_project_or_404(self.request, project_id)
         else:
             project = None
-        return {'project': project, 'user': self.request.user}
+        actor = resolve_actor(self.request)[1] if project is not None else self.request.user
+        return {'project': project, 'user': actor}
 
     def post(self, *args, **kwargs):
         return super(ImportAPI, self).post(*args, **kwargs)
@@ -374,6 +377,11 @@ class ImportAPI(generics.CreateAPIView):
 
     @timeit
     def async_import(self, request, project, preannotated_from_fields, commit_to_project, return_task_ids):
+        principal, actor = resolve_actor(request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to import tasks.',
+        )
 
         project_import = ProjectImport.objects.create(
             project=project,
@@ -414,10 +422,11 @@ class ImportAPI(generics.CreateAPIView):
             async_import_background,
             project_import.id,
             request.user.id,
+            actor_id=actor.id,
             queue_name='high',
             on_failure=set_import_background_failure,
             project_id=project.id,
-            organization_id=request.user.active_organization.id,
+            organization_id=project.organization_id,
         )
 
         response = {'import': project_import.id}
@@ -428,8 +437,14 @@ class ImportAPI(generics.CreateAPIView):
         return_task_ids = bool_from_request(request.query_params, 'return_task_ids', False)
         preannotated_from_fields = list_of_strings_from_request(request.query_params, 'preannotated_from_fields', None)
 
-        # check project permissions
+        # Establish both request visibility and the trusted mapped actor before
+        # any sync/async parsing, upload persistence, or tracking-row creation.
         project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
+        principal, _ = resolve_actor(request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to import tasks.',
+        )
 
         if settings.VERSION_EDITION != 'Community':
             return self.async_import(request, project, preannotated_from_fields, commit_to_project, return_task_ids)
@@ -703,6 +718,11 @@ class ReImportAPI(ImportAPI):
         )
 
     def async_reimport(self, project, file_upload_ids, files_as_tasks_list, organization_id):
+        principal, actor = resolve_actor(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to reimport tasks.',
+        )
 
         project_reimport = ProjectReimport.objects.create(
             project=project, file_upload_ids=file_upload_ids, files_as_tasks_list=files_as_tasks_list
@@ -712,7 +732,8 @@ class ReImportAPI(ImportAPI):
             async_reimport_background,
             project_reimport.id,
             organization_id,
-            self.request.user,
+            self.request.user.id,
+            actor_id=actor.id,
             queue_name='high',
             on_failure=set_reimport_background_failure,
             project_id=project.id,
@@ -726,8 +747,14 @@ class ReImportAPI(ImportAPI):
         files_as_tasks_list = bool_from_request(request.data, 'files_as_tasks_list', True)
         file_upload_ids = self.request.data.get('file_upload_ids')
 
-        # check project permissions
+        # Establish the trusted mapped actor before either sync or async reimport
+        # mutates uploaded tasks or creates tracking resources.
         project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
+        principal, _ = resolve_actor(request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to reimport tasks.',
+        )
 
         if not file_upload_ids:
             return Response(
