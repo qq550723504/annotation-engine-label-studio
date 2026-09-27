@@ -167,6 +167,7 @@ class TestAnnotationActorSecurity(APITestCase):
             )
 
         assert update_response.status_code == 200, update_response.json()
+        assert update_response.json()["updated_by"] == mapped_actor.id
         annotation.refresh_from_db()
         task.refresh_from_db()
         assert annotation.completed_by_id == mapped_actor.id
@@ -199,8 +200,7 @@ class TestAnnotationActorSecurity(APITestCase):
 
         assert response.status_code == 201, response.json()
         args, kwargs = start_job.call_args
-        assert args[2] == self.project.organization_id
-        assert args[3] == self.actor.id
+        assert args[2] == self.actor.id
         assert kwargs["actor_id"] == mapped_actor.id
         assert kwargs["organization_id"] == self.project.organization_id
 
