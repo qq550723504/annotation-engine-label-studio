@@ -377,6 +377,11 @@ class ImportAPI(generics.CreateAPIView):
 
     @timeit
     def async_import(self, request, project, preannotated_from_fields, commit_to_project, return_task_ids):
+        principal, actor = resolve_actor(request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to import tasks.',
+        )
 
         project_import = ProjectImport.objects.create(
             project=project,
@@ -413,11 +418,6 @@ class ImportAPI(generics.CreateAPIView):
         else:
             raise ValidationError('load_tasks: No data found in DATA or in FILES')
 
-        principal, actor = resolve_actor(request)
-        authorization.require(
-            authorization.can_manage_project(principal, project),
-            'Project manager role is required to import tasks.',
-        )
         start_job_async_or_sync(
             async_import_background,
             project_import.id,
@@ -712,16 +712,16 @@ class ReImportAPI(ImportAPI):
         )
 
     def async_reimport(self, project, file_upload_ids, files_as_tasks_list, organization_id):
-
-        project_reimport = ProjectReimport.objects.create(
-            project=project, file_upload_ids=file_upload_ids, files_as_tasks_list=files_as_tasks_list
-        )
-
         principal, actor = resolve_actor(self.request)
         authorization.require(
             authorization.can_manage_project(principal, project),
             'Project manager role is required to reimport tasks.',
         )
+
+        project_reimport = ProjectReimport.objects.create(
+            project=project, file_upload_ids=file_upload_ids, files_as_tasks_list=files_as_tasks_list
+        )
+
         start_job_async_or_sync(
             async_reimport_background,
             project_reimport.id,
