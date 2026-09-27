@@ -706,6 +706,13 @@ class ExportConvertAPI(generics.CreateAPIView):
     lookup_url_kwarg = 'export_pk'
     permission_required = all_permissions.projects_change
 
+    def _get_project(self):
+        project_pk = self.kwargs.get('pk')
+        return generics.get_object_or_404(managed_projects_for_user(self.request), pk=project_pk)
+
+    def get_queryset(self):
+        return super().get_queryset().filter(project=self._get_project())
+
     def post(self, request, *args, **kwargs):
         snapshot = self.get_object()
         serializer = ExportConvertSerializer(data=request.data, context={'project': snapshot.project})
