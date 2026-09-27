@@ -401,8 +401,9 @@ def _async_reimport_background_streaming(reimport, project, organization_id, use
         raise
 
 
-def _async_import_background_streaming(project_import, user, actor):
+def _async_import_background_streaming(project_import, user, actor=None):
     try:
+        actor = actor or user
         batch_size = settings.IMPORT_BATCH_SIZE
 
         total_task_count = 0
