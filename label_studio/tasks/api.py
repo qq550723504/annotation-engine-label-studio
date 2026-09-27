@@ -699,12 +699,15 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
     queryset = Annotation.objects.all()
 
     def perform_destroy(self, annotation):
-        principal = resolve_principal(self.request)
+        principal, actor = resolve_actor(self.request)
         authorization.require(
             authorization.can_update_annotation(principal, annotation),
             'Only the active assignment owner can delete this annotation.',
         )
+        task_id = annotation.task_id
         annotation.delete()
+        if task_id is not None:
+            Task.objects.filter(id=task_id).update(updated_by=actor)
 
     @transaction.atomic
     def update(self, request, *args, **kwargs):
