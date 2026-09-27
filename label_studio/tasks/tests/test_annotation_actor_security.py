@@ -199,7 +199,8 @@ class TestAnnotationActorSecurity(APITestCase):
 
         assert response.status_code == 201, response.json()
         args, kwargs = start_job.call_args
-        assert args[1] == self.actor.id
+        assert args[2] == self.project.organization_id
+        assert args[3] == self.actor.id
         assert kwargs["actor_id"] == mapped_actor.id
         assert kwargs["organization_id"] == self.project.organization_id
 
