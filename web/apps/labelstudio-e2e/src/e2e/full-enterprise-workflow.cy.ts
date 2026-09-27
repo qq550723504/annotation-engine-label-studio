@@ -124,7 +124,10 @@ describe("full enterprise collaboration browser workflow", () => {
     });
 
     const choice = `#label-studio-dm input[type="checkbox"][name="${value}"]`;
-    cy.get(choice, { timeout: 30000 }).should("not.be.disabled").check();
+    cy.get(choice, { timeout: 30000 }).should("not.be.disabled");
+    // Ant Design may replace the checkbox during actionability checks. Re-query
+    // and force the actual input change after editor/autosave readiness is proven.
+    cy.get(choice, { timeout: 30000 }).check({ force: true });
     // Re-query after the action because React can replace the input on change.
     cy.get(choice).should("be.checked");
   };
