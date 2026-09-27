@@ -735,6 +735,8 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
         # rewrite updated_by from request.user. Reassert the provider-mapped
         # audit actor after serializer persistence without changing global model semantics.
         Annotation.objects.filter(id=annotation.id).update(updated_by=actor)
+        Task.objects.filter(id=task.id).update(updated_by=actor)
+        task.updated_by = actor
 
         if submit_for_review:
             annotation.refresh_from_db()
@@ -941,7 +943,9 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         # explicit save kwargs; make the trusted provider mapping authoritative
         # for the persisted annotation audit actor.
         Annotation.objects.filter(id=annotation.id).update(updated_by=actor)
+        Task.objects.filter(id=task.id).update(updated_by=actor)
         annotation.updated_by = actor
+        task.updated_by = actor
         assignment.annotation = annotation
         assignment.status = TaskAssignment.Status.IN_PROGRESS
         assignment.save(update_fields=['annotation', 'status', 'updated_at'])
