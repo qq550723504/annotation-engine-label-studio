@@ -747,8 +747,14 @@ class ReImportAPI(ImportAPI):
         files_as_tasks_list = bool_from_request(request.data, 'files_as_tasks_list', True)
         file_upload_ids = self.request.data.get('file_upload_ids')
 
-        # check project permissions
+        # Establish the trusted mapped actor before either sync or async reimport
+        # mutates uploaded tasks or creates tracking resources.
         project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
+        principal, _ = resolve_actor(request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to reimport tasks.',
+        )
 
         if not file_upload_ids:
             return Response(
