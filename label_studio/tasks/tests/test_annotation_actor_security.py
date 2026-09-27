@@ -8,6 +8,8 @@ from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
 
 from data_import.api import ReImportAPI
+from data_import.functions import async_reimport_background
+from projects.models import ProjectReimport
 from tasks.models import Annotation, TaskAssignment
 from tasks.tests.factories import AnnotationFactory, TaskFactory
 from users.tests.factories import UserFactory
@@ -222,6 +224,35 @@ class TestAnnotationActorSecurity(APITestCase):
         task.refresh_from_db()
         assert task.updated_by_id == mapped_actor.id
 
+    def test_async_import_rejects_mapped_actor_outside_project_scope_before_queueing(self):
+        foreign_actor = UserFactory()
+        foreign_org = OrganizationFactory()
+        foreign_actor.active_organization = foreign_org
+        foreign_actor.save(update_fields=["active_organization"])
+
+        class ForeignProvider:
+            def resolve(self, request):
+                return Principal(
+                    principal_id=f"mapped:{foreign_actor.id}",
+                    source="test-mapped",
+                    username=foreign_actor.email,
+                    local_user_id=foreign_actor.id,
+                )
+
+        with (
+            patch("access_control.identity.get_identity_provider", return_value=ForeignProvider()),
+            patch("data_import.api.settings.VERSION_EDITION", "Enterprise"),
+            patch("data_import.api.start_job_async_or_sync") as start_job,
+        ):
+            response = self.client.post(
+                f"/api/projects/{self.project.id}/import",
+                data=[{"data": {"text": "out-of-scope actor"}}],
+                format="json",
+            )
+
+        assert response.status_code == 403
+        start_job.assert_not_called()
+
     def test_async_import_keeps_session_scope_and_passes_mapped_actor_separately(self):
         mapped_actor = UserFactory(active_organization=self.organization)
         self.organization.add_user(mapped_actor)
@@ -283,3 +314,21 @@ class TestAnnotationActorSecurity(APITestCase):
         args, kwargs = start_job.call_args
         assert args[2] == self.actor.id
         assert kwargs["actor_id"] == mapped_actor.id
+
+
+    def test_async_reimport_accepts_legacy_queued_user_object(self):
+        project_reimport = ProjectReimport.objects.create(
+            project=self.project,
+            file_upload_ids=[],
+            files_as_tasks_list=True,
+        )
+
+        with patch("data_import.functions.FileUpload.load_tasks_from_uploaded_files", return_value=([], {}, [])):
+            async_reimport_background(
+                project_reimport.id,
+                self.project.organization_id,
+                self.actor,
+            )
+
+        project_reimport.refresh_from_db()
+        assert project_reimport.status == ProjectReimport.Status.COMPLETED
