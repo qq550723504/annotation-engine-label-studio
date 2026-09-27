@@ -437,8 +437,14 @@ class ImportAPI(generics.CreateAPIView):
         return_task_ids = bool_from_request(request.query_params, 'return_task_ids', False)
         preannotated_from_fields = list_of_strings_from_request(request.query_params, 'preannotated_from_fields', None)
 
-        # check project permissions
+        # Establish both request visibility and the trusted mapped actor before
+        # any sync/async parsing, upload persistence, or tracking-row creation.
         project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
+        principal, _ = resolve_actor(request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to import tasks.',
+        )
 
         if settings.VERSION_EDITION != 'Community':
             return self.async_import(request, project, preannotated_from_fields, commit_to_project, return_task_ids)
