@@ -91,18 +91,31 @@ class TestProjectWriteSurfaceHardening(APITestCase):
             assert response.status_code == 403
             assert Task.objects.filter(pk=task.id).exists()
 
-    def test_disabled_member_cannot_reuse_stale_legacy_export_url(self):
-        membership = ProjectMember.objects.get(project=self.project, user=self.annotator)
-        membership.enabled = False
-        membership.save(update_fields=['enabled'])
+    def test_disabled_manager_cannot_reuse_stale_legacy_export_url(self):
+        delegated_manager = UserFactory(active_organization=self.organization)
+        self.organization.add_user(delegated_manager)
+        membership = ProjectMember.objects.create(
+            project=self.project,
+            user=delegated_manager,
+            role=ProjectMember.Role.MANAGER,
+            enabled=True,
+        )
+        self.client.force_authenticate(user=delegated_manager)
 
-        self.client.force_authenticate(user=self.annotator)
-        response = self.client.get(
+        enabled_response = self.client.get(
             '/api/auth/export/',
             HTTP_X_ORIGINAL_URI=f'/export/{self.project.id}-stale.json',
         )
+        assert enabled_response.status_code == 200
 
-        assert response.status_code == 404
+        membership.enabled = False
+        membership.save(update_fields=['enabled'])
+
+        revoked_response = self.client.get(
+            '/api/auth/export/',
+            HTTP_X_ORIGINAL_URI=f'/export/{self.project.id}-stale.json',
+        )
+        assert revoked_response.status_code == 404
 
     def test_annotator_cannot_delete_project_model_version(self):
         self.client.force_authenticate(user=self.annotator)
