@@ -125,9 +125,13 @@ describe("full enterprise collaboration browser workflow", () => {
 
     const choice = `#label-studio-dm input[type="checkbox"][name="${value}"]`;
     cy.get(choice, { timeout: 30000 }).should("not.be.disabled");
-    // Click the stable Ant wrapper by visible label text instead of the input
-    // node itself; React may replace the input during the selection event.
-    cy.contains("#label-studio-dm label", value, { timeout: 30000 }).click();
+    // Cypress actionability retries race with React replacing the Ant input,
+    // while clicking the whole wrapper exercises unrelated UI behavior.
+    // Invoke the current input's native click synchronously, then let the
+    // downstream draft/submission request prove the selection persisted.
+    cy.get(choice, { timeout: 30000 }).then(($input) => {
+      ($input[0] as HTMLInputElement).click();
+    });
   };
 
   const closeModal = () => {
