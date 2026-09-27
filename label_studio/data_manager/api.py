@@ -3,6 +3,8 @@
 import logging
 
 from asgiref.sync import async_to_sync, sync_to_async
+from access_control.authorization import authorization
+from access_control.identity import resolve_principal
 from access_control.project_access import get_visible_project_or_404, require_project_manager
 from core.feature_flags import flag_set
 from core.permissions import ViewClassPermission, all_permissions
@@ -245,12 +247,31 @@ class TaskPagination(PageNumberPagination):
     total_predictions = 0
     max_page_size = settings.TASK_API_PAGE_SIZE_MAX
 
+    def _annotations_count_queryset(self, queryset, request):
+        annotations = Annotation.objects.filter(task_id__in=queryset, was_cancelled=False)
+        project_ids = list(queryset.order_by().values_list('project_id', flat=True).distinct())
+        principal = resolve_principal(request)
+        managed_project_ids = [
+            project.id
+            for project in Project.objects.filter(id__in=project_ids).only('id', 'created_by_id')
+            if authorization.can_manage_project(principal, project)
+        ]
+        if len(managed_project_ids) != len(project_ids):
+            annotations = annotations.filter(
+                Q(task__project_id__in=managed_project_ids)
+                | Q(
+                    task_assignment__assignee=request.user,
+                    task_assignment__status__in=['assigned', 'in_progress'],
+                )
+            )
+        return annotations.distinct()
+
     @async_to_sync
     async def async_paginate_queryset(self, queryset, request, view=None):
         predictions_count_qs = Prediction.objects.filter(task_id__in=queryset)
         self.total_predictions = await sync_to_async(predictions_count_qs.count, thread_sensitive=True)()
 
-        annotations_count_qs = Annotation.objects.filter(task_id__in=queryset, was_cancelled=False)
+        annotations_count_qs = self._annotations_count_queryset(queryset, request)
         self.total_annotations = await sync_to_async(annotations_count_qs.count, thread_sensitive=True)()
         # Use .only('id') to avoid loading heavy task.data fields during pagination
         # Full task objects are loaded later with proper annotations
@@ -259,13 +280,21 @@ class TaskPagination(PageNumberPagination):
 
     def sync_paginate_queryset(self, queryset, request, view=None):
         self.total_predictions = Prediction.objects.filter(task_id__in=queryset).count()
-        self.total_annotations = Annotation.objects.filter(task_id__in=queryset, was_cancelled=False).count()
+        self.total_annotations = self._annotations_count_queryset(queryset, request).count()
         # Use .only('id') to avoid loading heavy task.data fields during pagination
         # Full task objects are loaded later with proper annotations
         id_only_queryset = queryset.only('id')
         return super().paginate_queryset(id_only_queryset, request, view)
 
     def paginate_totals_queryset(self, queryset, request, view=None):
+        project_ids = list(queryset.order_by().values_list('project_id', flat=True).distinct())
+        principal = resolve_principal(request)
+        if any(
+            not authorization.can_manage_project(principal, project)
+            for project in Project.objects.filter(id__in=project_ids).only('id', 'created_by_id')
+        ):
+            return self.sync_paginate_queryset(queryset, request, view)
+
         totals = queryset.values('id').aggregate(
             total_annotations=Coalesce(Sum('total_annotations'), 0),
             total_predictions=Coalesce(Sum('total_predictions'), 0),
