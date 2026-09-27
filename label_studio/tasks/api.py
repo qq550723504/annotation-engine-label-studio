@@ -737,13 +737,18 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
         Annotation.objects.filter(id=annotation.id).update(updated_by=actor)
         Task.objects.filter(id=task.id).update(updated_by=actor)
         task.updated_by = actor
+        annotation.refresh_from_db()
 
         if submit_for_review:
-            annotation.refresh_from_db()
             create_submission(assignment=assignment, annotation=annotation, actor=actor)
 
         task.update_is_labeled()
         task.save(update_fields=['updated_at'])  # refresh task metrics
+
+        # super().update() serialized before the mapped actor was reasserted.
+        # Re-serialize the refreshed instance so the write response matches
+        # the authoritative persisted audit identity.
+        result.data = self.get_serializer(annotation).data
         return result
 
     def get(self, request, *args, **kwargs):
