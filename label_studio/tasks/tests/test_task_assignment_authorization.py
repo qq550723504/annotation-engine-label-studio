@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from data_export.models import Export
 from organizations.models import OrganizationMember
 from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
@@ -158,17 +159,31 @@ class TestTaskAssignmentAuthorization(APITestCase):
         assert annotation_a.id != annotation_b.id
 
     def test_snapshot_exports_are_manager_only(self):
+        snapshot = Export.objects.create(project=self.project, created_by=self.manager)
+
         self.client.force_authenticate(user=self.annotator_a)
         annotator_response = self.client.get(f'/api/projects/{self.project.id}/exports/')
+        annotator_convert = self.client.post(
+            f'/api/projects/{self.project.id}/exports/{snapshot.id}/convert',
+            data={'export_type': 'JSON'},
+            format='json',
+        )
 
         self.client.force_authenticate(user=self.reviewer)
         reviewer_response = self.client.get(f'/api/projects/{self.project.id}/exports/')
+        reviewer_convert = self.client.post(
+            f'/api/projects/{self.project.id}/exports/{snapshot.id}/convert',
+            data={'export_type': 'JSON'},
+            format='json',
+        )
 
         self.client.force_authenticate(user=self.manager)
         manager_response = self.client.get(f'/api/projects/{self.project.id}/exports/')
 
         assert annotator_response.status_code in (403, 404)
+        assert annotator_convert.status_code in (403, 404)
         assert reviewer_response.status_code in (403, 404)
+        assert reviewer_convert.status_code in (403, 404)
         assert manager_response.status_code == 200
 
     def test_non_manager_storage_create_is_denied_before_connection_validation(self):
