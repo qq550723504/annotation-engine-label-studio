@@ -4,6 +4,8 @@ from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
 from data_import.models import FileUpload
+from tasks.models import Task
+from tasks.tests.factories import TaskFactory
 from io_storages.tests.factories import S3ImportStorageFactory
 from users.tests.factories import UserFactory
 from webhooks.models import Webhook
@@ -78,6 +80,29 @@ class TestProjectWriteSurfaceHardening(APITestCase):
         )
 
         assert response.status_code == 403
+
+    def test_non_managers_cannot_delete_all_project_tasks(self):
+        task = TaskFactory(project=self.project)
+
+        for user in (self.annotator, self.reviewer):
+            self.client.force_authenticate(user=user)
+            response = self.client.delete(f'/api/projects/{self.project.id}/tasks/')
+
+            assert response.status_code == 403
+            assert Task.objects.filter(pk=task.id).exists()
+
+    def test_disabled_member_cannot_reuse_stale_legacy_export_url(self):
+        membership = ProjectMember.objects.get(project=self.project, user=self.annotator)
+        membership.enabled = False
+        membership.save(update_fields=['enabled'])
+
+        self.client.force_authenticate(user=self.annotator)
+        response = self.client.get(
+            '/api/auth/export/',
+            HTTP_X_ORIGINAL_URI=f'/export/{self.project.id}-stale.json',
+        )
+
+        assert response.status_code == 404
 
     def test_annotator_cannot_delete_project_model_version(self):
         self.client.force_authenticate(user=self.annotator)
