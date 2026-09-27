@@ -174,6 +174,54 @@ class TestAnnotationActorSecurity(APITestCase):
         assert annotation.updated_by_id == mapped_actor.id
         assert task.updated_by_id == mapped_actor.id
 
+    def test_custom_identity_provider_mapped_actor_updates_task_audit_on_delete(self):
+        mapped_actor = UserFactory(active_organization=self.organization)
+        self.organization.add_user(mapped_actor)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=mapped_actor,
+            role=ProjectMember.Role.ANNOTATOR,
+        )
+        task = TaskFactory(project=self.project)
+        annotation = AnnotationFactory(
+            task=task,
+            project=self.project,
+            completed_by=mapped_actor,
+            updated_by=mapped_actor,
+            result=[],
+        )
+        assignment = TaskAssignment.objects.create(
+            task=task,
+            project=self.project,
+            assignee=mapped_actor,
+            assigned_by=self.actor,
+            annotation=annotation,
+            status=TaskAssignment.Status.IN_PROGRESS,
+        )
+
+        class MappedProvider:
+            def resolve(self, request):
+                return Principal(
+                    principal_id=f"mapped:{mapped_actor.id}",
+                    source="test-mapped",
+                    username=mapped_actor.email,
+                    local_user_id=mapped_actor.id,
+                )
+
+        with patch("access_control.identity.get_identity_provider", return_value=MappedProvider()):
+            response = self.client.delete(
+                f"/api/annotations/{annotation.id}/",
+                data={
+                    "assignment_id": assignment.id,
+                    "assignment_version": assignment.version,
+                },
+                format="json",
+            )
+
+        assert response.status_code == 204
+        task.refresh_from_db()
+        assert task.updated_by_id == mapped_actor.id
+
     def test_async_import_keeps_session_scope_and_passes_mapped_actor_separately(self):
         mapped_actor = UserFactory(active_organization=self.organization)
         self.organization.add_user(mapped_actor)
