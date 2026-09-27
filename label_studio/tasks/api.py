@@ -977,7 +977,7 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         if self.request.data.get('ground_truth'):
             annotation.task.ensure_unique_groundtruth(annotation_id=annotation.id)
 
-        fill_history_annotation(actor, task, annotation)
+        fill_history_annotation(user, task, annotation)
 
         return annotation
 
