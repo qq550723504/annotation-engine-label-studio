@@ -256,6 +256,11 @@ class TestAnnotationActorSecurity(APITestCase):
     def test_async_import_keeps_session_scope_and_passes_mapped_actor_separately(self):
         mapped_actor = UserFactory(active_organization=self.organization)
         self.organization.add_user(mapped_actor)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=mapped_actor,
+            role=ProjectMember.Role.MANAGER,
+        )
 
         class MappedProvider:
             def resolve(self, request):
@@ -286,6 +291,11 @@ class TestAnnotationActorSecurity(APITestCase):
     def test_async_reimport_passes_mapped_actor_without_replacing_session_user(self):
         mapped_actor = UserFactory(active_organization=self.organization)
         self.organization.add_user(mapped_actor)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=mapped_actor,
+            role=ProjectMember.Role.MANAGER,
+        )
 
         class MappedProvider:
             def resolve(self, request):
