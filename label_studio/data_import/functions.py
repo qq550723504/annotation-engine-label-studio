@@ -577,7 +577,9 @@ def async_reimport_background(reimport_id, organization_id, user_id, actor_id=No
         reimport.save(update_fields=['status'])
 
     project = reimport.project
-    user = User.objects.get(id=user_id)
+    # Backward compatibility for jobs queued by older code that serialized
+    # the User object directly instead of its primary key.
+    user = user_id if isinstance(user_id, User) else User.objects.get(id=user_id)
     actor = User.objects.get(id=actor_id) if actor_id is not None else user
 
     # Check feature flag for memory improvement
