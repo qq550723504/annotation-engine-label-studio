@@ -342,3 +342,33 @@ class TestAnnotationActorSecurity(APITestCase):
 
         project_reimport.refresh_from_db()
         assert project_reimport.status == ProjectReimport.Status.COMPLETED
+
+
+    def test_sync_import_rejects_out_of_scope_mapped_actor_before_parsing_even_without_commit(self):
+        foreign_actor = UserFactory()
+        foreign_org = OrganizationFactory()
+        foreign_actor.active_organization = foreign_org
+        foreign_actor.save(update_fields=["active_organization"])
+
+        class ForeignProvider:
+            def resolve(self, request):
+                return Principal(
+                    principal_id=f"mapped:{foreign_actor.id}",
+                    source="test-mapped",
+                    username=foreign_actor.email,
+                    local_user_id=foreign_actor.id,
+                )
+
+        with (
+            patch("access_control.identity.get_identity_provider", return_value=ForeignProvider()),
+            patch("data_import.api.settings.VERSION_EDITION", "Community"),
+            patch("data_import.api.load_tasks") as load_tasks,
+        ):
+            response = self.client.post(
+                f"/api/projects/{self.project.id}/import?commit_to_project=false",
+                data=[{"data": {"text": "must not parse"}}],
+                format="json",
+            )
+
+        assert response.status_code == 403
+        load_tasks.assert_not_called()
