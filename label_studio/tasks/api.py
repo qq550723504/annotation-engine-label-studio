@@ -1529,30 +1529,30 @@ class AnnotationConvertAPI(generics.RetrieveAPIView):
     def process_intermediate_state(self, annotation, draft):
         pass
 
+    @transaction.atomic
     def post(self, request, *args, **kwargs):
         annotation = self.get_object()
         principal = resolve_principal(request)
-        authorization.require(
-            authorization.can_update_annotation(principal, annotation),
-            'Only the active assignment owner can convert this annotation to a draft.',
-        )
+        assignment = lock_active_assignment(request, principal, annotation.task, require_token=False)
+        if assignment.annotation_id != annotation.id:
+            raise PermissionDenied('Only the active assignment owner can convert this annotation to a draft.')
+
         organization = annotation.project.organization
         project = annotation.project
-
         pk = annotation.pk
 
-        with transaction.atomic():
-            draft = AnnotationDraft.objects.create(
-                result=annotation.result,
-                lead_time=annotation.lead_time,
-                task=annotation.task,
-                annotation=None,
-                user=request.user,
-            )
+        draft = AnnotationDraft.objects.create(
+            result=annotation.result,
+            lead_time=annotation.lead_time,
+            task=annotation.task,
+            annotation=None,
+            user=request.user,
+            assignment=assignment,
+        )
 
-            self.process_intermediate_state(annotation, draft)
+        self.process_intermediate_state(annotation, draft)
 
-            annotation.delete()
+        annotation.delete()
 
         emit_webhooks_for_instance(organization, project, WebhookAction.ANNOTATIONS_DELETED, [pk])
         data = AnnotationDraftSerializer(instance=draft).data
