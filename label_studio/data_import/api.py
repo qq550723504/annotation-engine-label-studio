@@ -7,6 +7,7 @@ import time
 from urllib.parse import unquote, urlparse
 
 from core.decorators import override_report_only_csp
+from access_control.authorization import authorization
 from access_control.identity import resolve_actor
 from access_control.project_access import get_managed_project_or_404, managed_projects_for_user, require_project_manager
 from core.feature_flags import flag_set
@@ -412,7 +413,11 @@ class ImportAPI(generics.CreateAPIView):
         else:
             raise ValidationError('load_tasks: No data found in DATA or in FILES')
 
-        actor = resolve_actor(request)[1]
+        principal, actor = resolve_actor(request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to import tasks.',
+        )
         start_job_async_or_sync(
             async_import_background,
             project_import.id,
@@ -712,7 +717,11 @@ class ReImportAPI(ImportAPI):
             project=project, file_upload_ids=file_upload_ids, files_as_tasks_list=files_as_tasks_list
         )
 
-        actor = resolve_actor(self.request)[1]
+        principal, actor = resolve_actor(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to reimport tasks.',
+        )
         start_job_async_or_sync(
             async_reimport_background,
             project_reimport.id,
