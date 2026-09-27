@@ -416,11 +416,12 @@ class ImportAPI(generics.CreateAPIView):
         start_job_async_or_sync(
             async_import_background,
             project_import.id,
-            actor.id,
+            request.user.id,
+            actor_id=actor.id,
             queue_name='high',
             on_failure=set_import_background_failure,
             project_id=project.id,
-            organization_id=request.user.active_organization.id,
+            organization_id=project.organization_id,
         )
 
         response = {'import': project_import.id}
@@ -711,11 +712,13 @@ class ReImportAPI(ImportAPI):
             project=project, file_upload_ids=file_upload_ids, files_as_tasks_list=files_as_tasks_list
         )
 
+        actor = resolve_actor(self.request)[1]
         start_job_async_or_sync(
             async_reimport_background,
             project_reimport.id,
             organization_id,
-            self.request.user,
+            self.request.user.id,
+            actor_id=actor.id,
             queue_name='high',
             on_failure=set_reimport_background_failure,
             project_id=project.id,
