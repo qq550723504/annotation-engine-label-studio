@@ -372,7 +372,7 @@ class ExportListAPI(generics.ListCreateAPIView):
     def _get_project(self):
         project_pk = self.kwargs.get('pk')
         project = generics.get_object_or_404(
-            self.project_model.objects.for_user(self.request.user),
+            managed_projects_for_user(self.request),
             pk=project_pk,
         )
         return project
@@ -486,7 +486,7 @@ class ExportDetailAPI(generics.RetrieveDestroyAPIView):
     def _get_project(self):
         project_pk = self.kwargs.get('pk')
         project = generics.get_object_or_404(
-            self.project_model.objects.for_user(self.request.user),
+            managed_projects_for_user(self.request),
             pk=project_pk,
         )
         return project
@@ -555,7 +555,7 @@ class ExportDownloadAPI(generics.RetrieveAPIView):
     def _get_project(self):
         project_pk = self.kwargs.get('pk')
         project = generics.get_object_or_404(
-            self.project_model.objects.for_user(self.request.user),
+            managed_projects_for_user(self.request),
             pk=project_pk,
         )
         return project
