@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from access_control.identity import Principal
@@ -5,6 +6,8 @@ from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
+
+from data_import.api import ReImportAPI
 from tasks.models import Annotation, TaskAssignment
 from tasks.tests.factories import AnnotationFactory, TaskFactory
 from users.tests.factories import UserFactory
@@ -149,6 +152,8 @@ class TestAnnotationActorSecurity(APITestCase):
             annotation = Annotation.objects.get(pk=create_response.json()["id"])
             assert annotation.completed_by_id == mapped_actor.id
             assert annotation.updated_by_id == mapped_actor.id
+            task.refresh_from_db()
+            assert task.updated_by_id == mapped_actor.id
 
             update_response = self.client.patch(
                 f"/api/annotations/{annotation.id}/",
@@ -163,5 +168,69 @@ class TestAnnotationActorSecurity(APITestCase):
 
         assert update_response.status_code == 200, update_response.json()
         annotation.refresh_from_db()
+        task.refresh_from_db()
         assert annotation.completed_by_id == mapped_actor.id
         assert annotation.updated_by_id == mapped_actor.id
+        assert task.updated_by_id == mapped_actor.id
+
+    def test_async_import_keeps_session_scope_and_passes_mapped_actor_separately(self):
+        mapped_actor = UserFactory(active_organization=self.organization)
+        self.organization.add_user(mapped_actor)
+
+        class MappedProvider:
+            def resolve(self, request):
+                return Principal(
+                    principal_id=f"mapped:{mapped_actor.id}",
+                    source="test-mapped",
+                    username=mapped_actor.email,
+                    local_user_id=mapped_actor.id,
+                )
+
+        with (
+            patch("access_control.identity.get_identity_provider", return_value=MappedProvider()),
+            patch("data_import.api.settings.VERSION_EDITION", "Enterprise"),
+            patch("data_import.api.start_job_async_or_sync") as start_job,
+        ):
+            response = self.client.post(
+                f"/api/projects/{self.project.id}/import",
+                data=[{"data": {"text": "async mapped actor"}}],
+                format="json",
+            )
+
+        assert response.status_code == 201, response.json()
+        args, kwargs = start_job.call_args
+        assert args[1] == self.actor.id
+        assert kwargs["actor_id"] == mapped_actor.id
+        assert kwargs["organization_id"] == self.project.organization_id
+
+    def test_async_reimport_passes_mapped_actor_without_replacing_session_user(self):
+        mapped_actor = UserFactory(active_organization=self.organization)
+        self.organization.add_user(mapped_actor)
+
+        class MappedProvider:
+            def resolve(self, request):
+                return Principal(
+                    principal_id=f"mapped:{mapped_actor.id}",
+                    source="test-mapped",
+                    username=mapped_actor.email,
+                    local_user_id=mapped_actor.id,
+                )
+
+        view = ReImportAPI()
+        view.request = SimpleNamespace(user=self.actor)
+
+        with (
+            patch("access_control.identity.get_identity_provider", return_value=MappedProvider()),
+            patch("data_import.api.start_job_async_or_sync") as start_job,
+        ):
+            response = view.async_reimport(
+                self.project,
+                [999999],
+                True,
+                self.project.organization_id,
+            )
+
+        assert response.status_code == 201
+        args, kwargs = start_job.call_args
+        assert args[2] == self.actor.id
+        assert kwargs["actor_id"] == mapped_actor.id
