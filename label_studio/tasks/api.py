@@ -75,6 +75,29 @@ def require_assignment_token(request, assignment):
         raise AssignmentConflictError()
 
 
+def lock_active_assignment(request, principal, task, *, require_token=True):
+    """Lock and revalidate the assignment that authorizes a labeling write."""
+    role = authorization.project_role(principal, task.project)
+    if role not in (ProjectMember.Role.ANNOTATOR, ProjectMember.Role.MANAGER):
+        raise PermissionDenied('An enabled labeling role is required for this task.')
+
+    assignment_id = request.data.get('assignment_id') if require_token else None
+    queryset = TaskAssignment.objects.select_for_update().filter(
+        task=task,
+        assignee_id=principal.local_user_id,
+        status__in=TaskAssignment.ACTIVE_STATUSES,
+    )
+    if assignment_id is not None:
+        queryset = queryset.filter(pk=assignment_id)
+
+    assignment = queryset.order_by('-assigned_at', '-id').first()
+    if assignment is None:
+        raise AssignmentConflictError()
+    if require_token:
+        require_assignment_token(request, assignment)
+    return assignment
+
+
 # TODO: fix after switch to api/tasks from api/dm/tasks
 @method_decorator(
     name='post',
@@ -698,12 +721,12 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AnnotationSerializer
     queryset = Annotation.objects.all()
 
+    @transaction.atomic
     def perform_destroy(self, annotation):
         principal, actor = resolve_actor(self.request)
-        authorization.require(
-            authorization.can_update_annotation(principal, annotation),
-            'Only the active assignment owner can delete this annotation.',
-        )
+        assignment = lock_active_assignment(self.request, principal, annotation.task, require_token=False)
+        if assignment.annotation_id != annotation.id:
+            raise PermissionDenied('Only the active assignment owner can delete this annotation.')
         task_id = annotation.task_id
         annotation.delete()
         if task_id is not None:
@@ -721,8 +744,9 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
             authorization.can_update_annotation(principal, annotation),
             'Only the active assignment owner can modify this annotation.',
         )
-        assignment = authorization.active_task_assignment(principal, annotation.task)
-        require_assignment_token(request, assignment)
+        assignment = lock_active_assignment(request, principal, annotation.task)
+        if assignment.annotation_id != annotation.id:
+            raise AssignmentConflictError()
         # use updated instead of save to avoid duplicated signals
         Annotation.objects.filter(id=annotation.id).update(updated_by=actor)
 
@@ -1001,16 +1025,12 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
             return queryset.none()
         return queryset.filter(task_id=task_id, user=self.request.user, assignment=assignment)
 
+    @transaction.atomic
     def perform_create(self, serializer):
         task_id = self.kwargs['pk']
         task = generics.get_object_or_404(Task.objects.for_user(self.request.user), pk=task_id)
         principal = resolve_principal(self.request)
-        authorization.require(
-            authorization.can_label_task(principal, task),
-            'An active task assignment is required to create a draft.',
-        )
-        assignment = authorization.active_task_assignment(principal, task)
-        require_assignment_token(self.request, assignment)
+        assignment = lock_active_assignment(self.request, principal, task)
         annotation_id = self.kwargs.get('annotation_id')
         user = self.request.user
         if annotation_id is not None:
@@ -1511,6 +1531,11 @@ class AnnotationConvertAPI(generics.RetrieveAPIView):
 
     def post(self, request, *args, **kwargs):
         annotation = self.get_object()
+        principal = resolve_principal(request)
+        authorization.require(
+            authorization.can_update_annotation(principal, annotation),
+            'Only the active assignment owner can convert this annotation to a draft.',
+        )
         organization = annotation.project.organization
         project = annotation.project
 
