@@ -349,7 +349,15 @@ class ExportMixin:
                 serialization_options=serialization_options,
             )
 
+    @transaction.atomic
     def convert_file(self, to_format, download_resources=False, hostname=None):
+        Project.objects.select_for_update().get(pk=self.project_id)
+        if Submission.objects.filter(assignment__project_id=self.project_id).exists():
+            raise ValueError(
+                'Project export conversion is disabled after formal submissions exist. '
+                'Release approved immutable submissions through the submission release API.'
+            )
+
         logger.info(
             (
                 'Starting export conversion: export_id=%s project_id=%s '
