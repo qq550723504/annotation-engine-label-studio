@@ -193,6 +193,18 @@ Storage create endpoints must authorize the requested project before serializer 
 
 This ordering is part of the fork authorization boundary and must be preserved across upstream rebases.
 
+## Storage validation authorization ordering
+
+Fork-specific storage validation and file-listing endpoints must authorize the submitted project before serializer validation or provider/filesystem probing.
+
+Enforcement points:
+
+- `/api/storages/*/validate`
+- `/api/storages/*/files`
+- shared `validate_storage_instance()`
+
+For new configurations, validate the raw `project` identifier, resolve it within the request user's visible projects, and require project-manager authority before serializer validation. For existing storage IDs, authorize both the storage's current project and any submitted replacement project before serializer validation. This ordering prevents unauthorized users from triggering network, credential, or local-filesystem side effects before access is denied.
+
 ## Immutable review release boundary
 
 Once a project has any formal `Submission`, mutable annotation delivery is fail-closed outside the immutable submission release path. This fork-specific boundary must survive upstream rebases.
