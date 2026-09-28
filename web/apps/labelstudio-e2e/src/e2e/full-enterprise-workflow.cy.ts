@@ -153,6 +153,16 @@ describe("full enterprise collaboration browser workflow", () => {
     });
   };
 
+  const saveDraftImmediately = (taskId: number) => {
+    cy.window({ timeout: 30000 }).then(async (win) => {
+      const editor = win.Htx;
+      const annotation = editor?.annotationStore?.selected;
+      expect(Number(editor?.task?.id), "editor task before draft save").to.eq(taskId);
+      expect(annotation?.editable, "editable annotation before draft save").to.eq(true);
+      await annotation.saveDraftImmediately();
+    });
+  };
+
 
   const assertRestrictedManagerWrites = () => {
     cy.request({
@@ -233,6 +243,7 @@ describe("full enterprise collaboration browser workflow", () => {
       "Full flow Annotator A task",
     );
     choose("Positive", fixture.full_flow.tasks.a.id);
+    saveDraftImmediately(fixture.full_flow.tasks.a.id);
 
     waitForDraft(fixture.full_flow.tasks.a.id).then((drafts) => {
       expect(drafts.status).to.eq(200);
@@ -366,6 +377,7 @@ describe("full enterprise collaboration browser workflow", () => {
     );
 
     choose("Positive", fixture.full_flow.tasks.stale.id);
+    saveDraftImmediately(fixture.full_flow.tasks.stale.id);
     waitForDraft(fixture.full_flow.tasks.stale.id);
 
     cy.request(`/api/tasks/${fixture.full_flow.tasks.stale.id}/`).then((taskResponse) => {
