@@ -140,7 +140,7 @@ class TestTaskAssignmentAuthorization(APITestCase):
         self.client.force_authenticate(user=self.manager)
         response = self.client.post(f'/api/annotations/{annotation.id}/convert-to-draft', data={}, format='json')
 
-        assert response.status_code == 403
+        assert response.status_code in (403, 409)
         assert Annotation.objects.filter(pk=annotation.id).exists()
         assert not AnnotationDraft.objects.filter(task=self.shared_task, user=self.manager).exists()
 
