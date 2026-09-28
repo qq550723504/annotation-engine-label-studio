@@ -9,6 +9,7 @@ import os
 import sys
 import traceback as tb
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Iterator, Union
@@ -768,8 +769,16 @@ class ExportStorage(Storage, ProjectStorageMixin):
                 'Release approved immutable submissions through the submission release API.'
             )
 
+    @contextmanager
+    def mutable_delivery_lock(self):
+        from projects.models import Project
+
+        with transaction.atomic():
+            Project.objects.select_for_update().get(pk=self.project_id)
+            self.require_mutable_delivery_allowed()
+            yield
+
     def _get_serialized_data(self, annotation):
-        self.require_mutable_delivery_allowed()
         user = self.project.organization.created_by
         flag = flag_set(
             'fflag_feat_optic_650_target_storage_task_format_long', user=user, override_system_default=False
