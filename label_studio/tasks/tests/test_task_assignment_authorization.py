@@ -217,6 +217,49 @@ class TestTaskAssignmentAuthorization(APITestCase):
             import_validate.assert_not_called()
             export_validate.assert_not_called()
 
+
+    def test_storage_validate_is_denied_before_serializer_or_connection_validation(self):
+        self.client.force_authenticate(user=self.annotator_a)
+
+        with (
+            patch('io_storages.s3.serializers.S3ImportStorageSerializer.validate') as serializer_validate,
+            patch('io_storages.s3.models.S3ImportStorage.validate_connection') as validate_connection,
+        ):
+            response = self.client.post(
+                '/api/storages/s3/validate',
+                data={
+                    'project': self.project.id,
+                    'bucket': 'authorization-test-validate',
+                    'title': 'authorization-test-validate',
+                },
+                format='json',
+            )
+
+        assert response.status_code == 403
+        serializer_validate.assert_not_called()
+        validate_connection.assert_not_called()
+
+    def test_storage_list_files_is_denied_before_serializer_or_connection_validation(self):
+        self.client.force_authenticate(user=self.annotator_a)
+
+        with (
+            patch('io_storages.s3.serializers.S3ImportStorageSerializer.validate') as serializer_validate,
+            patch('io_storages.s3.models.S3ImportStorage.validate_connection') as validate_connection,
+        ):
+            response = self.client.post(
+                '/api/storages/s3/files',
+                data={
+                    'project': self.project.id,
+                    'bucket': 'authorization-test-files',
+                    'title': 'authorization-test-files',
+                },
+                format='json',
+            )
+
+        assert response.status_code == 403
+        serializer_validate.assert_not_called()
+        validate_connection.assert_not_called()
+
     def test_storage_create_foreign_project_id_is_denied_before_connection_validation(self):
         other_creator = UserFactory(active_organization=self.organization)
         self.organization.add_user(other_creator)
