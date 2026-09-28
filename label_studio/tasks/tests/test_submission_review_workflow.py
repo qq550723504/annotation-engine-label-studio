@@ -5,6 +5,7 @@ from rest_framework.test import APITestCase
 from data_export.models import Export
 from io_storages.localfiles.models import LocalFilesExportStorage, _export_annotation_to_local_files
 from io_storages.redis.models import RedisExportStorage, _export_annotation_to_redis_storages
+from io_storages.s3.models import _dispatch_s3_annotation_export
 from io_storages.tests.factories import AzureBlobExportStorageFactory
 from rest_framework.exceptions import ValidationError
 from tasks.models import Annotation, ReviewDecision, Submission, TaskAssignment
@@ -257,6 +258,16 @@ class TestSubmissionReviewWorkflow(APITestCase):
             _export_annotation_to_redis_storages(annotation.id)
 
         assert Annotation.objects.filter(pk=annotation.id).exists()
+
+
+    def test_cloud_post_commit_dispatch_failure_is_isolated(self):
+        from unittest.mock import patch
+
+        with patch(
+            'io_storages.s3.models.start_job_async_or_sync',
+            side_effect=RuntimeError('queue unavailable'),
+        ):
+            _dispatch_s3_annotation_export(123456)
 
     def test_resubmit_supersedes_old_pending_revision(self):
         annotation, first = self._submit_new_annotation()
