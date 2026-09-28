@@ -1,8 +1,11 @@
 import logging
 from typing import Dict, Iterable, List, Union
 
+from access_control.project_access import require_project_manager
 from django.shortcuts import get_object_or_404
 from io_storages.base_models import ImportStorage
+from projects.models import Project
+from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from .azure_blob.api import AzureBlobExportStorageListAPI, AzureBlobImportStorageListAPI
@@ -35,14 +38,26 @@ def validate_storage_instance(request, serializer_class):
     if not serializer_class or not hasattr(serializer_class, 'Meta'):
         raise ValidationError('Invalid or missing serializer class')
 
+    if not hasattr(request.data, 'get'):
+        raise ValidationError('Request body must be a JSON object.')
+
     storage_id = request.data.get('id')
     instance = None
+
+    submitted_project_id = request.data.get('project')
+    if submitted_project_id is not None:
+        submitted_project_id = serializers.IntegerField(min_value=1).run_validation(submitted_project_id)
+        submitted_project = get_object_or_404(Project.objects.for_user(request.user), pk=submitted_project_id)
+        require_project_manager(request, submitted_project)
 
     if storage_id:
         instance = get_object_or_404(serializer_class.Meta.model.objects.all(), pk=storage_id)
         require_project_manager(request, instance.project)
+    elif submitted_project_id is None:
+        raise ValidationError({'project': 'Project is required.'})
 
-    # combine instance fields with request.data
+    # combine instance fields with request.data only after project authorization,
+    # because storage serializers may perform network/filesystem validation.
     serializer = serializer_class(data=request.data)
     serializer.is_valid(raise_exception=True)
 
