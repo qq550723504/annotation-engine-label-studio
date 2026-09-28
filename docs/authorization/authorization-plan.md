@@ -193,3 +193,15 @@ Storage create endpoints must authorize the requested project before serializer 
 
 This ordering is part of the fork authorization boundary and must be preserved across upstream rebases.
 
+## Immutable review release boundary
+
+Once a project has any formal `Submission`, mutable annotation delivery is fail-closed outside the immutable submission release path. This fork-specific boundary must survive upstream rebases.
+
+Required enforcement points:
+
+- deprecated synchronous project export (`/api/projects/{id}/export`);
+- export snapshot list/create/detail/download/convert (`/api/projects/{id}/exports/*`);
+- legacy export-file listing and nginx auth check (`/api/projects/{id}/export/files`, `/api/auth/export/`);
+- export-storage manual sync and automatic annotation delivery for S3, GCS, Azure Blob, Redis, and Local Files.
+
+Mutable export-storage delivery and formal submission creation serialize on the project row. Automatic storage callbacks run after transaction commit, so the first formal submission is visible before delivery is considered. Approved immutable revisions are delivered through the submission release API rather than mutable project/export-storage paths.
