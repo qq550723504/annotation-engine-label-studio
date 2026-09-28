@@ -280,13 +280,6 @@ class ExportMixin:
 
     @transaction.atomic
     def export_to_file(self, task_filter_options=None, annotation_filter_options=None, serialization_options=None):
-        Project.objects.select_for_update().get(pk=self.project_id)
-        if Submission.objects.filter(assignment__project_id=self.project_id).exists():
-            raise ValueError(
-                'Project exports are disabled after formal submissions exist. '
-                'Release approved immutable submissions through the submission release API.'
-            )
-
         logger.debug(
             f'Run export for {self.id} with params:\n'
             f'task_filter_options: {task_filter_options}\n'
@@ -294,6 +287,13 @@ class ExportMixin:
             f'serialization_options: {serialization_options}\n'
         )
         try:
+            Project.objects.select_for_update().get(pk=self.project_id)
+            if Submission.objects.filter(assignment__project_id=self.project_id).exists():
+                raise ValueError(
+                    'Project exports are disabled after formal submissions exist. '
+                    'Release approved immutable submissions through the submission release API.'
+                )
+
             iter_json = json.JSONEncoder(ensure_ascii=False).iterencode(
                 SerializableGenerator(
                     self.get_export_data(
