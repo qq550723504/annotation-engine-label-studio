@@ -7,6 +7,7 @@ from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
 
+from data_export.models import Export
 from data_import.api import ReImportAPI
 from data_import.functions import async_reimport_background
 from projects.models import ProjectReimport
@@ -351,6 +352,116 @@ class TestAnnotationActorSecurity(APITestCase):
         submitted = Annotation.objects.get(pk=submit_response.json()["id"])
         assert submitted.completed_by_id == mapped_actor.id
         assert not AnnotationDraft.objects.filter(pk=draft.id).exists()
+
+
+    def test_data_manager_task_collection_uses_mapped_principal(self):
+        mapped_actor = UserFactory(active_organization=self.organization)
+        self.organization.add_user(mapped_actor)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=mapped_actor,
+            role=ProjectMember.Role.ANNOTATOR,
+        )
+        assigned_task = TaskFactory(project=self.project)
+        unassigned_task = TaskFactory(project=self.project)
+        assignment = TaskAssignment.objects.create(
+            task=assigned_task,
+            project=self.project,
+            assignee=mapped_actor,
+            assigned_by=self.actor,
+        )
+
+        class MappedProvider:
+            def resolve(self, request):
+                return Principal(
+                    principal_id=f"mapped:{mapped_actor.id}",
+                    source="test-mapped",
+                    username=mapped_actor.email,
+                    local_user_id=mapped_actor.id,
+                )
+
+        with patch("access_control.identity.get_identity_provider", return_value=MappedProvider()):
+            response = self.client.get(f"/api/tasks/?project={self.project.id}&page=1&page_size=100")
+
+        assert response.status_code == 200, response.json()
+        ids = {item["id"] for item in response.json()["tasks"]}
+        assert assigned_task.id in ids
+        assert unassigned_task.id not in ids
+        assert response.json()["tasks"][0]["assignment_id"] == assignment.id
+
+    def test_direct_draft_creation_uses_mapped_actor_owner(self):
+        mapped_actor = UserFactory(active_organization=self.organization)
+        self.organization.add_user(mapped_actor)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=mapped_actor,
+            role=ProjectMember.Role.ANNOTATOR,
+        )
+        task = TaskFactory(project=self.project)
+        assignment = TaskAssignment.objects.create(
+            task=task,
+            project=self.project,
+            assignee=mapped_actor,
+            assigned_by=self.actor,
+        )
+
+        class MappedProvider:
+            def resolve(self, request):
+                return Principal(
+                    principal_id=f"mapped:{mapped_actor.id}",
+                    source="test-mapped",
+                    username=mapped_actor.email,
+                    local_user_id=mapped_actor.id,
+                )
+
+        with patch("access_control.identity.get_identity_provider", return_value=MappedProvider()):
+            response = self.client.post(
+                f"/api/tasks/{task.id}/drafts",
+                data={
+                    "result": [],
+                    "lead_time": 0,
+                    "assignment_id": assignment.id,
+                    "assignment_version": assignment.version,
+                },
+                format="json",
+            )
+
+        assert response.status_code == 201, response.json()
+        draft = AnnotationDraft.objects.get(pk=response.json()["id"])
+        assert draft.user_id == mapped_actor.id
+        assert draft.assignment_id == assignment.id
+
+    def test_export_snapshot_created_by_uses_mapped_manager_actor(self):
+        mapped_manager = UserFactory(active_organization=self.organization)
+        self.organization.add_user(mapped_manager)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=mapped_manager,
+            role=ProjectMember.Role.MANAGER,
+        )
+
+        class MappedProvider:
+            def resolve(self, request):
+                return Principal(
+                    principal_id=f"mapped:{mapped_manager.id}",
+                    source="test-mapped",
+                    username=mapped_manager.email,
+                    local_user_id=mapped_manager.id,
+                )
+
+        with (
+            patch("access_control.identity.get_identity_provider", return_value=MappedProvider()),
+            patch.object(Export, "run_file_exporting"),
+        ):
+            response = self.client.post(
+                f"/api/projects/{self.project.id}/exports/",
+                data={},
+                format="json",
+            )
+
+        assert response.status_code == 201, response.json()
+        snapshot = Export.objects.get(pk=response.json()["id"])
+        assert snapshot.created_by_id == mapped_manager.id
 
     def test_async_import_rejects_mapped_actor_outside_project_scope_before_queueing(self):
         foreign_actor = UserFactory()
