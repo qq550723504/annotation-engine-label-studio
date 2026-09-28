@@ -11,7 +11,7 @@ from urllib.parse import quote
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
@@ -219,13 +219,29 @@ class LocalFilesExportStorageLink(ExportStorageLink):
     storage = models.ForeignKey(LocalFilesExportStorage, on_delete=models.CASCADE, related_name='links')
 
 
-@receiver(post_save, sender=Annotation)
-def export_annotation_to_local_files(sender, instance, **kwargs):
-    project = instance.project
+def _export_annotation_to_local_files(annotation_id):
+    try:
+        annotation = Annotation.objects.get(pk=annotation_id)
+    except Annotation.DoesNotExist:
+        logger.info(f'Annotation {annotation_id} no longer exists, skipping Local Files export')
+        return
+
+    project = annotation.project
     if hasattr(project, 'io_storages_localfilesexportstorages'):
         for storage in project.io_storages_localfilesexportstorages.all():
-            logger.debug(f'Export {instance} to Local Storage {storage}')
-            storage.save_annotation(instance)
+            if storage.has_formal_submissions():
+                logger.info(
+                    f'Skip mutable Local Files export for annotation {annotation.id}: formal submissions exist'
+                )
+                continue
+            logger.debug(f'Export {annotation} to Local Storage {storage}')
+            storage.save_annotation(annotation)
+
+
+@receiver(post_save, sender=Annotation)
+def export_annotation_to_local_files(sender, instance, **kwargs):
+    annotation_id = instance.pk
+    transaction.on_commit(lambda annotation_id=annotation_id: _export_annotation_to_local_files(annotation_id))
 
 
 @receiver(pre_delete, sender=Annotation)
