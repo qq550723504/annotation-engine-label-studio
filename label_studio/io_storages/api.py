@@ -126,9 +126,12 @@ class ExportStorageListAPI(generics.ListCreateAPIView):
         except Exception as exc:
             raise ValidationError(exc)
 
-        storage = serializer.save()
-        if settings.SYNC_ON_TARGET_STORAGE_CREATION:
-            storage.sync()
+        with transaction.atomic():
+            Project.objects.select_for_update().get(pk=project.pk)
+            instance.require_mutable_delivery_allowed()
+            storage = serializer.save()
+            if settings.SYNC_ON_TARGET_STORAGE_CREATION:
+                storage.sync()
 
 
 class ExportStorageDetailAPI(generics.RetrieveUpdateDestroyAPIView):
