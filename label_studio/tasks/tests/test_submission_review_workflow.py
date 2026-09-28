@@ -313,6 +313,19 @@ class TestSubmissionReviewWorkflow(APITestCase):
 
         delete_annotation.assert_called_once()
 
+
+    def test_export_conversion_rechecks_release_boundary(self):
+        snapshot = Export.objects.create(project=self.project, created_by=self.manager)
+        self._submit_new_annotation()
+
+        from unittest.mock import patch
+
+        with patch('data_export.mixins.Converter') as converter:
+            with self.assertRaises(ValueError):
+                snapshot.convert_file('JSON')
+
+        converter.assert_not_called()
+
     def test_resubmit_supersedes_old_pending_revision(self):
         annotation, first = self._submit_new_annotation()
 
