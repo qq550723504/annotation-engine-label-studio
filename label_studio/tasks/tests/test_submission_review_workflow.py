@@ -4,6 +4,7 @@ from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
 from data_export.models import Export
 from io_storages.localfiles.models import LocalFilesExportStorage, _export_annotation_to_local_files
+from io_storages.redis.models import RedisExportStorage, _export_annotation_to_redis_storages
 from io_storages.tests.factories import AzureBlobExportStorageFactory
 from rest_framework.exceptions import ValidationError
 from tasks.models import Annotation, ReviewDecision, Submission, TaskAssignment
@@ -223,6 +224,37 @@ class TestSubmissionReviewWorkflow(APITestCase):
 
         with patch.object(storage.__class__, 'save_annotation', side_effect=OSError('disk full')):
             _export_annotation_to_local_files(annotation.id)
+
+        assert Annotation.objects.filter(pk=annotation.id).exists()
+
+
+    def test_snapshot_worker_rechecks_release_boundary_after_queueing(self):
+        snapshot = Export.objects.create(project=self.project, created_by=self.manager)
+        self._submit_new_annotation()
+
+        from unittest.mock import patch
+
+        with patch.object(snapshot, 'get_export_data') as get_export_data:
+            snapshot.export_to_file()
+
+        snapshot.refresh_from_db()
+        assert snapshot.status == Export.Status.FAILED
+        get_export_data.assert_not_called()
+
+    def test_redis_post_commit_failure_is_isolated(self):
+        annotation = Annotation.objects.create(
+            task=self.task,
+            project=self.project,
+            completed_by=self.annotator,
+            updated_by=self.annotator,
+            result=[],
+        )
+        storage = RedisExportStorage.objects.create(project=self.project)
+
+        from unittest.mock import patch
+
+        with patch.object(storage.__class__, 'save_annotation', side_effect=OSError('redis down')):
+            _export_annotation_to_redis_storages(annotation.id)
 
         assert Annotation.objects.filter(pk=annotation.id).exists()
 
