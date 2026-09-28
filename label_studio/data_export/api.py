@@ -290,8 +290,9 @@ class ProjectExportFiles(generics.RetrieveAPIView):
         return managed_projects_for_user(self.request)
 
     def get(self, request, *args, **kwargs):
-        # project permission check
-        self.get_object()
+        # project permission and immutable release boundary check
+        project = self.get_object()
+        require_immutable_release_boundary(project)
 
         paths = []
         for name in os.listdir(settings.EXPORT_DIR):
