@@ -6,7 +6,7 @@ from data_export.models import Export
 from io_storages.localfiles.models import LocalFilesExportStorage, _export_annotation_to_local_files
 from io_storages.redis.models import RedisExportStorage, _export_annotation_to_redis_storages
 from io_storages.s3.models import S3ExportStorage, S3ExportStorageLink, _dispatch_s3_annotation_export
-from io_storages.api import ExportStorageListAPI
+from io_storages.api import ExportStorageListAPI, _run_export_storage_auto_sync
 from io_storages.tests.factories import AzureBlobExportStorageFactory
 from rest_framework.exceptions import ValidationError
 from tasks.models import Annotation, ReviewDecision, Submission, TaskAssignment
@@ -355,6 +355,23 @@ class TestSubmissionReviewWorkflow(APITestCase):
         serializer.save.assert_called_once()
         get_storage.assert_called_once_with(pk=storage.id)
         sync.assert_called_once()
+
+
+    def test_export_storage_auto_sync_failure_is_isolated_and_marked_failed(self):
+        from unittest.mock import Mock, patch
+
+        storage = AzureBlobExportStorageFactory(project=self.project)
+        storage.info_set_failed = Mock()
+
+        with (
+            patch.object(storage.__class__.objects, 'get', return_value=storage),
+            patch.object(storage.__class__.objects, 'filter') as storage_filter,
+            patch.object(storage, 'sync', side_effect=RuntimeError('queue unavailable')),
+        ):
+            storage_filter.return_value.first.return_value = storage
+            _run_export_storage_auto_sync(storage.__class__, storage.id)
+
+        storage.info_set_failed.assert_called_once()
 
     def test_resubmit_supersedes_old_pending_revision(self):
         annotation, first = self._submit_new_annotation()
