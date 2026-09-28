@@ -655,20 +655,27 @@ def async_convert(converted_format_id, export_type, project, hostname, download_
         converted_format.status = ConvertedFormat.Status.IN_PROGRESS
         converted_format.save(update_fields=['status'])
 
-    snapshot = converted_format.export
-    converted_file = snapshot.convert_file(export_type, download_resources=download_resources, hostname=hostname)
-    if converted_file is None:
-        raise ValidationError('No converted file found, probably there are no annotations in the export snapshot')
-    md5 = Export.eval_md5(converted_file)
-    ext = converted_file.name.split('.')[-1]
+    try:
+        snapshot = converted_format.export
+        converted_file = snapshot.convert_file(export_type, download_resources=download_resources, hostname=hostname)
+        if converted_file is None:
+            raise ValidationError('No converted file found, probably there are no annotations in the export snapshot')
+        md5 = Export.eval_md5(converted_file)
+        ext = converted_file.name.split('.')[-1]
 
-    now = datetime.now()
-    file_name = f'project-{project.id}-at-{now.strftime("%Y-%m-%d-%H-%M")}-{md5[0:8]}.{ext}'
-    file_path = f'{project.id}/{file_name}'  # finally file will be in settings.DELAYED_EXPORT_DIR/project.id/file_name
-    file_ = File(converted_file, name=file_path)
-    converted_format.file.save(file_path, file_)
-    converted_format.status = ConvertedFormat.Status.COMPLETED
-    converted_format.save(update_fields=['file', 'status'])
+        now = datetime.now()
+        file_name = f'project-{project.id}-at-{now.strftime("%Y-%m-%d-%H-%M")}-{md5[0:8]}.{ext}'
+        file_path = f'{project.id}/{file_name}'
+        file_ = File(converted_file, name=file_path)
+        converted_format.file.save(file_path, file_)
+        converted_format.status = ConvertedFormat.Status.COMPLETED
+        converted_format.save(update_fields=['file', 'status'])
+    except Exception as exc:
+        converted_format.status = ConvertedFormat.Status.FAILED
+        converted_format.traceback = str(exc)
+        converted_format.save(update_fields=['status', 'traceback'])
+        logger.exception('Export conversion failed: %s', exc)
+        return
 
 
 def set_convert_background_failure(job, connection, type, value, traceback_obj):
