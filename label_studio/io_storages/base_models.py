@@ -840,6 +840,7 @@ class ExportStorage(Storage, ProjectStorageMixin):
                     futures.append(executor.submit(self.save_annotation, annotation))
 
                 for future in concurrent.futures.as_completed(futures):
+                    future.result()
                     annotation_exported += 1
                     self.info_update_progress(last_sync_count=annotation_exported, total_annotations=total_annotations)
 
