@@ -132,7 +132,13 @@ class ExportStorageListAPI(generics.ListCreateAPIView):
             instance.require_mutable_delivery_allowed()
             storage = serializer.save()
             if settings.SYNC_ON_TARGET_STORAGE_CREATION:
-                storage.sync()
+                storage_id = storage.id
+                storage_class = storage.__class__
+                transaction.on_commit(
+                    lambda storage_class=storage_class, storage_id=storage_id: storage_class.objects.get(
+                        pk=storage_id
+                    ).sync()
+                )
 
 
 class ExportStorageDetailAPI(generics.RetrieveUpdateDestroyAPIView):
