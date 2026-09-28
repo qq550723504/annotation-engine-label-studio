@@ -29,6 +29,7 @@ def _canonical_snapshot(annotation):
         },
         'project': {
             'id': project.id if project else None,
+            'label_config': project.label_config if project else None,
             'label_config_hash': project.label_config_hash if project else None,
         },
     }
