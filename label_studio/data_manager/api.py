@@ -4,7 +4,7 @@ import logging
 
 from asgiref.sync import async_to_sync, sync_to_async
 from access_control.authorization import authorization
-from access_control.identity import resolve_principal
+from access_control.identity import resolve_actor, resolve_principal
 from access_control.project_access import get_visible_project_or_404, require_project_manager
 from core.feature_flags import flag_set
 from core.permissions import ViewClassPermission, all_permissions
@@ -371,7 +371,8 @@ class TaskListAPI(generics.ListCreateAPIView):
 
     def get_task_queryset(self, request, prepare_params):
         queryset = Task.prepared.only_filtered(prepare_params=prepare_params)
-        allowed_task_ids = Task.objects.for_user(request.user).values_list('id', flat=True)
+        _, actor = resolve_actor(request)
+        allowed_task_ids = Task.objects.for_user(actor).values_list('id', flat=True)
         return queryset.filter(id__in=allowed_task_ids)
 
     @staticmethod
