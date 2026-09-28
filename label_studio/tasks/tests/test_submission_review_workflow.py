@@ -5,7 +5,8 @@ from rest_framework.test import APITestCase
 from data_export.models import Export
 from io_storages.localfiles.models import LocalFilesExportStorage, _export_annotation_to_local_files
 from io_storages.redis.models import RedisExportStorage, _export_annotation_to_redis_storages
-from io_storages.s3.models import _dispatch_s3_annotation_export
+from io_storages.s3.models import S3ExportStorage, S3ExportStorageLink, _dispatch_s3_annotation_export
+from io_storages.api import ExportStorageListAPI
 from io_storages.tests.factories import AzureBlobExportStorageFactory
 from rest_framework.exceptions import ValidationError
 from tasks.models import Annotation, ReviewDecision, Submission, TaskAssignment
@@ -268,6 +269,45 @@ class TestSubmissionReviewWorkflow(APITestCase):
             side_effect=RuntimeError('queue unavailable'),
         ):
             _dispatch_s3_annotation_export(123456)
+
+
+    def test_blocked_export_storage_create_does_not_persist(self):
+        self._submit_new_annotation()
+
+        from unittest.mock import Mock, patch
+
+        serializer = Mock()
+        serializer.validated_data = {'project': self.project}
+        serializer.Meta.model = AzureBlobExportStorageFactory._meta.model
+
+        view = ExportStorageListAPI()
+        view.request = self.client.request().wsgi_request
+        view.request.user = self.manager
+
+        with patch.object(serializer.Meta.model, 'validate_connection') as validate_connection:
+            with self.assertRaises(ValidationError):
+                view.perform_create(serializer)
+
+        serializer.save.assert_not_called()
+        validate_connection.assert_not_called()
+
+    def test_s3_annotation_delete_cleanup_receiver_is_preserved(self):
+        annotation = Annotation.objects.create(
+            task=self.task,
+            project=self.project,
+            completed_by=self.annotator,
+            updated_by=self.annotator,
+            result=[],
+        )
+        storage = S3ExportStorage.objects.create(project=self.project, can_delete_objects=True)
+        S3ExportStorageLink.objects.create(storage=storage, annotation=annotation)
+
+        from unittest.mock import patch
+
+        with patch.object(S3ExportStorage, 'delete_annotation') as delete_annotation:
+            annotation.delete()
+
+        delete_annotation.assert_called_once()
 
     def test_resubmit_supersedes_old_pending_revision(self):
         annotation, first = self._submit_new_annotation()
