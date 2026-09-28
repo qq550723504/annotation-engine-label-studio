@@ -33,7 +33,7 @@ from fsm.functions import backfill_fsm_states_for_tasks
 from io_storages.utils import StorageObject, get_uri_via_regex, parse_bucket_uri
 from rest_framework.exceptions import ValidationError
 from rq.job import Job
-from tasks.models import Annotation, Task
+from tasks.models import Annotation, Submission, Task
 from tasks.serializers import AnnotationSerializer, PredictionSerializer
 from webhooks.models import WebhookAction
 from webhooks.utils import emit_webhooks_for_instance
@@ -758,7 +758,18 @@ class ExportStorage(Storage, ProjectStorageMixin):
     # TODO from testing, more than 8 seems to cause problems. revisit to add more parallelism.
     max_workers = min(8, (os.cpu_count() or 2) * 4)
 
+    def has_formal_submissions(self):
+        return Submission.objects.filter(assignment__project=self.project).exists()
+
+    def require_mutable_delivery_allowed(self):
+        if self.has_formal_submissions():
+            raise ValidationError(
+                'Export storage delivery is disabled after formal submissions exist. '
+                'Release approved immutable submissions through the submission release API.'
+            )
+
     def _get_serialized_data(self, annotation):
+        self.require_mutable_delivery_allowed()
         user = self.project.organization.created_by
         flag = flag_set(
             'fflag_feat_optic_650_target_storage_task_format_long', user=user, override_system_default=False
@@ -779,6 +790,7 @@ class ExportStorage(Storage, ProjectStorageMixin):
         raise NotImplementedError
 
     def save_annotations(self, annotations: models.QuerySet[Annotation]):
+        self.require_mutable_delivery_allowed()
         annotation_exported = 0
         total_annotations = annotations.count()
         self.info_set_in_progress()
@@ -826,6 +838,7 @@ class ExportStorage(Storage, ProjectStorageMixin):
         self.save_annotations(new_annotations)
 
     def sync(self, save_only_new_annotations: bool = False):
+        self.require_mutable_delivery_allowed()
         if save_only_new_annotations:
             export_sync_fn = export_sync_only_new_background
         else:
