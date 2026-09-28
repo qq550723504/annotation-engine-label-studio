@@ -10,6 +10,7 @@ import sys
 import traceback as tb
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from functools import wraps
 from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Iterator, Union
@@ -749,6 +750,15 @@ def _batched(iterable, n):
     it = iter(iterable)
     while batch := tuple(itertools.islice(it, n)):
         yield batch
+
+
+def serialize_mutable_delivery(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self.mutable_delivery_lock():
+            return method(self, *args, **kwargs)
+
+    return wrapped
 
 
 class ExportStorage(Storage, ProjectStorageMixin):
