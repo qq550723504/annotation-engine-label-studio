@@ -355,6 +355,16 @@ def export_annotation_to_s3_storages(sender, instance, **kwargs):
         transaction.on_commit(lambda annotation_id=annotation_id: _dispatch_s3_annotation_export(annotation_id))
 
 
+@receiver(pre_delete, sender=Annotation)
+def delete_annotation_from_s3_storages(sender, instance, **kwargs):
+    links = S3ExportStorageLink.objects.filter(annotation=instance)
+    for link in links:
+        storage = link.storage
+        if storage.can_delete_objects:
+            logger.debug(f'Delete {instance} from S3 storage {storage}')  # nosec
+            storage.delete_annotation(instance)
+
+
 class S3ImportStorageLink(ImportStorageLink):
     storage = models.ForeignKey(S3ImportStorage, on_delete=models.CASCADE, related_name='links')
 
