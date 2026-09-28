@@ -326,6 +326,36 @@ class TestSubmissionReviewWorkflow(APITestCase):
 
         converter.assert_not_called()
 
+
+    def test_export_storage_auto_sync_runs_after_commit(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+
+        model = AzureBlobExportStorageFactory._meta.model
+        storage = model(project=self.project)
+        storage.id = 987654
+        serializer = SimpleNamespace(
+            validated_data={'project': self.project},
+            Meta=SimpleNamespace(model=model),
+            save=Mock(return_value=storage),
+        )
+        raw_request = APIRequestFactory().post('/api/storages/export/test/', {}, format='json')
+        force_authenticate(raw_request, user=self.manager)
+        view = ExportStorageListAPI()
+        view.request = view.initialize_request(raw_request)
+
+        with (
+            patch.object(model, 'validate_connection'),
+            patch.object(model.objects, 'get', return_value=storage) as get_storage,
+            patch.object(storage, 'sync') as sync,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            view.perform_create(serializer)
+
+        serializer.save.assert_called_once()
+        get_storage.assert_called_once_with(pk=storage.id)
+        sync.assert_called_once()
+
     def test_resubmit_supersedes_old_pending_revision(self):
         annotation, first = self._submit_new_annotation()
 
