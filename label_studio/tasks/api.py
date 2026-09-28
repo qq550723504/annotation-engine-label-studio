@@ -1026,21 +1026,21 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
 
     def filter_queryset(self, queryset):
         task_id = self.kwargs['pk']
-        task = generics.get_object_or_404(Task.objects.for_user(self.request.user), pk=task_id)
-        principal = resolve_principal(self.request)
+        principal, actor = resolve_actor(self.request)
+        task = generics.get_object_or_404(Task.objects.for_user(actor), pk=task_id)
         assignment = authorization.active_task_assignment(principal, task)
         if assignment is None:
             return queryset.none()
-        return queryset.filter(task_id=task_id, user=self.request.user, assignment=assignment)
+        return queryset.filter(task_id=task_id, user=actor, assignment=assignment)
 
     @transaction.atomic
     def perform_create(self, serializer):
         task_id = self.kwargs['pk']
-        task = generics.get_object_or_404(Task.objects.for_user(self.request.user), pk=task_id)
-        principal = resolve_principal(self.request)
+        principal, actor = resolve_actor(self.request)
+        task = generics.get_object_or_404(Task.objects.for_user(actor), pk=task_id)
         assignment = lock_active_assignment(self.request, principal, task)
         annotation_id = self.kwargs.get('annotation_id')
-        user = self.request.user
+        user = actor
         if annotation_id is not None:
             annotation = generics.get_object_or_404(Annotation, pk=annotation_id, task=task)
             authorization.require(
@@ -1051,7 +1051,7 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
         serializer.save(
             task_id=self.kwargs['pk'],
             annotation_id=annotation_id,
-            user=self.request.user,
+            user=actor,
             assignment=assignment,
         )
 
