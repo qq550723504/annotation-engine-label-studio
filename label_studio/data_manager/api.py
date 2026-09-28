@@ -260,7 +260,7 @@ class TaskPagination(PageNumberPagination):
             annotations = annotations.filter(
                 Q(task__project_id__in=managed_project_ids)
                 | Q(
-                    task_assignment__assignee=request.user,
+                    task_assignment__assignee_id=principal.local_user_id,
                     task_assignment__status__in=['assigned', 'in_progress'],
                 )
             )
