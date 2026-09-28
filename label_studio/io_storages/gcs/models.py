@@ -275,6 +275,11 @@ def async_export_annotation_to_gcs_storages(annotation: 'Annotation | int'):
     project = annotation.project
     if hasattr(project, 'io_storages_gcsexportstorages'):
         for storage in project.io_storages_gcsexportstorages.all():
+            if storage.has_formal_submissions():
+                logger.info(
+                    f'Skip mutable GCS export for annotation {annotation.id}: formal submissions exist'
+                )
+                continue
             logger.debug(f'Export {annotation} to GCS storage {storage}')
             storage.save_annotation(annotation)
 
