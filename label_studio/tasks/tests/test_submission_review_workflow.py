@@ -1,7 +1,7 @@
 from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
-from rest_framework.test import APITestCase
+from rest_framework.test import APIRequestFactory, APITestCase, force_authenticate
 from data_export.models import Export
 from io_storages.localfiles.models import LocalFilesExportStorage, _export_annotation_to_local_files
 from io_storages.redis.models import RedisExportStorage, _export_annotation_to_redis_storages
@@ -274,17 +274,21 @@ class TestSubmissionReviewWorkflow(APITestCase):
     def test_blocked_export_storage_create_does_not_persist(self):
         self._submit_new_annotation()
 
+        from types import SimpleNamespace
         from unittest.mock import Mock, patch
 
-        serializer = Mock()
-        serializer.validated_data = {'project': self.project}
-        serializer.Meta.model = AzureBlobExportStorageFactory._meta.model
-
+        model = AzureBlobExportStorageFactory._meta.model
+        serializer = SimpleNamespace(
+            validated_data={'project': self.project},
+            Meta=SimpleNamespace(model=model),
+            save=Mock(),
+        )
+        raw_request = APIRequestFactory().post('/api/storages/export/test/', {}, format='json')
+        force_authenticate(raw_request, user=self.manager)
         view = ExportStorageListAPI()
-        view.request = self.client.request().wsgi_request
-        view.request.user = self.manager
+        view.request = view.initialize_request(raw_request)
 
-        with patch.object(serializer.Meta.model, 'validate_connection') as validate_connection:
+        with patch.object(model, 'validate_connection') as validate_connection:
             with self.assertRaises(ValidationError):
                 view.perform_create(serializer)
 
