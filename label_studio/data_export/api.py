@@ -99,7 +99,8 @@ class ExportFormatsListAPI(generics.RetrieveAPIView):
     permission_required = all_permissions.projects_view
 
     def get_queryset(self):
-        return managed_projects_for_user(self.request)
+        projects = managed_projects_for_user(self.request)
+        return projects.exclude(task_assignments__submissions__isnull=False).distinct()
 
     def get(self, request, *args, **kwargs):
         project = self.get_object()
@@ -320,7 +321,8 @@ class ProjectExportFilesAuthCheck(APIView):
         except ValueError:
             return Response({'detail': 'Incorrect filename in export'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
-        generics.get_object_or_404(managed_projects_for_user(request), pk=pk)
+        project = generics.get_object_or_404(managed_projects_for_user(request), pk=pk)
+        require_immutable_release_boundary(project)
         return Response({'detail': 'auth ok'}, status=status.HTTP_200_OK)
 
 
@@ -724,7 +726,8 @@ class ExportConvertAPI(generics.CreateAPIView):
 
     def _get_project(self):
         project_pk = self.kwargs.get('pk')
-        return generics.get_object_or_404(managed_projects_for_user(self.request), pk=project_pk)
+        project = generics.get_object_or_404(managed_projects_for_user(self.request), pk=project_pk)
+        return require_immutable_release_boundary(project)
 
     def get_queryset(self):
         return super().get_queryset().filter(project=self._get_project())
