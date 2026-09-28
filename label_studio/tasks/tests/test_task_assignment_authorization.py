@@ -1,11 +1,12 @@
 from unittest.mock import patch
 
+from data_export.models import Export
 from organizations.models import OrganizationMember
 from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
-from tasks.models import Annotation, ReviewDecision, Submission, TaskAssignment
+from tasks.models import Annotation, AnnotationDraft, ReviewDecision, Submission, TaskAssignment
 from tasks.submissions import create_submission
 from tasks.tests.factories import TaskFactory
 from users.tests.factories import UserFactory
@@ -77,6 +78,113 @@ class TestTaskAssignmentAuthorization(APITestCase):
         )
         assert response.status_code == 201, response.json()
         return Annotation.objects.get(pk=response.json()['id'])
+
+
+    def test_cancelled_assignment_blocks_annotation_update_and_delete(self):
+        annotation = self._create_annotation(self.annotator_a, self.shared_task)
+        old_version = self.assignment_a.version
+
+        self.client.force_authenticate(user=self.manager)
+        cancel_response = self.client.delete(f'/api/task-assignments/{self.assignment_a.id}/')
+        assert cancel_response.status_code == 204
+
+        self.client.force_authenticate(user=self.annotator_a)
+        update_response = self.client.patch(
+            f'/api/annotations/{annotation.id}/',
+            data={
+                'result': [{'value': {'choices': ['stale']}}],
+                'assignment_id': self.assignment_a.id,
+                'assignment_version': old_version,
+            },
+            format='json',
+        )
+        delete_response = self.client.delete(f'/api/annotations/{annotation.id}/')
+
+        assert update_response.status_code in (403, 404, 409)
+        assert delete_response.status_code in (403, 404, 409)
+        annotation.refresh_from_db()
+        assert annotation.result == []
+
+    def test_cancelled_assignment_blocks_draft_creation(self):
+        task = TaskFactory(project=self.project)
+        assignment = TaskAssignment.objects.create(
+            task=task,
+            project=self.project,
+            assignee=self.annotator_a,
+            assigned_by=self.manager,
+        )
+        old_version = assignment.version
+
+        self.client.force_authenticate(user=self.manager)
+        cancel_response = self.client.delete(f'/api/task-assignments/{assignment.id}/')
+        assert cancel_response.status_code == 204
+
+        self.client.force_authenticate(user=self.annotator_a)
+        response = self.client.post(
+            f'/api/tasks/{task.id}/drafts',
+            data={
+                'result': [],
+                'lead_time': 0,
+                'assignment_id': assignment.id,
+                'assignment_version': old_version,
+            },
+            format='json',
+        )
+
+        assert response.status_code in (403, 404, 409)
+        assert not AnnotationDraft.objects.filter(task=task, user=self.annotator_a).exists()
+
+    def test_manager_cannot_convert_assignee_annotation_to_draft(self):
+        annotation = self._create_annotation(self.annotator_a, self.shared_task)
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.post(f'/api/annotations/{annotation.id}/convert-to-draft', data={}, format='json')
+
+        assert response.status_code in (403, 409)
+        assert Annotation.objects.filter(pk=annotation.id).exists()
+        assert not AnnotationDraft.objects.filter(task=self.shared_task, user=self.manager).exists()
+
+    def test_assignee_paginated_total_annotations_excludes_other_assignees(self):
+        annotation_a = self._create_annotation(self.annotator_a, self.shared_task)
+        annotation_b = self._create_annotation(self.annotator_b, self.shared_task)
+
+        self.client.force_authenticate(user=self.annotator_a)
+        response = self.client.get(f'/api/tasks/?project={self.project.id}&page=1&page_size=100')
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload['total_annotations'] == 1
+        task_payload = next(item for item in payload['tasks'] if item['id'] == self.shared_task.id)
+        assert task_payload['total_annotations'] == 1
+        assert annotation_a.id != annotation_b.id
+
+    def test_snapshot_exports_are_manager_only(self):
+        snapshot = Export.objects.create(project=self.project, created_by=self.manager)
+
+        self.client.force_authenticate(user=self.annotator_a)
+        annotator_response = self.client.get(f'/api/projects/{self.project.id}/exports/')
+        annotator_convert = self.client.post(
+            f'/api/projects/{self.project.id}/exports/{snapshot.id}/convert',
+            data={'export_type': 'JSON'},
+            format='json',
+        )
+
+        self.client.force_authenticate(user=self.reviewer)
+        reviewer_response = self.client.get(f'/api/projects/{self.project.id}/exports/')
+        reviewer_convert = self.client.post(
+            f'/api/projects/{self.project.id}/exports/{snapshot.id}/convert',
+            data={'export_type': 'JSON'},
+            format='json',
+        )
+
+        self.client.force_authenticate(user=self.manager)
+        manager_response = self.client.get(f'/api/projects/{self.project.id}/exports/')
+
+        assert annotator_response.status_code in (403, 404)
+        assert annotator_convert.status_code in (403, 404)
+        assert reviewer_response.status_code in (403, 404)
+        assert reviewer_convert.status_code in (403, 404)
+        assert manager_response.status_code == 200
 
     def test_non_manager_storage_create_is_denied_before_connection_validation(self):
         for user in (self.annotator_a, self.reviewer):

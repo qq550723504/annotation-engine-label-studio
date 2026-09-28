@@ -6,6 +6,7 @@ import traceback as tb
 from datetime import datetime
 from urllib.parse import urlparse
 
+from access_control.identity import resolve_actor
 from access_control.project_access import managed_projects_for_user
 from core.feature_flags import flag_set
 from core.permissions import all_permissions
@@ -372,7 +373,7 @@ class ExportListAPI(generics.ListCreateAPIView):
     def _get_project(self):
         project_pk = self.kwargs.get('pk')
         project = generics.get_object_or_404(
-            self.project_model.objects.for_user(self.request.user),
+            managed_projects_for_user(self.request),
             pk=project_pk,
         )
         return project
@@ -383,7 +384,8 @@ class ExportListAPI(generics.ListCreateAPIView):
         serialization_options = serializer.validated_data.pop('serialization_options')
 
         project = self._get_project()
-        serializer.save(project=project, created_by=self.request.user)
+        _, actor = resolve_actor(self.request)
+        serializer.save(project=project, created_by=actor)
         instance = serializer.instance
 
         instance.run_file_exporting(
@@ -486,7 +488,7 @@ class ExportDetailAPI(generics.RetrieveDestroyAPIView):
     def _get_project(self):
         project_pk = self.kwargs.get('pk')
         project = generics.get_object_or_404(
-            self.project_model.objects.for_user(self.request.user),
+            managed_projects_for_user(self.request),
             pk=project_pk,
         )
         return project
@@ -555,7 +557,7 @@ class ExportDownloadAPI(generics.RetrieveAPIView):
     def _get_project(self):
         project_pk = self.kwargs.get('pk')
         project = generics.get_object_or_404(
-            self.project_model.objects.for_user(self.request.user),
+            managed_projects_for_user(self.request),
             pk=project_pk,
         )
         return project
@@ -705,6 +707,13 @@ class ExportConvertAPI(generics.CreateAPIView):
     queryset = Export.objects.all()
     lookup_url_kwarg = 'export_pk'
     permission_required = all_permissions.projects_change
+
+    def _get_project(self):
+        project_pk = self.kwargs.get('pk')
+        return generics.get_object_or_404(managed_projects_for_user(self.request), pk=project_pk)
+
+    def get_queryset(self):
+        return super().get_queryset().filter(project=self._get_project())
 
     def post(self, request, *args, **kwargs):
         snapshot = self.get_object()

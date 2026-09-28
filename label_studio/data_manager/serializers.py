@@ -3,6 +3,8 @@
 import os
 
 import ujson as json
+from access_control.authorization import authorization
+from access_control.identity import resolve_principal
 from core.current_request import CurrentContext
 from core.feature_flags import flag_set
 from data_manager.models import Filter, FilterGroup, View
@@ -481,21 +483,18 @@ class DataManagerTaskSerializer(TaskSerializer):
 
         request = self.context.get('request')
         if request is not None and getattr(request, 'user', None) is not None:
-            user = request.user
-            is_manager = (
-                obj.project.created_by_id == user.id
-                or obj.project.members.filter(user=user, enabled=True, role='manager').exists()
-            )
+            principal = resolve_principal(request)
+            is_manager = authorization.can_manage_project(principal, obj.project)
             if not is_manager:
                 visible_annotations = obj.annotations.filter(
-                    task_assignment__assignee=user,
+                    task_assignment__assignee_id=principal.local_user_id,
                     task_assignment__status__in=['assigned', 'in_progress'],
                 )
                 ret['total_annotations'] = visible_annotations.filter(was_cancelled=False).count()
                 # Aggregate annotation metadata can reveal another annotator's work.
                 ret['annotations_results'] = ''
                 ret['annotations_ids'] = ','.join(str(pk) for pk in visible_annotations.values_list('id', flat=True))
-                ret['annotators'] = [user.id] if visible_annotations.exists() else []
+                ret['annotators'] = [principal.local_user_id] if visible_annotations.exists() else []
         if not self.context.get('annotations'):
             ret.pop('annotations', None)
         if not self.context.get('predictions'):
@@ -513,6 +512,9 @@ class DataManagerTaskSerializer(TaskSerializer):
         request = self.context.get('request')
         if request is None or getattr(request, 'user', None) is None:
             return None
+        principal = resolve_principal(request)
+        if principal.local_user_id is None:
+            return None
 
         cache = getattr(self, '_assignment_cache', None)
         if cache is None:
@@ -523,7 +525,7 @@ class DataManagerTaskSerializer(TaskSerializer):
             cache[task.id] = (
                 TaskAssignment.objects.filter(
                     task=task,
-                    assignee=request.user,
+                    assignee_id=principal.local_user_id,
                     status__in=TaskAssignment.ACTIVE_STATUSES,
                 )
                 .order_by('-assigned_at', '-id')
@@ -583,14 +585,10 @@ class DataManagerTaskSerializer(TaskSerializer):
         annotations = task.annotations.all()
         request = self.context.get('request')
         if request is not None and getattr(request, 'user', None) is not None:
-            user = request.user
-            is_manager = (
-                task.project.created_by_id == user.id
-                or task.project.members.filter(user=user, enabled=True, role='manager').exists()
-            )
-            if not is_manager:
+            principal = resolve_principal(request)
+            if not authorization.can_manage_project(principal, task.project):
                 annotations = annotations.filter(
-                    task_assignment__assignee=user,
+                    task_assignment__assignee_id=principal.local_user_id,
                     task_assignment__status__in=['assigned', 'in_progress'],
                 )
 
@@ -662,8 +660,8 @@ class DataManagerTaskSerializer(TaskSerializer):
 
         drafts = task.drafts
         if 'request' in self.context and hasattr(self.context['request'], 'user'):
-            user = self.context['request'].user
-            drafts = self.get_drafts_queryset(user, drafts)
+            principal = resolve_principal(self.context['request'])
+            drafts = drafts.filter(user_id=principal.local_user_id)
 
         serializer_class = self.get_drafts_serializer()
         return serializer_class(drafts, many=True, read_only=True, default=True, context=self.context).data

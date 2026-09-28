@@ -75,6 +75,35 @@ def require_assignment_token(request, assignment):
         raise AssignmentConflictError()
 
 
+def lock_active_assignment(request, principal, task, *, require_token=True):
+    """Lock and revalidate the assignment that authorizes a labeling write."""
+    role = authorization.project_role(principal, task.project)
+    if role not in (ProjectMember.Role.ANNOTATOR, ProjectMember.Role.MANAGER):
+        raise PermissionDenied('An enabled labeling role is required for this task.')
+
+    assignment_id = request.data.get('assignment_id') if require_token else None
+    if assignment_id is not None:
+        try:
+            assignment_id = int(assignment_id)
+        except (TypeError, ValueError):
+            raise AssignmentConflictError()
+
+    queryset = TaskAssignment.objects.select_for_update().filter(
+        task=task,
+        assignee_id=principal.local_user_id,
+        status__in=TaskAssignment.ACTIVE_STATUSES,
+    )
+    if assignment_id is not None:
+        queryset = queryset.filter(pk=assignment_id)
+
+    assignment = queryset.order_by('-assigned_at', '-id').first()
+    if assignment is None:
+        raise AssignmentConflictError()
+    if require_token:
+        require_assignment_token(request, assignment)
+    return assignment
+
+
 # TODO: fix after switch to api/tasks from api/dm/tasks
 @method_decorator(
     name='post',
@@ -698,12 +727,12 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AnnotationSerializer
     queryset = Annotation.objects.all()
 
+    @transaction.atomic
     def perform_destroy(self, annotation):
         principal, actor = resolve_actor(self.request)
-        authorization.require(
-            authorization.can_update_annotation(principal, annotation),
-            'Only the active assignment owner can delete this annotation.',
-        )
+        assignment = lock_active_assignment(self.request, principal, annotation.task, require_token=False)
+        if assignment.annotation_id != annotation.id:
+            raise PermissionDenied('Only the active assignment owner can delete this annotation.')
         task_id = annotation.task_id
         annotation.delete()
         if task_id is not None:
@@ -721,8 +750,9 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
             authorization.can_update_annotation(principal, annotation),
             'Only the active assignment owner can modify this annotation.',
         )
-        assignment = authorization.active_task_assignment(principal, annotation.task)
-        require_assignment_token(request, assignment)
+        assignment = lock_active_assignment(request, principal, annotation.task)
+        if assignment.annotation_id != annotation.id:
+            raise AssignmentConflictError()
         # use updated instead of save to avoid duplicated signals
         Annotation.objects.filter(id=annotation.id).update(updated_by=actor)
 
@@ -893,7 +923,9 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         if assignment.annotation_id is not None:
             raise ValidationError({'detail': 'This assignment already owns an annotation; update it instead.'})
 
-        # annotator has write access only to annotations and it can't be checked it after serializer.save()
+        # Session-bound concerns such as activity tracking, task locks, and
+        # label-stream history remain on request.user. Draft/annotation ownership
+        # checks use the trusted mapped actor explicitly below.
         user = self.request.user
 
         # Check if task is being skipped and if it's allowed
@@ -936,7 +968,7 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         draft = AnnotationDraft.objects.filter(id=draft_id).first()
         if draft:
             # draft permission check
-            if draft.task_id != task.id or not draft.has_permission(user) or draft.user_id != user.id:
+            if draft.task_id != task.id or not draft.has_permission(actor) or draft.user_id != actor.id:
                 raise PermissionDenied(f'You have no permission to draft id:{draft_id}')
 
         if draft is not None:
@@ -994,25 +1026,21 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
 
     def filter_queryset(self, queryset):
         task_id = self.kwargs['pk']
-        task = generics.get_object_or_404(Task.objects.for_user(self.request.user), pk=task_id)
-        principal = resolve_principal(self.request)
+        principal, actor = resolve_actor(self.request)
+        task = generics.get_object_or_404(Task.objects.for_user(actor), pk=task_id)
         assignment = authorization.active_task_assignment(principal, task)
         if assignment is None:
             return queryset.none()
-        return queryset.filter(task_id=task_id, user=self.request.user, assignment=assignment)
+        return queryset.filter(task_id=task_id, user=actor, assignment=assignment)
 
+    @transaction.atomic
     def perform_create(self, serializer):
         task_id = self.kwargs['pk']
-        task = generics.get_object_or_404(Task.objects.for_user(self.request.user), pk=task_id)
-        principal = resolve_principal(self.request)
-        authorization.require(
-            authorization.can_label_task(principal, task),
-            'An active task assignment is required to create a draft.',
-        )
-        assignment = authorization.active_task_assignment(principal, task)
-        require_assignment_token(self.request, assignment)
+        principal, actor = resolve_actor(self.request)
+        task = generics.get_object_or_404(Task.objects.for_user(actor), pk=task_id)
+        assignment = lock_active_assignment(self.request, principal, task)
         annotation_id = self.kwargs.get('annotation_id')
-        user = self.request.user
+        user = actor
         if annotation_id is not None:
             annotation = generics.get_object_or_404(Annotation, pk=annotation_id, task=task)
             authorization.require(
@@ -1023,7 +1051,7 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
         serializer.save(
             task_id=self.kwargs['pk'],
             annotation_id=annotation_id,
-            user=self.request.user,
+            user=actor,
             assignment=assignment,
         )
 
@@ -1509,25 +1537,30 @@ class AnnotationConvertAPI(generics.RetrieveAPIView):
     def process_intermediate_state(self, annotation, draft):
         pass
 
+    @transaction.atomic
     def post(self, request, *args, **kwargs):
         annotation = self.get_object()
+        principal, actor = resolve_actor(request)
+        assignment = lock_active_assignment(request, principal, annotation.task, require_token=False)
+        if assignment.annotation_id != annotation.id:
+            raise PermissionDenied('Only the active assignment owner can convert this annotation to a draft.')
+
         organization = annotation.project.organization
         project = annotation.project
-
         pk = annotation.pk
 
-        with transaction.atomic():
-            draft = AnnotationDraft.objects.create(
-                result=annotation.result,
-                lead_time=annotation.lead_time,
-                task=annotation.task,
-                annotation=None,
-                user=request.user,
-            )
+        draft = AnnotationDraft.objects.create(
+            result=annotation.result,
+            lead_time=annotation.lead_time,
+            task=annotation.task,
+            annotation=None,
+            user=actor,
+            assignment=assignment,
+        )
 
-            self.process_intermediate_state(annotation, draft)
+        self.process_intermediate_state(annotation, draft)
 
-            annotation.delete()
+        annotation.delete()
 
         emit_webhooks_for_instance(organization, project, WebhookAction.ANNOTATIONS_DELETED, [pk])
         data = AnnotationDraftSerializer(instance=draft).data
