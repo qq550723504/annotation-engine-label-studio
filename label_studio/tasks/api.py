@@ -1532,7 +1532,7 @@ class AnnotationConvertAPI(generics.RetrieveAPIView):
     @transaction.atomic
     def post(self, request, *args, **kwargs):
         annotation = self.get_object()
-        principal = resolve_principal(request)
+        principal, actor = resolve_actor(request)
         assignment = lock_active_assignment(request, principal, annotation.task, require_token=False)
         if assignment.annotation_id != annotation.id:
             raise PermissionDenied('Only the active assignment owner can convert this annotation to a draft.')
@@ -1546,7 +1546,7 @@ class AnnotationConvertAPI(generics.RetrieveAPIView):
             lead_time=annotation.lead_time,
             task=annotation.task,
             annotation=None,
-            user=request.user,
+            user=actor,
             assignment=assignment,
         )
 
