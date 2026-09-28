@@ -235,21 +235,31 @@ class TestProjectMemberAuthorizationHardening(APITestCase):
         member_a.refresh_from_db()
         assert member_a.role == ProjectMember.Role.MANAGER
 
-    def test_manager_membership_mutation_locks_project_row(self):
-        other_manager = self._add_org_user()
-        member = ProjectMember.objects.create(
-            project=self.project,
-            user=other_manager,
-            role=ProjectMember.Role.MANAGER,
-            enabled=True,
-        )
+    def test_locked_project_authorizes_only_after_locked_read(self):
+        from projects.api import ProjectMemberAPI
 
-        with patch.object(Project.objects, 'select_for_update', wraps=Project.objects.select_for_update) as lock_project:
-            response = self.client.patch(
-                f'/api/projects/{self.project.id}/members/{member.id}/',
-                data={'role': ProjectMember.Role.REVIEWER},
-                format='json',
-            )
+        events = []
+        locked_queryset = Project.objects.filter(pk=self.project.pk)
 
-        assert response.status_code == 200, response.json()
-        lock_project.assert_called()
+        view = ProjectMemberAPI()
+        view.kwargs = {'pk': self.project.pk}
+        request = APIRequestFactory().patch('/api/projects/member/')
+        force_authenticate(request, user=self.manager)
+        view.request = view.initialize_request(request)
+
+        class LockedManager:
+            def filter(self, **kwargs):
+                events.append('lock_queryset')
+                return locked_queryset.filter(**kwargs)
+
+        with (
+            patch.object(Project.objects, 'select_for_update', return_value=LockedManager()),
+            patch('projects.api.generics.get_object_or_404', side_effect=lambda queryset, **kwargs: (
+                events.append('locked_read') or self.project
+            )),
+            patch.object(view, '_authorize_locked_project', side_effect=lambda project: events.append('authorize')),
+        ):
+            project = view._locked_project()
+
+        assert project.pk == self.project.pk
+        assert events == ['lock_queryset', 'locked_read', 'authorize']
