@@ -364,10 +364,44 @@ class ProjectMemberAPI(generics.RetrieveUpdateDestroyAPIView):
         context['project'] = self._project()
         return context
 
+    def _authorize_locked_project(self, project):
+        principal = resolve_principal(self.request)
+        authorization.require(
+            authorization.can_manage_project(principal, project),
+            'Project manager role is required to manage project members.',
+        )
+
+    def _locked_project(self):
+        project = generics.get_object_or_404(
+            Project.objects.select_for_update().filter(organization=self.request.user.active_organization),
+            pk=self.kwargs['pk'],
+        )
+        self._authorize_locked_project(project)
+        return project
+
     @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        project = self._locked_project()
+        membership = generics.get_object_or_404(
+            ProjectMember.objects.select_related('user'),
+            project=project,
+            pk=self.kwargs['member_pk'],
+        )
+        self.check_object_permissions(request, membership)
+
+        partial = kwargs.pop('partial', False)
+        context = super().get_serializer_context()
+        context['project'] = project
+        serializer = self.get_serializer(membership, data=request.data, partial=partial, context=context)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(membership, '_prefetched_objects_cache', None):
+            membership._prefetched_objects_cache = {}
+        return Response(serializer.data)
+
     def perform_update(self, serializer):
-        membership = self.get_object()
-        Project.objects.select_for_update().get(pk=membership.project_id)
+        membership = serializer.instance
         old_role = membership.role
         old_enabled = membership.enabled
 
@@ -401,8 +435,19 @@ class ProjectMemberAPI(generics.RetrieveUpdateDestroyAPIView):
                 assignment.cancel()
 
     @transaction.atomic
+    def destroy(self, request, *args, **kwargs):
+        project = self._locked_project()
+        membership = generics.get_object_or_404(
+            ProjectMember.objects.select_related('user'),
+            project=project,
+            pk=self.kwargs['member_pk'],
+        )
+        self.check_object_permissions(request, membership)
+        self.perform_destroy(membership)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     def perform_destroy(self, membership):
-        project = Project.objects.select_for_update().get(pk=membership.project_id)
+        project = membership.project
         if project.created_by_id == membership.user_id:
             raise RestValidationError({'detail': 'Project creator membership cannot be removed.'})
         if (
