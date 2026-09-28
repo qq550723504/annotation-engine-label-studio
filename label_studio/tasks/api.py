@@ -762,8 +762,12 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
         task.update_is_labeled()
         task.save()  # refresh task metrics
 
-        submit_for_review = bool(request.data.get('submit_for_review', False))
-        result = super(AnnotationAPI, self).update(request, *args, **kwargs)
+        partial = kwargs.pop('partial', False)
+        serializer = self.get_serializer(annotation, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        submit_for_review = serializer.validated_data.get('submit_for_review', False)
+        self.perform_update(serializer)
+        result = Response(serializer.data)
         # Annotation.save() preserves upstream CurrentContext behavior and may
         # rewrite updated_by from request.user. Reassert the provider-mapped
         # audit actor after serializer persistence without changing global model semantics.

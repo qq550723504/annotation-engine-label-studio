@@ -5,13 +5,14 @@ import json
 import logging
 
 import redis
-from django.db import models
+from django.db import models, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 from io_storages.base_models import (
     ExportStorage,
     ExportStorageLink,
+    serialize_mutable_delivery,
     ImportStorage,
     ImportStorageLink,
     ProjectStorageMixin,
@@ -131,7 +132,9 @@ class RedisImportStorage(ProjectStorageMixin, RedisImportStorageBase):
 class RedisExportStorage(RedisStorageMixin, ExportStorage):
     db = models.PositiveSmallIntegerField(_('db'), default=2, help_text='Server Database')
 
+    @transaction.atomic
     def save_annotation(self, annotation):
+        self.require_mutable_delivery_allowed(lock_project=True)
         client = self.get_client()
         logger.debug(f'Creating new object on {self.__class__.__name__} Storage {self} for annotation {annotation}')
         ser_annotation = self._get_serialized_data(annotation)
@@ -151,13 +154,29 @@ class RedisExportStorage(RedisStorageMixin, ExportStorage):
         client.ping()
 
 
+def _export_annotation_to_redis_storages(annotation_id):
+    try:
+        annotation = Annotation.objects.get(pk=annotation_id)
+        project = annotation.project
+        if hasattr(project, 'io_storages_redisexportstorages'):
+            for storage in project.io_storages_redisexportstorages.all():
+                if storage.has_formal_submissions():
+                    logger.info(
+                        f'Skip mutable Redis export for annotation {annotation.id}: formal submissions exist'
+                    )
+                    continue
+                logger.debug(f'Export {annotation} to Redis storage {storage}')
+                storage.save_annotation(annotation)
+    except Annotation.DoesNotExist:
+        logger.info(f'Annotation {annotation_id} no longer exists, skipping Redis export')
+    except Exception:
+        logger.exception(f'Post-commit Redis export failed for annotation {annotation_id}')
+
+
 @receiver(post_save, sender=Annotation)
 def export_annotation_to_redis_storages(sender, instance, **kwargs):
-    project = instance.project
-    if hasattr(project, 'io_storages_redisexportstorages'):
-        for storage in project.io_storages_redisexportstorages.all():
-            logger.debug(f'Export {instance} to Redis storage {storage}')
-            storage.save_annotation(instance)
+    annotation_id = instance.pk
+    transaction.on_commit(lambda annotation_id=annotation_id: _export_annotation_to_redis_storages(annotation_id))
 
 
 class RedisImportStorageLink(ImportStorageLink):

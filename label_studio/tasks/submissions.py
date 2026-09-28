@@ -5,14 +5,15 @@ import json
 
 from django.db import transaction
 from django.db.models import Max
+from projects.models import Project
 from rest_framework.exceptions import ValidationError
 
 from tasks.models import ReviewDecision, Submission, TaskAssignment
 
 
-def _canonical_snapshot(annotation):
-    task = annotation.task
-    project = annotation.project
+def _canonical_snapshot(annotation, assignment):
+    task = assignment.task
+    project = assignment.project
 
     return {
         'annotation': {
@@ -29,6 +30,7 @@ def _canonical_snapshot(annotation):
         },
         'project': {
             'id': project.id if project else None,
+            'label_config': project.label_config if project else None,
             'label_config_hash': project.label_config_hash if project else None,
         },
     }
@@ -47,6 +49,8 @@ def create_submission(*, assignment, annotation, actor):
     revisions remain immutable historical evidence.
     """
 
+    Project.objects.select_for_update().get(pk=assignment.project_id)
+
     assignment = (
         TaskAssignment.objects.select_for_update()
         .select_related('task', 'project', 'assignee', 'annotation')
@@ -57,6 +61,8 @@ def create_submission(*, assignment, annotation, actor):
         raise ValidationError({'detail': 'Only the assignment owner can submit this annotation.'})
     if assignment.annotation_id != annotation.id:
         raise ValidationError({'detail': 'Annotation does not belong to this assignment.'})
+    if annotation.task_id != assignment.task_id or annotation.project_id != assignment.project_id:
+        raise ValidationError({'detail': 'Annotation task/project must match the locked assignment.'})
 
     last_revision = (
         Submission.objects.filter(assignment=assignment).aggregate(max_revision=Max('revision'))['max_revision'] or 0
@@ -68,7 +74,7 @@ def create_submission(*, assignment, annotation, actor):
         status=Submission.Status.PENDING,
     ).update(status=Submission.Status.SUPERSEDED)
 
-    snapshot = _canonical_snapshot(annotation)
+    snapshot = _canonical_snapshot(annotation, assignment)
     submission = Submission.objects.create(
         assignment=assignment,
         annotation=annotation,

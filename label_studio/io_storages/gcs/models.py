@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 from core.redis import start_job_async_or_sync
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
@@ -18,6 +18,7 @@ from google.auth.transport.requests import AuthorizedSession
 from io_storages.base_models import (
     ExportStorage,
     ExportStorageLink,
+    serialize_mutable_delivery,
     ImportStorage,
     ImportStorageLink,
     ProjectStorageMixin,
@@ -247,7 +248,10 @@ class GCSImportStorage(ProjectStorageMixin, GCSImportStorageBase):
 
 
 class GCSExportStorage(GCSStorageMixin, ExportStorage):
+    @serialize_mutable_delivery
+    @transaction.atomic
     def save_annotation(self, annotation):
+        self.require_mutable_delivery_allowed(lock_project=True)
         bucket = self.get_bucket()
         logger.debug(f'Creating new object on {self.__class__.__name__} Storage {self} for annotation {annotation}')
         ser_annotation = self._get_serialized_data(annotation)
@@ -275,15 +279,28 @@ def async_export_annotation_to_gcs_storages(annotation: 'Annotation | int'):
     project = annotation.project
     if hasattr(project, 'io_storages_gcsexportstorages'):
         for storage in project.io_storages_gcsexportstorages.all():
+            if storage.has_formal_submissions():
+                logger.info(
+                    f'Skip mutable GCS export for annotation {annotation.id}: formal submissions exist'
+                )
+                continue
             logger.debug(f'Export {annotation} to GCS storage {storage}')
             storage.save_annotation(annotation)
+
+
+def _dispatch_gcs_annotation_export(annotation_id):
+    try:
+        start_job_async_or_sync(async_export_annotation_to_gcs_storages, annotation_id)
+    except Exception:
+        logger.exception(f'Post-commit export_annotation_to_gcs_storages dispatch failed for annotation {annotation_id}')
 
 
 @receiver(post_save, sender=Annotation)
 def export_annotation_to_gcs_storages(sender, instance, **kwargs):
     storages = getattr(instance.project, 'io_storages_gcsexportstorages', None)
     if storages and storages.exists():  # avoid excess jobs in rq
-        start_job_async_or_sync(async_export_annotation_to_gcs_storages, instance.pk)
+        annotation_id = instance.pk
+        transaction.on_commit(lambda annotation_id=annotation_id: _dispatch_gcs_annotation_export(annotation_id))
 
 
 class GCSImportStorageLink(ImportStorageLink):

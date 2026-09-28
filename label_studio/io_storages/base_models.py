@@ -9,6 +9,8 @@ import os
 import sys
 import traceback as tb
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from functools import wraps
 from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Iterator, Union
@@ -31,9 +33,10 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from fsm.functions import backfill_fsm_states_for_tasks
 from io_storages.utils import StorageObject, get_uri_via_regex, parse_bucket_uri
+from projects.models import Project
 from rest_framework.exceptions import ValidationError
 from rq.job import Job
-from tasks.models import Annotation, Task
+from tasks.models import Annotation, Submission, Task
 from tasks.serializers import AnnotationSerializer, PredictionSerializer
 from webhooks.models import WebhookAction
 from webhooks.utils import emit_webhooks_for_instance
@@ -750,6 +753,15 @@ def _batched(iterable, n):
         yield batch
 
 
+def serialize_mutable_delivery(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self.mutable_delivery_lock():
+            return method(self, *args, **kwargs)
+
+    return wrapped
+
+
 class ExportStorage(Storage, ProjectStorageMixin):
     can_delete_objects = models.BooleanField(
         _('can_delete_objects'), null=True, blank=True, help_text='Deletion from storage enabled'
@@ -757,6 +769,27 @@ class ExportStorage(Storage, ProjectStorageMixin):
     # Use 8 threads, unless we know we only have a single core
     # TODO from testing, more than 8 seems to cause problems. revisit to add more parallelism.
     max_workers = min(8, (os.cpu_count() or 2) * 4)
+
+    def has_formal_submissions(self):
+        return Submission.objects.filter(assignment__project=self.project).exists()
+
+    def require_mutable_delivery_allowed(self, *, lock_project=False):
+        if lock_project:
+            Project.objects.select_for_update().get(pk=self.project_id)
+        if self.has_formal_submissions():
+            raise ValidationError(
+                'Export storage delivery is disabled after formal submissions exist. '
+                'Release approved immutable submissions through the submission release API.'
+            )
+
+    @contextmanager
+    def mutable_delivery_lock(self):
+        from projects.models import Project
+
+        with transaction.atomic():
+            Project.objects.select_for_update().get(pk=self.project_id)
+            self.require_mutable_delivery_allowed()
+            yield
 
     def _get_serialized_data(self, annotation):
         user = self.project.organization.created_by
@@ -779,6 +812,7 @@ class ExportStorage(Storage, ProjectStorageMixin):
         raise NotImplementedError
 
     def save_annotations(self, annotations: models.QuerySet[Annotation]):
+        self.require_mutable_delivery_allowed()
         annotation_exported = 0
         total_annotations = annotations.count()
         self.info_set_in_progress()
@@ -806,6 +840,7 @@ class ExportStorage(Storage, ProjectStorageMixin):
                     futures.append(executor.submit(self.save_annotation, annotation))
 
                 for future in concurrent.futures.as_completed(futures):
+                    future.result()
                     annotation_exported += 1
                     self.info_update_progress(last_sync_count=annotation_exported, total_annotations=total_annotations)
 
@@ -826,6 +861,7 @@ class ExportStorage(Storage, ProjectStorageMixin):
         self.save_annotations(new_annotations)
 
     def sync(self, save_only_new_annotations: bool = False):
+        self.require_mutable_delivery_allowed()
         if save_only_new_annotations:
             export_sync_fn = export_sync_only_new_background
         else:

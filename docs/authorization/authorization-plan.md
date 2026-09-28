@@ -193,3 +193,33 @@ Storage create endpoints must authorize the requested project before serializer 
 
 This ordering is part of the fork authorization boundary and must be preserved across upstream rebases.
 
+## Immutable review release boundary
+
+Once a project has any formal `Submission`, mutable annotation delivery is fail-closed outside the immutable submission release path. This fork-specific boundary must survive upstream rebases.
+
+Required enforcement points:
+
+- deprecated synchronous project export (`/api/projects/{id}/export`);
+- export snapshot list/create/detail/download/convert (`/api/projects/{id}/exports/*`);
+- legacy export-file listing and nginx auth check (`/api/projects/{id}/export/files`, `/api/auth/export/`);
+- export-storage manual sync and automatic annotation delivery for S3, GCS, Azure Blob, Redis, and Local Files.
+
+Mutable export-storage delivery and formal submission creation serialize on the project row. Automatic storage callbacks run after transaction commit, so the first formal submission is visible before delivery is considered. Approved immutable revisions are delivered through the submission release API rather than mutable project/export-storage paths.
+
+
+### Immutable release and mutable export boundary
+
+Once a project has any formal `Submission`, mutable Annotation state is no longer an authorized delivery artifact:
+
+- `GET /api/projects/{project_id}/export` must fail closed;
+- snapshot export list/create/detail/download/convert under `/api/projects/{project_id}/exports/` must fail closed;
+- legacy `/api/projects/{project_id}/export/files` and nginx `/api/auth/export/` delivery must fail closed;
+- configured export-storage synchronization and automatic annotation delivery must fail closed;
+- export-storage annotation writes and formal submission creation serialize on the same locked Project row, so an in-flight mutable delivery cannot cross the first-submission boundary;
+- S3, GCS, Azure Blob, Redis, and Local Files automatic export callbacks run only after the annotation transaction commits and must re-check the formal-submission boundary;
+- post-commit storage failures must not make an already-committed annotation request appear unsuccessful;
+- approved delivery must use `GET /api/submissions/{submission_id}/release/`, whose payload comes only from the immutable approved Submission snapshot.
+
+Each immutable Submission snapshot must preserve the exact `label_config` plus its hash and must derive task/project identity from the locked Assignment, not mutable Annotation relations.
+
+Preserve these enforcement points across upstream rebases unless the release/export architecture is intentionally redesigned.

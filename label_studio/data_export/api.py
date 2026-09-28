@@ -28,7 +28,7 @@ from rest_framework import generics, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from tasks.models import Task
+from tasks.models import Submission, Task
 
 from .models import ConvertedFormat, DataExport, Export
 from .serializers import (
@@ -40,6 +40,20 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def require_immutable_release_boundary(project):
+    """Prevent mutable project exports once formal submissions exist."""
+    if Submission.objects.filter(assignment__project=project).exists():
+        raise ValidationError(
+            {
+                'detail': (
+                    'Project exports are disabled after formal submissions exist. '
+                    'Release approved immutable submissions through the submission release API.'
+                )
+            }
+        )
+    return project
 
 
 @method_decorator(
@@ -85,7 +99,8 @@ class ExportFormatsListAPI(generics.RetrieveAPIView):
     permission_required = all_permissions.projects_view
 
     def get_queryset(self):
-        return managed_projects_for_user(self.request)
+        projects = managed_projects_for_user(self.request)
+        return projects.exclude(task_assignments__submissions__isnull=False).distinct()
 
     def get(self, request, *args, **kwargs):
         project = self.get_object()
@@ -212,8 +227,11 @@ class ExportAPI(generics.RetrieveAPIView):
             qs = qs.with_state()
         return qs
 
+    @transaction.atomic
     def get(self, request, *args, **kwargs):
-        project = self.get_object()
+        visible_project = self.get_object()
+        project = Project.objects.select_for_update().get(pk=visible_project.pk)
+        require_immutable_release_boundary(project)
         query_serializer = ExportParamSerializer(data=request.GET)
         query_serializer.is_valid(raise_exception=True)
 
@@ -275,8 +293,9 @@ class ProjectExportFiles(generics.RetrieveAPIView):
         return managed_projects_for_user(self.request)
 
     def get(self, request, *args, **kwargs):
-        # project permission check
-        self.get_object()
+        # project permission and immutable release boundary check
+        project = self.get_object()
+        require_immutable_release_boundary(project)
 
         paths = []
         for name in os.listdir(settings.EXPORT_DIR):
@@ -306,7 +325,8 @@ class ProjectExportFilesAuthCheck(APIView):
         except ValueError:
             return Response({'detail': 'Incorrect filename in export'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
-        generics.get_object_or_404(managed_projects_for_user(request), pk=pk)
+        project = generics.get_object_or_404(managed_projects_for_user(request), pk=pk)
+        require_immutable_release_boundary(project)
         return Response({'detail': 'auth ok'}, status=status.HTTP_200_OK)
 
 
@@ -376,7 +396,7 @@ class ExportListAPI(generics.ListCreateAPIView):
             managed_projects_for_user(self.request),
             pk=project_pk,
         )
-        return project
+        return require_immutable_release_boundary(project)
 
     def perform_create(self, serializer):
         task_filter_options = serializer.validated_data.pop('task_filter_options')
@@ -491,7 +511,7 @@ class ExportDetailAPI(generics.RetrieveDestroyAPIView):
             managed_projects_for_user(self.request),
             pk=project_pk,
         )
-        return project
+        return require_immutable_release_boundary(project)
 
     def get_queryset(self):
         project = self._get_project()
@@ -560,7 +580,7 @@ class ExportDownloadAPI(generics.RetrieveAPIView):
             managed_projects_for_user(self.request),
             pk=project_pk,
         )
-        return project
+        return require_immutable_release_boundary(project)
 
     def get_queryset(self):
         project = self._get_project()
@@ -635,20 +655,27 @@ def async_convert(converted_format_id, export_type, project, hostname, download_
         converted_format.status = ConvertedFormat.Status.IN_PROGRESS
         converted_format.save(update_fields=['status'])
 
-    snapshot = converted_format.export
-    converted_file = snapshot.convert_file(export_type, download_resources=download_resources, hostname=hostname)
-    if converted_file is None:
-        raise ValidationError('No converted file found, probably there are no annotations in the export snapshot')
-    md5 = Export.eval_md5(converted_file)
-    ext = converted_file.name.split('.')[-1]
+    try:
+        snapshot = converted_format.export
+        converted_file = snapshot.convert_file(export_type, download_resources=download_resources, hostname=hostname)
+        if converted_file is None:
+            raise ValidationError('No converted file found, probably there are no annotations in the export snapshot')
+        md5 = Export.eval_md5(converted_file)
+        ext = converted_file.name.split('.')[-1]
 
-    now = datetime.now()
-    file_name = f'project-{project.id}-at-{now.strftime("%Y-%m-%d-%H-%M")}-{md5[0:8]}.{ext}'
-    file_path = f'{project.id}/{file_name}'  # finally file will be in settings.DELAYED_EXPORT_DIR/project.id/file_name
-    file_ = File(converted_file, name=file_path)
-    converted_format.file.save(file_path, file_)
-    converted_format.status = ConvertedFormat.Status.COMPLETED
-    converted_format.save(update_fields=['file', 'status'])
+        now = datetime.now()
+        file_name = f'project-{project.id}-at-{now.strftime("%Y-%m-%d-%H-%M")}-{md5[0:8]}.{ext}'
+        file_path = f'{project.id}/{file_name}'
+        file_ = File(converted_file, name=file_path)
+        converted_format.file.save(file_path, file_)
+        converted_format.status = ConvertedFormat.Status.COMPLETED
+        converted_format.save(update_fields=['file', 'status'])
+    except Exception as exc:
+        converted_format.status = ConvertedFormat.Status.FAILED
+        converted_format.traceback = str(exc)
+        converted_format.save(update_fields=['status', 'traceback'])
+        logger.exception('Export conversion failed: %s', exc)
+        return
 
 
 def set_convert_background_failure(job, connection, type, value, traceback_obj):
@@ -710,7 +737,8 @@ class ExportConvertAPI(generics.CreateAPIView):
 
     def _get_project(self):
         project_pk = self.kwargs.get('pk')
-        return generics.get_object_or_404(managed_projects_for_user(self.request), pk=project_pk)
+        project = generics.get_object_or_404(managed_projects_for_user(self.request), pk=project_pk)
+        return require_immutable_release_boundary(project)
 
     def get_queryset(self):
         return super().get_queryset().filter(project=self._get_project())

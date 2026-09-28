@@ -16,6 +16,7 @@ from core.utils.io import (
     get_temp_dir,
 )
 from data_manager.models import View
+from projects.models import Project
 from django.conf import settings
 from django.core.files import File
 from django.core.files import temp as tempfile
@@ -24,7 +25,7 @@ from django.db.models import Prefetch
 from django.db.models.query_utils import Q
 from django.utils import dateformat, timezone
 from label_studio_sdk.converter import Converter
-from tasks.models import Annotation, AnnotationDraft, Task
+from tasks.models import Annotation, AnnotationDraft, Submission, Task
 
 ONLY = 'only'
 EXCLUDE = 'exclude'
@@ -277,6 +278,7 @@ class ExportMixin:
         self.md5 = md5
         self.save(update_fields=['file', 'md5', 'counters'])
 
+    @transaction.atomic
     def export_to_file(self, task_filter_options=None, annotation_filter_options=None, serialization_options=None):
         logger.debug(
             f'Run export for {self.id} with params:\n'
@@ -285,6 +287,13 @@ class ExportMixin:
             f'serialization_options: {serialization_options}\n'
         )
         try:
+            Project.objects.select_for_update().get(pk=self.project_id)
+            if Submission.objects.filter(assignment__project_id=self.project_id).exists():
+                raise ValueError(
+                    'Project exports are disabled after formal submissions exist. '
+                    'Release approved immutable submissions through the submission release API.'
+                )
+
             iter_json = json.JSONEncoder(ensure_ascii=False).iterencode(
                 SerializableGenerator(
                     self.get_export_data(
@@ -340,7 +349,15 @@ class ExportMixin:
                 serialization_options=serialization_options,
             )
 
+    @transaction.atomic
     def convert_file(self, to_format, download_resources=False, hostname=None):
+        Project.objects.select_for_update().get(pk=self.project_id)
+        if Submission.objects.filter(assignment__project_id=self.project_id).exists():
+            raise ValueError(
+                'Project export conversion is disabled after formal submissions exist. '
+                'Release approved immutable submissions through the submission release API.'
+            )
+
         logger.info(
             (
                 'Starting export conversion: export_id=%s project_id=%s '

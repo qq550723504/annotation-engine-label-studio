@@ -9,6 +9,7 @@ from access_control.project_access import get_managed_project_or_404, managed_pr
 from core.permissions import ViewClassPermission, all_permissions
 from core.utils.io import read_yaml
 from django.conf import settings
+from django.db import transaction
 from drf_spectacular.utils import extend_schema
 from io_storages.serializers import ExportStorageSerializer, ImportStorageSerializer
 from projects.models import Project
@@ -18,6 +19,21 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 logger = logging.getLogger(__name__)
+
+
+def _run_export_storage_auto_sync(storage_class, storage_id):
+    try:
+        storage = storage_class.objects.get(pk=storage_id)
+        storage.sync()
+    except Exception:
+        logger.exception(f'Post-commit export storage auto-sync failed for storage {storage_id}')
+        try:
+            storage = storage_class.objects.filter(pk=storage_id).first()
+            if storage is not None:
+                storage.info_set_failed()
+        except Exception:
+            logger.exception(f'Failed to mark export storage {storage_id} as failed after auto-sync error')
+
 
 
 def _validated_project_id(request):
@@ -120,14 +136,24 @@ class ExportStorageListAPI(generics.ListCreateAPIView):
         # double check: not export storages don't validate connection in serializer,
         # just make another explicit check here, note: in this create API we have credentials in request.data
         instance = serializer.Meta.model(**serializer.validated_data)
+        instance.require_mutable_delivery_allowed()
         try:
             instance.validate_connection()
         except Exception as exc:
             raise ValidationError(exc)
 
-        storage = serializer.save()
-        if settings.SYNC_ON_TARGET_STORAGE_CREATION:
-            storage.sync()
+        with transaction.atomic():
+            Project.objects.select_for_update().get(pk=project.pk)
+            instance.require_mutable_delivery_allowed()
+            storage = serializer.save()
+            if settings.SYNC_ON_TARGET_STORAGE_CREATION:
+                storage_id = storage.id
+                storage_class = storage.__class__
+                transaction.on_commit(
+                    lambda storage_class=storage_class, storage_id=storage_id: _run_export_storage_auto_sync(
+                        storage_class, storage_id
+                    )
+                )
 
 
 class ExportStorageDetailAPI(generics.RetrieveUpdateDestroyAPIView):
