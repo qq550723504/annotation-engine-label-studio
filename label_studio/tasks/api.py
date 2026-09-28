@@ -82,6 +82,12 @@ def lock_active_assignment(request, principal, task, *, require_token=True):
         raise PermissionDenied('An enabled labeling role is required for this task.')
 
     assignment_id = request.data.get('assignment_id') if require_token else None
+    if assignment_id is not None:
+        try:
+            assignment_id = int(assignment_id)
+        except (TypeError, ValueError):
+            raise AssignmentConflictError()
+
     queryset = TaskAssignment.objects.select_for_update().filter(
         task=task,
         assignee_id=principal.local_user_id,
@@ -917,8 +923,9 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         if assignment.annotation_id is not None:
             raise ValidationError({'detail': 'This assignment already owns an annotation; update it instead.'})
 
-        # annotator has write access only to annotations and it can't be checked it after serializer.save()
-        user = self.request.user
+        # Audit/assignment ownership follows the trusted mapped actor. Session-bound
+        # concerns such as activity tracking and task locks remain on request.user.
+        user = actor
 
         # Check if task is being skipped and if it's allowed
         was_cancelled_get = bool_from_request(self.request.GET, 'was_cancelled', False)
@@ -960,7 +967,7 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         draft = AnnotationDraft.objects.filter(id=draft_id).first()
         if draft:
             # draft permission check
-            if draft.task_id != task.id or not draft.has_permission(user) or draft.user_id != user.id:
+            if draft.task_id != task.id or not draft.has_permission(actor) or draft.user_id != actor.id:
                 raise PermissionDenied(f'You have no permission to draft id:{draft_id}')
 
         if draft is not None:
