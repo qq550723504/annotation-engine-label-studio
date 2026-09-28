@@ -120,6 +120,7 @@ class ExportStorageListAPI(generics.ListCreateAPIView):
         # double check: not export storages don't validate connection in serializer,
         # just make another explicit check here, note: in this create API we have credentials in request.data
         instance = serializer.Meta.model(**serializer.validated_data)
+        instance.require_mutable_delivery_allowed()
         try:
             instance.validate_connection()
         except Exception as exc:
