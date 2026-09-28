@@ -10,9 +10,9 @@ from rest_framework.exceptions import ValidationError
 from tasks.models import ReviewDecision, Submission, TaskAssignment
 
 
-def _canonical_snapshot(annotation):
-    task = annotation.task
-    project = annotation.project
+def _canonical_snapshot(annotation, assignment):
+    task = assignment.task
+    project = assignment.project
 
     return {
         'annotation': {
@@ -58,6 +58,8 @@ def create_submission(*, assignment, annotation, actor):
         raise ValidationError({'detail': 'Only the assignment owner can submit this annotation.'})
     if assignment.annotation_id != annotation.id:
         raise ValidationError({'detail': 'Annotation does not belong to this assignment.'})
+    if annotation.task_id != assignment.task_id or annotation.project_id != assignment.project_id:
+        raise ValidationError({'detail': 'Annotation task/project must match the locked assignment.'})
 
     last_revision = (
         Submission.objects.filter(assignment=assignment).aggregate(max_revision=Max('revision'))['max_revision'] or 0
@@ -69,7 +71,7 @@ def create_submission(*, assignment, annotation, actor):
         status=Submission.Status.PENDING,
     ).update(status=Submission.Status.SUPERSEDED)
 
-    snapshot = _canonical_snapshot(annotation)
+    snapshot = _canonical_snapshot(annotation, assignment)
     submission = Submission.objects.create(
         assignment=assignment,
         annotation=annotation,
