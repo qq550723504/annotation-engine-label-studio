@@ -2,7 +2,8 @@ from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APIRequestFactory, APITestCase, force_authenticate
-from data_export.models import Export
+from data_export.api import async_convert
+from data_export.models import ConvertedFormat, Export
 from io_storages.localfiles.models import LocalFilesExportStorage, _export_annotation_to_local_files
 from io_storages.redis.models import RedisExportStorage, _export_annotation_to_redis_storages
 from io_storages.s3.models import S3ExportStorage, S3ExportStorageLink, _dispatch_s3_annotation_export
@@ -372,6 +373,60 @@ class TestSubmissionReviewWorkflow(APITestCase):
             _run_export_storage_auto_sync(storage.__class__, storage.id)
 
         storage.info_set_failed.assert_called_once()
+
+
+    def test_export_storage_batch_failure_does_not_report_completed(self):
+        storage = AzureBlobExportStorageFactory(project=self.project)
+        annotations = Annotation.objects.filter(pk__in=[])
+
+        from unittest.mock import Mock, patch
+
+        failed_future = Mock()
+        failed_future.result.side_effect = RuntimeError('provider failed')
+        executor = Mock()
+        executor.__enter__ = Mock(return_value=executor)
+        executor.__exit__ = Mock(return_value=False)
+        executor.submit.return_value = failed_future
+
+        annotation = Annotation.objects.create(
+            task=self.task,
+            project=self.project,
+            completed_by=self.annotator,
+            updated_by=self.annotator,
+            result=[],
+        )
+        annotations = Annotation.objects.filter(pk=annotation.pk)
+
+        with (
+            patch('io_storages.base_models.ThreadPoolExecutor', return_value=executor),
+            patch('io_storages.base_models.concurrent.futures.as_completed', return_value=[failed_future]),
+            patch.object(storage, 'info_set_completed') as completed,
+        ):
+            with self.assertRaises(RuntimeError):
+                storage.save_annotations(annotations)
+
+        completed.assert_not_called()
+
+    def test_sync_conversion_boundary_rejection_marks_failed(self):
+        snapshot = Export.objects.create(project=self.project, created_by=self.manager)
+        converted = ConvertedFormat.objects.create(
+            export=snapshot,
+            project=self.project,
+            organization=self.organization,
+            export_type='JSON',
+        )
+        self._submit_new_annotation()
+
+        async_convert(
+            converted.id,
+            'JSON',
+            self.project,
+            'http://testserver/',
+        )
+
+        converted.refresh_from_db()
+        assert converted.status == ConvertedFormat.Status.FAILED
+        assert 'disabled after formal submissions exist' in converted.traceback
 
     def test_resubmit_supersedes_old_pending_revision(self):
         annotation, first = self._submit_new_annotation()
