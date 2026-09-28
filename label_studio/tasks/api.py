@@ -923,9 +923,10 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         if assignment.annotation_id is not None:
             raise ValidationError({'detail': 'This assignment already owns an annotation; update it instead.'})
 
-        # Audit/assignment ownership follows the trusted mapped actor. Session-bound
-        # concerns such as activity tracking and task locks remain on request.user.
-        user = actor
+        # Session-bound concerns such as activity tracking, task locks, and
+        # label-stream history remain on request.user. Draft/annotation ownership
+        # checks use the trusted mapped actor explicitly below.
+        user = self.request.user
 
         # Check if task is being skipped and if it's allowed
         was_cancelled_get = bool_from_request(self.request.GET, 'was_cancelled', False)
