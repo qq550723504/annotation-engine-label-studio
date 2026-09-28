@@ -342,6 +342,8 @@ class ProjectMemberAPI(generics.RetrieveUpdateDestroyAPIView):
             project=project,
             enabled=True,
             role=ProjectMember.Role.MANAGER,
+            user__om_through__organization=project.organization,
+            user__om_through__deleted_at__isnull=True,
         ).exclude(user_id=excluding_user_id).exists()
 
     def _project(self):
@@ -365,6 +367,7 @@ class ProjectMemberAPI(generics.RetrieveUpdateDestroyAPIView):
     @transaction.atomic
     def perform_update(self, serializer):
         membership = self.get_object()
+        Project.objects.select_for_update().get(pk=membership.project_id)
         old_role = membership.role
         old_enabled = membership.enabled
 
@@ -399,7 +402,7 @@ class ProjectMemberAPI(generics.RetrieveUpdateDestroyAPIView):
 
     @transaction.atomic
     def perform_destroy(self, membership):
-        project = membership.project
+        project = Project.objects.select_for_update().get(pk=membership.project_id)
         if project.created_by_id == membership.user_id:
             raise RestValidationError({'detail': 'Project creator membership cannot be removed.'})
         if (
