@@ -64,7 +64,9 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         if self.instance is not None and 'user' in attrs:
-            raise serializers.ValidationError({'user_id': 'Project member identity cannot be changed.'})
+            if attrs['user'].pk != self.instance.user_id:
+                raise serializers.ValidationError({'user_id': 'Project member identity cannot be changed.'})
+            attrs.pop('user')
 
         project = self.context.get('project')
         user = attrs.get('user') or getattr(self.instance, 'user', None)
