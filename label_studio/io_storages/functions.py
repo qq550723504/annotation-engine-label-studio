@@ -44,16 +44,17 @@ def validate_storage_instance(request, serializer_class):
     storage_id = request.data.get('id')
     instance = None
 
+    submitted_project_id = request.data.get('project')
+    if submitted_project_id is not None:
+        submitted_project_id = serializers.IntegerField(min_value=1).run_validation(submitted_project_id)
+        submitted_project = get_object_or_404(Project.objects.for_user(request.user), pk=submitted_project_id)
+        require_project_manager(request, submitted_project)
+
     if storage_id:
         instance = get_object_or_404(serializer_class.Meta.model.objects.all(), pk=storage_id)
         require_project_manager(request, instance.project)
-    else:
-        project_id = request.data.get('project')
-        if project_id is None:
-            raise ValidationError({'project': 'Project is required.'})
-        project_id = serializers.IntegerField(min_value=1).run_validation(project_id)
-        project = get_object_or_404(Project.objects.for_user(request.user), pk=project_id)
-        require_project_manager(request, project)
+    elif submitted_project_id is None:
+        raise ValidationError({'project': 'Project is required.'})
 
     # combine instance fields with request.data only after project authorization,
     # because storage serializers may perform network/filesystem validation.
