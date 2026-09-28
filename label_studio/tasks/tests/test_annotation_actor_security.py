@@ -256,6 +256,13 @@ class TestAnnotationActorSecurity(APITestCase):
             annotation=annotation,
             status=TaskAssignment.Status.IN_PROGRESS,
         )
+        draft = AnnotationDraft.objects.create(
+            task=task,
+            annotation=annotation,
+            user=mapped_actor,
+            assignment=assignment,
+            result=[],
+        )
 
         class MappedProvider:
             def resolve(self, request):
