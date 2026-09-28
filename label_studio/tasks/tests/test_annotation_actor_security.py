@@ -10,7 +10,7 @@ from rest_framework.test import APITestCase
 from data_import.api import ReImportAPI
 from data_import.functions import async_reimport_background
 from projects.models import ProjectReimport
-from tasks.models import Annotation, TaskAssignment
+from tasks.models import Annotation, AnnotationDraft, TaskAssignment
 from tasks.tests.factories import AnnotationFactory, TaskFactory
 from users.tests.factories import UserFactory
 
@@ -223,6 +223,102 @@ class TestAnnotationActorSecurity(APITestCase):
         assert response.status_code == 204
         task.refresh_from_db()
         assert task.updated_by_id == mapped_actor.id
+
+
+    def test_data_manager_serializes_mapped_principal_assignment_and_annotations(self):
+        mapped_actor = UserFactory(active_organization=self.organization)
+        self.organization.add_user(mapped_actor)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=mapped_actor,
+            role=ProjectMember.Role.ANNOTATOR,
+        )
+        task = TaskFactory(project=self.project)
+        annotation = AnnotationFactory(
+            task=task,
+            project=self.project,
+            completed_by=mapped_actor,
+            updated_by=mapped_actor,
+            result=[],
+        )
+        assignment = TaskAssignment.objects.create(
+            task=task,
+            project=self.project,
+            assignee=mapped_actor,
+            assigned_by=self.actor,
+            annotation=annotation,
+            status=TaskAssignment.Status.IN_PROGRESS,
+        )
+
+        class MappedProvider:
+            def resolve(self, request):
+                return Principal(
+                    principal_id=f"mapped:{mapped_actor.id}",
+                    source="test-mapped",
+                    username=mapped_actor.email,
+                    local_user_id=mapped_actor.id,
+                )
+
+        with patch("access_control.identity.get_identity_provider", return_value=MappedProvider()):
+            response = self.client.get(
+                f"/api/tasks/?project={self.project.id}&page=1&page_size=100&fields=all"
+            )
+
+        assert response.status_code == 200, response.json()
+        payload = response.json()
+        item = next(task_item for task_item in payload["tasks"] if task_item["id"] == task.id)
+        assert payload["total_annotations"] == 1
+        assert item["total_annotations"] == 1
+        assert item["assignment_id"] == assignment.id
+        assert item["assignment_version"] == assignment.version
+        assert {entry["id"] for entry in item["annotations"]} == {annotation.id}
+
+    def test_convert_to_draft_uses_mapped_actor_as_owner(self):
+        mapped_actor = UserFactory(active_organization=self.organization)
+        self.organization.add_user(mapped_actor)
+        ProjectMember.objects.create(
+            project=self.project,
+            user=mapped_actor,
+            role=ProjectMember.Role.ANNOTATOR,
+        )
+        task = TaskFactory(project=self.project)
+        annotation = AnnotationFactory(
+            task=task,
+            project=self.project,
+            completed_by=mapped_actor,
+            updated_by=mapped_actor,
+            result=[],
+        )
+        assignment = TaskAssignment.objects.create(
+            task=task,
+            project=self.project,
+            assignee=mapped_actor,
+            assigned_by=self.actor,
+            annotation=annotation,
+            status=TaskAssignment.Status.IN_PROGRESS,
+        )
+
+        class MappedProvider:
+            def resolve(self, request):
+                return Principal(
+                    principal_id=f"mapped:{mapped_actor.id}",
+                    source="test-mapped",
+                    username=mapped_actor.email,
+                    local_user_id=mapped_actor.id,
+                )
+
+        with patch("access_control.identity.get_identity_provider", return_value=MappedProvider()):
+            response = self.client.post(
+                f"/api/annotations/{annotation.id}/convert-to-draft",
+                data={},
+                format="json",
+            )
+
+        assert response.status_code == 201, response.json()
+        draft = AnnotationDraft.objects.get(pk=response.json()["id"])
+        assert draft.user_id == mapped_actor.id
+        assert draft.assignment_id == assignment.id
+        assert not Annotation.objects.filter(pk=annotation.id).exists()
 
     def test_async_import_rejects_mapped_actor_outside_project_scope_before_queueing(self):
         foreign_actor = UserFactory()
