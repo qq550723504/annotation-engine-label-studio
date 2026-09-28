@@ -28,7 +28,7 @@ from rest_framework import generics, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from tasks.models import Task
+from tasks.models import Submission, Task
 
 from .models import ConvertedFormat, DataExport, Export
 from .serializers import (
@@ -40,6 +40,20 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def require_immutable_release_boundary(project):
+    """Prevent mutable project exports once formal submissions exist."""
+    if Submission.objects.filter(assignment__project=project).exists():
+        raise ValidationError(
+            {
+                'detail': (
+                    'Project exports are disabled after formal submissions exist. '
+                    'Release approved immutable submissions through the submission release API.'
+                )
+            }
+        )
+    return project
 
 
 @method_decorator(
@@ -213,7 +227,7 @@ class ExportAPI(generics.RetrieveAPIView):
         return qs
 
     def get(self, request, *args, **kwargs):
-        project = self.get_object()
+        project = require_immutable_release_boundary(self.get_object())
         query_serializer = ExportParamSerializer(data=request.GET)
         query_serializer.is_valid(raise_exception=True)
 
@@ -376,7 +390,7 @@ class ExportListAPI(generics.ListCreateAPIView):
             managed_projects_for_user(self.request),
             pk=project_pk,
         )
-        return project
+        return require_immutable_release_boundary(project)
 
     def perform_create(self, serializer):
         task_filter_options = serializer.validated_data.pop('task_filter_options')
@@ -491,7 +505,7 @@ class ExportDetailAPI(generics.RetrieveDestroyAPIView):
             managed_projects_for_user(self.request),
             pk=project_pk,
         )
-        return project
+        return require_immutable_release_boundary(project)
 
     def get_queryset(self):
         project = self._get_project()
@@ -560,7 +574,7 @@ class ExportDownloadAPI(generics.RetrieveAPIView):
             managed_projects_for_user(self.request),
             pk=project_pk,
         )
-        return project
+        return require_immutable_release_boundary(project)
 
     def get_queryset(self):
         project = self._get_project()
