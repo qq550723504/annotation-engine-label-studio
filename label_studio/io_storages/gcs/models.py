@@ -18,6 +18,7 @@ from google.auth.transport.requests import AuthorizedSession
 from io_storages.base_models import (
     ExportStorage,
     ExportStorageLink,
+    serialize_mutable_delivery,
     ImportStorage,
     ImportStorageLink,
     ProjectStorageMixin,
@@ -247,6 +248,7 @@ class GCSImportStorage(ProjectStorageMixin, GCSImportStorageBase):
 
 
 class GCSExportStorage(GCSStorageMixin, ExportStorage):
+    @serialize_mutable_delivery
     def save_annotation(self, annotation):
         bucket = self.get_bucket()
         logger.debug(f'Creating new object on {self.__class__.__name__} Storage {self} for annotation {annotation}')
