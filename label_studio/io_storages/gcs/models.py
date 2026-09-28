@@ -288,14 +288,19 @@ def async_export_annotation_to_gcs_storages(annotation: 'Annotation | int'):
             storage.save_annotation(annotation)
 
 
+def _dispatch_gcs_annotation_export(annotation_id):
+    try:
+        start_job_async_or_sync(async_export_annotation_to_gcs_storages, annotation_id)
+    except Exception:
+        logger.exception(f'Post-commit export_annotation_to_gcs_storages dispatch failed for annotation {annotation_id}')
+
+
 @receiver(post_save, sender=Annotation)
 def export_annotation_to_gcs_storages(sender, instance, **kwargs):
     storages = getattr(instance.project, 'io_storages_gcsexportstorages', None)
     if storages and storages.exists():  # avoid excess jobs in rq
         annotation_id = instance.pk
-        transaction.on_commit(
-            lambda annotation_id=annotation_id: start_job_async_or_sync(async_export_annotation_to_gcs_storages, annotation_id)
-        )
+        transaction.on_commit(lambda annotation_id=annotation_id: _dispatch_gcs_annotation_export(annotation_id))
 
 
 class GCSImportStorageLink(ImportStorageLink):
