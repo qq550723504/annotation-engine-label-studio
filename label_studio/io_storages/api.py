@@ -9,6 +9,7 @@ from access_control.project_access import get_managed_project_or_404, managed_pr
 from core.permissions import ViewClassPermission, all_permissions
 from core.utils.io import read_yaml
 from django.conf import settings
+from django.db import transaction
 from drf_spectacular.utils import extend_schema
 from io_storages.serializers import ExportStorageSerializer, ImportStorageSerializer
 from projects.models import Project
