@@ -1,11 +1,17 @@
+from unittest.mock import patch
+
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import urlencode
+from organizations.models import OrganizationMember
+from organizations.tests.factories import OrganizationFactory
+from projects.models import Project, ProjectMember
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APIClient, APITestCase
 from tasks.models import Task
 from tasks.tests.factories import PredictionFactory, TaskFactory
+from users.tests.factories import UserFactory
 
 
 class TestProjectCountsListAPI(TestCase):
@@ -90,3 +96,101 @@ class TestProjectModelVersionsAPI(APITestCase):
         assert response.json()['static'][1]['count'] == 1
         assert response.json()['static'][2]['model_version'] == 'model_1'
         assert response.json()['static'][2]['count'] == 2
+
+
+
+class TestProjectMemberAuthorizationHardening(APITestCase):
+    def setUp(self):
+        self.organization = OrganizationFactory()
+        self.manager = self.organization.created_by
+        self.project = ProjectFactory(
+            organization=self.organization,
+            created_by=self.manager,
+        )
+        ProjectMember.objects.update_or_create(
+            project=self.project,
+            user=self.manager,
+            defaults={'role': ProjectMember.Role.MANAGER, 'enabled': True},
+        )
+        self.client.force_authenticate(user=self.manager)
+
+    def _add_org_user(self):
+        user = UserFactory(active_organization=self.organization)
+        self.organization.add_user(user)
+        return user
+
+    def test_project_member_identity_is_immutable_on_update(self):
+        original_user = self._add_org_user()
+        replacement_user = self._add_org_user()
+        membership = ProjectMember.objects.create(
+            project=self.project,
+            user=original_user,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+
+        response = self.client.patch(
+            f'/api/projects/{self.project.id}/members/{membership.id}/',
+            data={'user_id': replacement_user.id},
+            format='json',
+        )
+
+        assert response.status_code == 400
+        membership.refresh_from_db()
+        assert membership.user_id == original_user.id
+
+    def test_soft_deleted_org_manager_does_not_satisfy_manager_quorum(self):
+        organization = OrganizationFactory()
+        manager_a = organization.created_by
+        manager_b = UserFactory(active_organization=organization)
+        organization.add_user(manager_b)
+        project = ProjectFactory(
+            organization=organization,
+            created_by=None,
+        )
+        member_a = ProjectMember.objects.create(
+            project=project,
+            user=manager_a,
+            role=ProjectMember.Role.MANAGER,
+            enabled=True,
+        )
+        ProjectMember.objects.create(
+            project=project,
+            user=manager_b,
+            role=ProjectMember.Role.MANAGER,
+            enabled=True,
+        )
+        OrganizationMember.objects.filter(
+            organization=organization,
+            user=manager_b,
+        ).update(deleted_at=timezone.now())
+
+        self.client.force_authenticate(user=manager_a)
+        response = self.client.patch(
+            f'/api/projects/{project.id}/members/{member_a.id}/',
+            data={'role': ProjectMember.Role.REVIEWER},
+            format='json',
+        )
+
+        assert response.status_code == 400
+        member_a.refresh_from_db()
+        assert member_a.role == ProjectMember.Role.MANAGER
+
+    def test_manager_membership_mutation_locks_project_row(self):
+        other_manager = self._add_org_user()
+        member = ProjectMember.objects.create(
+            project=self.project,
+            user=other_manager,
+            role=ProjectMember.Role.MANAGER,
+            enabled=True,
+        )
+
+        with patch.object(Project.objects, 'select_for_update', wraps=Project.objects.select_for_update) as lock_project:
+            response = self.client.patch(
+                f'/api/projects/{self.project.id}/members/{member.id}/',
+                data={'role': ProjectMember.Role.REVIEWER},
+                format='json',
+            )
+
+        assert response.status_code == 200, response.json()
+        lock_project.assert_called()
