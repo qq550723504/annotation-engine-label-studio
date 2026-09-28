@@ -227,8 +227,11 @@ class ExportAPI(generics.RetrieveAPIView):
             qs = qs.with_state()
         return qs
 
+    @transaction.atomic
     def get(self, request, *args, **kwargs):
-        project = require_immutable_release_boundary(self.get_object())
+        visible_project = self.get_object()
+        project = Project.objects.select_for_update().get(pk=visible_project.pk)
+        require_immutable_release_boundary(project)
         query_serializer = ExportParamSerializer(data=request.GET)
         query_serializer.is_valid(raise_exception=True)
 
