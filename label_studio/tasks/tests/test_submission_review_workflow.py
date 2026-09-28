@@ -2,6 +2,7 @@ from organizations.tests.factories import OrganizationFactory
 from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
+from data_export.models import Export
 from tasks.models import Annotation, ReviewDecision, Submission, TaskAssignment
 from tasks.tests.factories import TaskFactory
 from users.tests.factories import UserFactory
@@ -98,6 +99,71 @@ class TestSubmissionReviewWorkflow(APITestCase):
         submission.refresh_from_db()
         assert submission.result_snapshot['annotation']['result'] == original_result
         assert submission.status == Submission.Status.PENDING
+
+
+    def test_multipart_false_submit_flag_does_not_create_revision(self):
+        annotation, first = self._submit_new_annotation()
+        self.assignment.refresh_from_db()
+
+        self.client.force_authenticate(user=self.annotator)
+        response = self.client.patch(
+            f'/api/annotations/{annotation.id}/',
+            data={
+                'result': '[]',
+                'assignment_id': str(self.assignment.id),
+                'assignment_version': str(self.assignment.version),
+                'submit_for_review': 'false',
+            },
+            format='multipart',
+        )
+
+        assert response.status_code == 200, response.json()
+        assert Submission.objects.filter(assignment=self.assignment).count() == 1
+        first.refresh_from_db()
+        assert first.status == Submission.Status.PENDING
+
+    def test_submission_snapshot_preserves_exact_label_config(self):
+        original_label_config = self.project.label_config
+        _, submission = self._submit_new_annotation()
+
+        assert submission.result_snapshot['project']['label_config'] == original_label_config
+        assert submission.result_snapshot['project']['label_config_hash'] == self.project.label_config_hash
+
+        self.project.label_config = '<View><Text name="changed" value="$text"/></View>'
+        self.project.save(update_fields=['label_config'])
+
+        submission.refresh_from_db()
+        assert submission.result_snapshot['project']['label_config'] == original_label_config
+
+    def test_formal_submission_disables_mutable_export_paths(self):
+        snapshot = Export.objects.create(project=self.project, created_by=self.manager)
+        _, submission = self._submit_new_annotation()
+
+        self.client.force_authenticate(user=self.manager)
+
+        sync_export = self.client.get(f'/api/projects/{self.project.id}/export')
+        snapshot_list = self.client.get(f'/api/projects/{self.project.id}/exports/')
+        snapshot_detail = self.client.get(f'/api/projects/{self.project.id}/exports/{snapshot.id}')
+        snapshot_convert = self.client.post(
+            f'/api/projects/{self.project.id}/exports/{snapshot.id}/convert',
+            data={'export_type': 'JSON'},
+            format='json',
+        )
+        legacy_files = self.client.get(f'/api/projects/{self.project.id}/export/files')
+        legacy_auth = self.client.get(
+            '/api/auth/export/',
+            HTTP_X_ORIGINAL_URI=f'/export/{self.project.id}-legacy.json',
+        )
+
+        assert sync_export.status_code == 400
+        assert snapshot_list.status_code == 400
+        assert snapshot_detail.status_code == 400
+        assert snapshot_convert.status_code == 400
+        assert legacy_files.status_code in (400, 404)
+        assert legacy_auth.status_code == 400
+
+        release_pending = self.client.get(f'/api/submissions/{submission.id}/release/')
+        assert release_pending.status_code == 400
 
     def test_resubmit_supersedes_old_pending_revision(self):
         annotation, first = self._submit_new_annotation()
