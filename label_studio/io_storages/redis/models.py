@@ -157,20 +157,20 @@ class RedisExportStorage(RedisStorageMixin, ExportStorage):
 def _export_annotation_to_redis_storages(annotation_id):
     try:
         annotation = Annotation.objects.get(pk=annotation_id)
+        project = annotation.project
+        if hasattr(project, 'io_storages_redisexportstorages'):
+            for storage in project.io_storages_redisexportstorages.all():
+                if storage.has_formal_submissions():
+                    logger.info(
+                        f'Skip mutable Redis export for annotation {annotation.id}: formal submissions exist'
+                    )
+                    continue
+                logger.debug(f'Export {annotation} to Redis storage {storage}')
+                storage.save_annotation(annotation)
     except Annotation.DoesNotExist:
         logger.info(f'Annotation {annotation_id} no longer exists, skipping Redis export')
-        return
-
-    project = annotation.project
-    if hasattr(project, 'io_storages_redisexportstorages'):
-        for storage in project.io_storages_redisexportstorages.all():
-            if storage.has_formal_submissions():
-                logger.info(
-                    f'Skip mutable Redis export for annotation {annotation.id}: formal submissions exist'
-                )
-                continue
-            logger.debug(f'Export {annotation} to Redis storage {storage}')
-            storage.save_annotation(annotation)
+    except Exception:
+        logger.exception(f'Post-commit Redis export failed for annotation {annotation_id}')
 
 
 @receiver(post_save, sender=Annotation)
