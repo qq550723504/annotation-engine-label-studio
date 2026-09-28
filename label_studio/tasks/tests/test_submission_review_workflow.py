@@ -377,6 +377,8 @@ class TestSubmissionReviewWorkflow(APITestCase):
 
     def test_export_storage_batch_failure_does_not_report_completed(self):
         storage = AzureBlobExportStorageFactory(project=self.project)
+        storage.status = storage.Status.QUEUED
+        storage.save(update_fields=['status'])
         annotations = Annotation.objects.filter(pk__in=[])
 
         from unittest.mock import Mock, patch
