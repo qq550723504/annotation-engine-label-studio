@@ -260,6 +260,49 @@ class TestTaskAssignmentAuthorization(APITestCase):
         serializer_validate.assert_not_called()
         validate_connection.assert_not_called()
 
+
+    def test_existing_storage_validate_rejects_submitted_foreign_project_before_serializer_validation(self):
+        other_manager = UserFactory(active_organization=self.organization)
+        self.organization.add_user(other_manager)
+        other_project = ProjectFactory(
+            organization=self.organization,
+            created_by=other_manager,
+        )
+        ProjectMember.objects.create(
+            project=other_project,
+            user=self.annotator_a,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+
+        from io_storages.s3.models import S3ImportStorage
+
+        storage = S3ImportStorage.objects.create(
+            project=self.project,
+            bucket='authorized-storage',
+            title='authorized-storage',
+        )
+
+        self.client.force_authenticate(user=self.manager)
+        with (
+            patch('io_storages.s3.serializers.S3ImportStorageSerializer.validate') as serializer_validate,
+            patch('io_storages.s3.models.S3ImportStorage.validate_connection') as validate_connection,
+        ):
+            response = self.client.post(
+                '/api/storages/s3/validate',
+                data={
+                    'id': storage.id,
+                    'project': other_project.id,
+                    'bucket': 'attacker-controlled',
+                    'title': 'attacker-controlled',
+                },
+                format='json',
+            )
+
+        assert response.status_code in (403, 404)
+        serializer_validate.assert_not_called()
+        validate_connection.assert_not_called()
+
     def test_storage_create_foreign_project_id_is_denied_before_connection_validation(self):
         other_creator = UserFactory(active_organization=self.organization)
         self.organization.add_user(other_creator)
