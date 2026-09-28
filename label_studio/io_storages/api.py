@@ -21,6 +21,21 @@ from rest_framework.response import Response
 logger = logging.getLogger(__name__)
 
 
+def _run_export_storage_auto_sync(storage_class, storage_id):
+    try:
+        storage = storage_class.objects.get(pk=storage_id)
+        storage.sync()
+    except Exception:
+        logger.exception(f'Post-commit export storage auto-sync failed for storage {storage_id}')
+        try:
+            storage = storage_class.objects.filter(pk=storage_id).first()
+            if storage is not None:
+                storage.info_set_failed()
+        except Exception:
+            logger.exception(f'Failed to mark export storage {storage_id} as failed after auto-sync error')
+
+
+
 def _validated_project_id(request):
     if not hasattr(request.data, 'get'):
         raise ValidationError('Request body must be a JSON object.')
@@ -135,9 +150,9 @@ class ExportStorageListAPI(generics.ListCreateAPIView):
                 storage_id = storage.id
                 storage_class = storage.__class__
                 transaction.on_commit(
-                    lambda storage_class=storage_class, storage_id=storage_id: storage_class.objects.get(
-                        pk=storage_id
-                    ).sync()
+                    lambda storage_class=storage_class, storage_id=storage_id: _run_export_storage_auto_sync(
+                        storage_class, storage_id
+                    )
                 )
 
 
