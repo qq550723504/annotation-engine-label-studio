@@ -12,9 +12,11 @@ Cypress.Commands.add('loginAs', (email: string, password: string, nextPath = '/'
   cy.clearCookies();
   cy.clearLocalStorage();
 
-  cy.visit(`/user/login/?next=${encodeURIComponent(nextPath)}`);
-  cy.get('#email').should('be.visible').clear().type(email);
-  cy.get('#password').should('be.visible').clear().type(password, { log: false });
+  const loginPath = `/user/login/?next=${encodeURIComponent(nextPath)}`;
+  cy.visit(loginPath);
+  cy.location('pathname', { timeout: 30000 }).should('eq', '/user/login/');
+  cy.get('#email', { timeout: 30000 }).should('be.visible').clear().type(email);
+  cy.get('#password', { timeout: 30000 }).should('be.visible').clear().type(password, { log: false });
   cy.get('button[aria-label="Log In"]').click();
 
   cy.location('pathname', { timeout: 20000 }).should('not.eq', '/user/login/');
