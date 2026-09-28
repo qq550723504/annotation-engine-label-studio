@@ -138,6 +138,22 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.get('button[aria-label="Close modal"]').first().click();
   };
 
+  const waitForDraft = (taskId: number, attempts = 60): Cypress.Chainable<Cypress.Response<unknown>> => {
+    return cy.request({
+      url: `/api/tasks/${taskId}/drafts`,
+      failOnStatusCode: false,
+    }).then((response) => {
+      if (response.status === 200 && Array.isArray(response.body) && response.body.length > 0) {
+        return cy.wrap(response, { log: false });
+      }
+      if (attempts <= 1) {
+        throw new Error(`Draft for task ${taskId} did not become visible through the API`);
+      }
+      return cy.wait(250, { log: false }).then(() => waitForDraft(taskId, attempts - 1));
+    });
+  };
+
+
   const assertRestrictedManagerWrites = () => {
     cy.request({
       url: `/api/projects/${projectId()}/export`,
@@ -216,11 +232,9 @@ describe("full enterprise collaboration browser workflow", () => {
       fixture.full_flow.tasks.a.id,
       "Full flow Annotator A task",
     );
-    cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.a.id}/drafts*`).as("draftRevision1");
     choose("Positive", fixture.full_flow.tasks.a.id);
 
-    cy.wait("@draftRevision1", { timeout: 30000 }).its("response.statusCode").should("be.oneOf", [200, 201]);
-    cy.request(`/api/tasks/${fixture.full_flow.tasks.a.id}/drafts`).then((drafts) => {
+    waitForDraft(fixture.full_flow.tasks.a.id).then((drafts) => {
       expect(drafts.status).to.eq(200);
       expect(drafts.body.length).to.be.greaterThan(0);
     });
@@ -351,11 +365,8 @@ describe("full enterprise collaboration browser workflow", () => {
       "Full flow stale editor task",
     );
 
-    cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.stale.id}/drafts*`).as("staleWritableDraft");
     choose("Positive", fixture.full_flow.tasks.stale.id);
-    cy.wait("@staleWritableDraft", { timeout: 30000 })
-      .its("response.statusCode")
-      .should("be.oneOf", [200, 201]);
+    waitForDraft(fixture.full_flow.tasks.stale.id);
 
     cy.request(`/api/tasks/${fixture.full_flow.tasks.stale.id}/`).then((taskResponse) => {
       expect(taskResponse.status).to.eq(200);
