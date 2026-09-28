@@ -5,6 +5,7 @@ import json
 
 from django.db import transaction
 from django.db.models import Max
+from projects.models import Project
 from rest_framework.exceptions import ValidationError
 
 from tasks.models import ReviewDecision, Submission, TaskAssignment
@@ -47,6 +48,8 @@ def create_submission(*, assignment, annotation, actor):
     Pending older revisions become superseded. Previously approved/rejected
     revisions remain immutable historical evidence.
     """
+
+    Project.objects.select_for_update().get(pk=assignment.project_id)
 
     assignment = (
         TaskAssignment.objects.select_for_update()
