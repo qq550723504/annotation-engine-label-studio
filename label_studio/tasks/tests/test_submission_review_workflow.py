@@ -3,6 +3,8 @@ from projects.models import ProjectMember
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
 from data_export.models import Export
+from io_storages.tests.factories import AzureBlobExportStorageFactory
+from rest_framework.exceptions import ValidationError
 from tasks.models import Annotation, ReviewDecision, Submission, TaskAssignment
 from tasks.tests.factories import TaskFactory
 from users.tests.factories import UserFactory
@@ -159,11 +161,48 @@ class TestSubmissionReviewWorkflow(APITestCase):
         assert snapshot_list.status_code == 400
         assert snapshot_detail.status_code == 400
         assert snapshot_convert.status_code == 400
-        assert legacy_files.status_code in (400, 404)
+        assert legacy_files.status_code == 400
         assert legacy_auth.status_code == 400
 
         release_pending = self.client.get(f'/api/submissions/{submission.id}/release/')
         assert release_pending.status_code == 400
+
+
+    def test_submission_rejects_annotation_relation_swap_and_rolls_back(self):
+        annotation, first = self._submit_new_annotation()
+        other_project = ProjectFactory(organization=self.organization)
+        other_task = TaskFactory(project=other_project)
+        self.assignment.refresh_from_db()
+
+        self.client.force_authenticate(user=self.annotator)
+        response = self.client.patch(
+            f'/api/annotations/{annotation.id}/',
+            data={
+                'task': other_task.id,
+                'project': other_project.id,
+                'result': [],
+                'assignment_id': self.assignment.id,
+                'assignment_version': self.assignment.version,
+                'submit_for_review': True,
+            },
+            format='json',
+        )
+
+        assert response.status_code == 400
+        annotation.refresh_from_db()
+        assert annotation.task_id == self.task.id
+        assert annotation.project_id == self.project.id
+        assert Submission.objects.filter(assignment=self.assignment).count() == 1
+        first.refresh_from_db()
+        assert first.status == Submission.Status.PENDING
+
+    def test_export_storage_sync_fails_closed_after_formal_submission(self):
+        AzureBlobExportStorageFactory(project=self.project)
+        self._submit_new_annotation()
+        storage = self.project.io_storages_azureblobexportstorages.get()
+
+        with self.assertRaises(ValidationError):
+            storage.sync()
 
     def test_resubmit_supersedes_old_pending_revision(self):
         annotation, first = self._submit_new_annotation()
