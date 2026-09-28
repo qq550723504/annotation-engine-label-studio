@@ -660,8 +660,8 @@ class DataManagerTaskSerializer(TaskSerializer):
 
         drafts = task.drafts
         if 'request' in self.context and hasattr(self.context['request'], 'user'):
-            user = self.context['request'].user
-            drafts = self.get_drafts_queryset(user, drafts)
+            principal = resolve_principal(self.context['request'])
+            drafts = drafts.filter(user_id=principal.local_user_id)
 
         serializer_class = self.get_drafts_serializer()
         return serializer_class(drafts, many=True, read_only=True, default=True, context=self.context).data
