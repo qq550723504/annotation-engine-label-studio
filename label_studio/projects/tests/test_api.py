@@ -139,6 +139,65 @@ class TestProjectMemberAuthorizationHardening(APITestCase):
         membership.refresh_from_db()
         assert membership.user_id == original_user.id
 
+
+    def test_full_update_allows_unchanged_member_identity(self):
+        user = self._add_org_user()
+        membership = ProjectMember.objects.create(
+            project=self.project,
+            user=user,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+
+        response = self.client.put(
+            f'/api/projects/{self.project.id}/members/{membership.id}/',
+            data={
+                'user_id': user.id,
+                'role': ProjectMember.Role.REVIEWER,
+                'enabled': True,
+            },
+            format='json',
+        )
+
+        assert response.status_code == 200, response.json()
+        membership.refresh_from_db()
+        assert membership.user_id == user.id
+        assert membership.role == ProjectMember.Role.REVIEWER
+
+    def test_revoked_manager_cannot_mutate_membership(self):
+        revoked_manager = self._add_org_user()
+        target_user = self._add_org_user()
+        revoked_membership = ProjectMember.objects.create(
+            project=self.project,
+            user=revoked_manager,
+            role=ProjectMember.Role.MANAGER,
+            enabled=True,
+        )
+        target_membership = ProjectMember.objects.create(
+            project=self.project,
+            user=target_user,
+            role=ProjectMember.Role.ANNOTATOR,
+            enabled=True,
+        )
+
+        response = self.client.patch(
+            f'/api/projects/{self.project.id}/members/{revoked_membership.id}/',
+            data={'enabled': False},
+            format='json',
+        )
+        assert response.status_code == 200, response.json()
+
+        self.client.force_authenticate(user=revoked_manager)
+        response = self.client.patch(
+            f'/api/projects/{self.project.id}/members/{target_membership.id}/',
+            data={'role': ProjectMember.Role.REVIEWER},
+            format='json',
+        )
+
+        assert response.status_code in (403, 404)
+        target_membership.refresh_from_db()
+        assert target_membership.role == ProjectMember.Role.ANNOTATOR
+
     def test_soft_deleted_org_manager_does_not_satisfy_manager_quorum(self):
         organization = OrganizationFactory()
         manager_a = organization.created_by
