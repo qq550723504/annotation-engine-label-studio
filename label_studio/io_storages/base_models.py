@@ -33,6 +33,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from fsm.functions import backfill_fsm_states_for_tasks
 from io_storages.utils import StorageObject, get_uri_via_regex, parse_bucket_uri
+from projects.models import Project
 from rest_framework.exceptions import ValidationError
 from rq.job import Job
 from tasks.models import Annotation, Submission, Task
@@ -772,7 +773,9 @@ class ExportStorage(Storage, ProjectStorageMixin):
     def has_formal_submissions(self):
         return Submission.objects.filter(assignment__project=self.project).exists()
 
-    def require_mutable_delivery_allowed(self):
+    def require_mutable_delivery_allowed(self, *, lock_project=False):
+        if lock_project:
+            Project.objects.select_for_update().get(pk=self.project_id)
         if self.has_formal_submissions():
             raise ValidationError(
                 'Export storage delivery is disabled after formal submissions exist. '
