@@ -200,6 +200,13 @@ class TestAnnotationActorSecurity(APITestCase):
             annotation=annotation,
             status=TaskAssignment.Status.IN_PROGRESS,
         )
+        draft = AnnotationDraft.objects.create(
+            task=task,
+            annotation=annotation,
+            user=mapped_actor,
+            assignment=assignment,
+            result=[],
+        )
 
         class MappedProvider:
             def resolve(self, request):
@@ -272,6 +279,7 @@ class TestAnnotationActorSecurity(APITestCase):
         assert item["assignment_id"] == assignment.id
         assert item["assignment_version"] == assignment.version
         assert {entry["id"] for entry in item["annotations"]} == {annotation.id}
+        assert {entry["id"] for entry in item["drafts"]} == {draft.id}
 
     def test_convert_to_draft_uses_mapped_actor_as_owner(self):
         mapped_actor = UserFactory(active_organization=self.organization)
@@ -319,6 +327,23 @@ class TestAnnotationActorSecurity(APITestCase):
         assert draft.user_id == mapped_actor.id
         assert draft.assignment_id == assignment.id
         assert not Annotation.objects.filter(pk=annotation.id).exists()
+
+        with patch("access_control.identity.get_identity_provider", return_value=MappedProvider()):
+            submit_response = self.client.post(
+                f"/api/tasks/{task.id}/annotations/",
+                data={
+                    "result": [],
+                    "draft_id": draft.id,
+                    "assignment_id": assignment.id,
+                    "assignment_version": assignment.version,
+                },
+                format="json",
+            )
+
+        assert submit_response.status_code == 201, submit_response.json()
+        submitted = Annotation.objects.get(pk=submit_response.json()["id"])
+        assert submitted.completed_by_id == mapped_actor.id
+        assert not AnnotationDraft.objects.filter(pk=draft.id).exists()
 
     def test_async_import_rejects_mapped_actor_outside_project_scope_before_queueing(self):
         foreign_actor = UserFactory()
@@ -498,3 +523,34 @@ class TestAnnotationActorSecurity(APITestCase):
 
         assert response.status_code == 403
         load_tasks.assert_not_called()
+
+
+    def test_malformed_assignment_id_returns_conflict_instead_of_server_error(self):
+        task = TaskFactory(project=self.project)
+        annotation = AnnotationFactory(
+            task=task,
+            project=self.project,
+            completed_by=self.actor,
+            updated_by=self.actor,
+            result=[],
+        )
+        TaskAssignment.objects.create(
+            task=task,
+            project=self.project,
+            assignee=self.actor,
+            assigned_by=self.actor,
+            annotation=annotation,
+            status=TaskAssignment.Status.IN_PROGRESS,
+        )
+
+        response = self.client.patch(
+            f"/api/annotations/{annotation.id}/",
+            data={
+                "result": [],
+                "assignment_id": "stale",
+                "assignment_version": 1,
+            },
+            format="json",
+        )
+
+        assert response.status_code == 409
