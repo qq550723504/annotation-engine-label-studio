@@ -21,14 +21,30 @@ Do not implement #47 or #48 by weakening the acceptance boundary of #46.
 In particular, project membership, assignment, review, and release authorization
 remain separate server-side controls.
 
-## Shared invariants
+## Normative security model
 
-1. A copied browser cookie that was revoked must not authenticate a later request.
-2. Revocation is authoritative on the server and consistent across workers.
-3. Raw cookies, session keys, and authentication hashes must never be logged.
-4. Legacy signed-cookie compatibility is not part of the migration path.
-5. API token/JWT semantics are unchanged by this work.
-6. Each delivery must keep Fork PR Gate and Enterprise Browser E2E green.
+The root contract is [session-security-invariants.md](./session-security-invariants.md).
+
+All implementation and review for #46-#48 must be evaluated against that model
+before adding issue-specific exceptions. In particular, the normative invariants
+cover:
+
+- server-authoritative browser-session validity;
+- monotonic invalidation;
+- authoritative state transitions;
+- transaction atomicity;
+- actor/target/reason authorization;
+- migration and recovery barriers;
+- durable transactional audit intent.
+
+Child documents define delivery mechanics, not separate security models.
+
+The following shared constraints also remain in force:
+
+1. Raw cookies, session keys, and authentication hashes must never be logged.
+2. Legacy signed-cookie compatibility is not part of the migration path.
+3. API token/JWT semantics are unchanged by this work.
+4. Each delivery must keep Fork PR Gate and Enterprise Browser E2E green.
 
 ## Relationship to PR #45
 
