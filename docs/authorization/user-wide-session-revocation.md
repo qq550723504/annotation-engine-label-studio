@@ -133,8 +133,8 @@ security-version increment are one atomic security operation. Target discovery
 alone is not enough: before mutating, the disable path must lock/reload the
 authoritative user row(s) inside the transaction and re-evaluate whether each
 target is still active. Only the transaction that observes and performs the real
-`True -> False` transition may advance that user's version and create the
-`account_disabled` audit intent. If version
+`True -> False` transition may advance that user's version. Audit persistence is
+owned by #48 and must not be required for #47 to be independently correct. If version
 advancement fails, the account-state mutation must roll back as well. No supported
 disable path may commit a disabled account without also advancing the revocation
 boundary.
@@ -205,12 +205,12 @@ unknown code.
 - a new login after revoke succeeds;
 - concurrent revoke calls do not decrease or lose the version;
 - account disable through ordinary model `save()` advances the revocation boundary only for a real active-to-inactive transition and replay remains rejected after re-enable;
-- saving an already inactive user, including unrelated field updates, does not advance the version and does not emit another disable event;
+- saving an already inactive user, including unrelated field updates, does not advance the version; #48 separately verifies no duplicate disable audit event;
 - account disable through `QuerySet.update()` advances the revocation boundary for every target that actually transitions active-to-inactive and replay remains rejected for every copied cookie after re-enable;
 - repeating `QuerySet.update(is_active=False)` over already inactive users is a no-op for security version/audit;
 - account disable through `bulk_update()` advances the revocation boundary only for targets that actually transition active-to-inactive;
-- a mixed `bulk_update()` containing active and already-inactive users advances/emits only for the active-to-inactive subset;
-- two concurrent transactions attempting to disable the same active user serialize/revalidate against authoritative state so exactly one transaction performs the real `True -> False` transition, exactly one session-version advance occurs, and exactly one `account_disabled` audit intent is committed;
+- a mixed `bulk_update()` containing active and already-inactive users advances only for the active-to-inactive subset; #48 separately verifies audit emission only for that subset;
+- two concurrent transactions attempting to disable the same active user serialize/revalidate against authoritative state so exactly one transaction performs the real `True -> False` transition, exactly one session-version advance occurs; #48 separately verifies exactly-once audit intent for that transition;
 - include a concurrency regression for a queryset/bulk-style path where targets are discovered before mutation, proving the second transaction does not act on stale pre-lock active state;
 - multi-user `QuerySet.update()` and `bulk_update()` regressions verify every target's counter/version, every retained pre-disable cookie, and successful re-enable semantics;
 - inject a failure after at least one target in a multi-user `QuerySet.update()` and `bulk_update()` batch has been processed; the entire batch must roll back, with no partially disabled users and no partially advanced session versions;
