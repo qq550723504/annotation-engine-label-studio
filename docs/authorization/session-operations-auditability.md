@@ -140,7 +140,10 @@ The production runbook should require:
 7. enable cleanup schedule;
 8. verify cross-worker logout/replay;
 9. verify user-wide revocation;
-10. verify audit events contain no secrets.
+10. start/enable the durable-audit dispatcher and retry schedule;
+11. verify dispatcher backlog/age is observable and alerts on sustained growth;
+12. verify committed audit intents drain continuously under normal operation;
+13. verify audit events contain no secrets.
 
 ## Rollback constraints
 
@@ -231,8 +234,13 @@ Require both positive and transactional coverage:
 - simulate process exit or audit-sink failure after the security transaction and
   durable audit intent commit but before delivery; on restart/retry, the durable
   audit record is eventually delivered;
-- retrying delivery uses a stable event ID/idempotency key and must not create
-  duplicate logical success events for one committed state transition.
+- inject a crash **after the sink has accepted the event but before the dispatcher
+  records local acknowledgement**; after restart the same event ID is retried and
+  the sink/adapter deduplicates it so only one logical success event exists;
+- verify the dispatcher never records acknowledgement before sink acceptance;
+- retrying delivery uses a stable event ID/idempotency key plus sink/adapter-side
+  deduplication and must not create duplicate logical success events for one
+  committed state transition.
 
 ### Log-safety tests
 
@@ -247,9 +255,19 @@ and verify rejection.
 
 ### Operations evidence
 
-Record the deployed cleanup schedule, cutover result, and rollback constraint in
-operator-facing documentation. CI can verify configuration code; it cannot prove a
-production scheduler is enabled.
+Record the deployed cleanup schedule, cutover result, rollback constraint, and
+durable-audit dispatcher operating evidence in operator-facing documentation.
+
+Dispatcher evidence must include:
+
+- the enabled dispatcher/retry schedule or continuously running worker;
+- observable pending/backlog count and oldest-event age;
+- alerting/escalation for sustained backlog growth;
+- evidence that committed intents continue to drain;
+- restart evidence covering retry after process/sink failure.
+
+CI can verify configuration and dispatcher behavior; it cannot by itself prove a
+production scheduler/worker remains enabled.
 
 ## Non-goals
 
