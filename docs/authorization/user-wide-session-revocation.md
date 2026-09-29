@@ -108,6 +108,8 @@ hidden in free text.
 - disabling an account advances the revocation boundary;
 - re-enable does not reactivate old sessions;
 - stale ordinary user saves cannot overwrite the counter;
+- deleting/missing the security-version record causes an already-authenticated browser session to fail closed on its next request;
+- deleting/missing the security-version record also prevents a new browser login from silently recreating a default version or authenticating;
 - actor authorization is enforced;
 - password change remains compatible;
 - token/JWT behavior is unchanged;
