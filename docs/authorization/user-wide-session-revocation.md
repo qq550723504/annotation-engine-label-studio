@@ -65,6 +65,10 @@ The operation must atomically increment the user's version.
 The public API/admin layer must derive `actor` from trusted authenticated context;
 it must never accept an arbitrary actor ID from a client payload.
 
+Before authorizing a revocation, reload the actor's current active state and
+permissions from authoritative server storage. Do not trust a stale in-memory
+administrator/staff object for this security decision.
+
 ## Authorized triggers
 
 At minimum:
@@ -111,8 +115,10 @@ Also keep these boundaries separate:
 The service accepts structured `reason` and `actor` inputs so #48 can emit
 security audit events without exposing raw session material.
 
-Prefer a fixed reason-code vocabulary rather than arbitrary security semantics
-hidden in free text.
+Require a fixed, allow-listed reason-code vocabulary. Arbitrary reason text must
+be rejected before audit emission; callers must not be able to place cookies,
+session keys, authentication material, or other untrusted free text into the
+security audit reason field.
 
 ## Required tests
 
@@ -128,8 +134,10 @@ hidden in free text.
 - stale ordinary user saves cannot overwrite the counter;
 - deleting/missing the security-version record causes an already-authenticated browser session to fail closed on its next request;
 - deleting/missing the security-version record also prevents a new browser login from silently recreating a default version or authenticating;
-- actor authorization is enforced at the service boundary;
+- actor authorization is enforced at the service boundary using freshly reloaded active state and permissions from authoritative storage;
+- a negative regression revokes the actor's administrative permission or disables the actor directly in the database after an actor object has already been loaded, then verifies that stale privileges cannot revoke another user's sessions;
 - a direct API/admin request that submits another user's actor ID cannot choose or override the revocation actor; the authenticated server-side principal remains authoritative;
+- arbitrary/free-text revocation reasons are rejected, including a value shaped like a copied cookie/session key; only allow-listed reason codes reach audit logging;
 - password change remains compatible;
 - token/JWT behavior is unchanged;
 - multi-worker behavior is consistent.
