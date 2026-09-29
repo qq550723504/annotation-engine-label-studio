@@ -244,7 +244,7 @@ unknown code.
 - an ordinary authenticated human user cannot perform an account-disable transition;
 - a staff user lacking `users.change_user` cannot perform an account-disable transition;
 - a non-request/background/system account-disable attempt without that human authority is rejected by #47 itself;
-- arbitrary/free-text revocation reasons are rejected, including a value shaped like a copied cookie/session key; only allow-listed reason codes reach audit logging;
+- arbitrary/free-text revocation reasons are rejected, including a value shaped like a copied cookie/session key; only allow-listed reason codes are accepted by the #47 service boundary;
 - self-service revocation accepts `logout_all_devices` and rejects administrative-only codes such as `administrator`, `account_disabled`, and `credential_compromise`;
 - a direct call to generic `revoke_all_sessions()` with `reason='account_disabled'` is rejected even for an authorized administrator when the target is still active; only the trusted atomic disable operation may emit that reason;
 - password change remains compatible;
