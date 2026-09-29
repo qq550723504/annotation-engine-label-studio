@@ -100,6 +100,12 @@ The version increment must be transactional and safe under concurrent revocation
 A stale in-memory user object must not be able to write an older version back over
 the security counter.
 
+For account disablement, the `is_active=False` state transition and the
+security-version increment are one atomic security operation. If version
+advancement fails, the account-state mutation must roll back as well. No supported
+disable path may commit a disabled account without also advancing the revocation
+boundary.
+
 Required invariant:
 
 ```text
@@ -134,6 +140,17 @@ be rejected before audit emission; callers must not be able to place cookies,
 session keys, authentication material, or other untrusted free text into the
 security audit reason field.
 
+Reason codes are also authority-scoped:
+
+- self-service revoke-all may use only `logout_all_devices`;
+- `administrator` requires the cross-user administrator authority defined above;
+- `account_disabled` is emitted only by the supported account-disable paths;
+- `credential_compromise` requires administrator/security authority and is not
+  accepted from ordinary self-service callers.
+
+A valid code with the wrong caller authority must be rejected just like an
+unknown code.
+
 ## Required tests
 
 - migration/backfill creates a security-version row for every pre-existing user and those users can authenticate after cutover;
@@ -145,6 +162,7 @@ security audit reason field.
 - account disable through ordinary model `save()` advances the revocation boundary and replay remains rejected after re-enable;
 - account disable through `QuerySet.update()` advances the revocation boundary and replay remains rejected after re-enable;
 - account disable through `bulk_update()` advances the revocation boundary and replay remains rejected after re-enable;
+- inject revocation/version-write failure for model `save()`, `QuerySet.update()`, and `bulk_update()`; in each case the disable mutation rolls back and no partial disabled-without-revocation state commits;
 - stale ordinary user saves cannot overwrite the counter;
 - deleting/missing the security-version record causes an already-authenticated browser session to fail closed on its next request;
 - deleting/missing the security-version record also prevents a new browser login from silently recreating a default version or authenticating;
@@ -156,6 +174,7 @@ security audit reason field.
 - a negative regression revokes the actor's administrative permission or disables the actor directly in the database after an actor object has already been loaded, then verifies that stale privileges cannot revoke another user's sessions;
 - a direct API/admin request that submits another user's actor ID cannot choose or override the revocation actor; the authenticated server-side principal remains authoritative;
 - arbitrary/free-text revocation reasons are rejected, including a value shaped like a copied cookie/session key; only allow-listed reason codes reach audit logging;
+- self-service revocation accepts `logout_all_devices` and rejects administrative-only codes such as `administrator`, `account_disabled`, and `credential_compromise`;
 - password change remains compatible;
 - token/JWT behavior is unchanged;
 - multi-worker behavior is consistent.
