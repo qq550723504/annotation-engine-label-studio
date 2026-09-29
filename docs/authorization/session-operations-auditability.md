@@ -48,7 +48,9 @@ Security-relevant revocation events should capture:
 ```text
 event_type
 revocation_type
-actor_user_id
+actor_type              # human | system
+actor_user_id            # required for human, null for system
+actor_system_id          # required for system, null for human
 target_user_id
 reason_code
 timestamp
@@ -61,6 +63,22 @@ that cannot be replayed as credentials.
 
 Audit emission should occur only for committed security state changes; avoid
 recording a successful revocation before the transaction commits.
+
+### Actor attribution
+
+Audit attribution must never fabricate a human actor.
+
+- request-driven administrative disables must propagate the trusted authenticated
+  server-side principal into the disable/revocation operation and emit
+  `actor_type=human` with that user's ID;
+- background jobs, migrations, or internal maintenance paths without a human
+  principal must emit `actor_type=system`, `actor_user_id=null`, and a stable
+  allow-listed `actor_system_id` identifying the subsystem/process;
+- model/queryset/bulk hooks must accept or receive attribution through an explicit
+  trusted application context rather than guessing from ambient request globals;
+- if a request-driven path loses actor context, it must not silently downgrade to
+  an anonymous/system attribution unless that path is explicitly defined as a
+  system operation.
 
 ## Operational control matrix
 
@@ -122,14 +140,22 @@ Require both positive and transactional coverage:
 - a successfully committed revoke-all operation emits exactly one security audit
   event;
 - a successfully committed account-disable revocation emits exactly one security
-  audit event;
+  audit event for each supported disable mutation path: model `save()`,
+  `QuerySet.update()`, and `bulk_update()`;
 - each emitted event contains the mandatory schema fields: event type,
-  revocation type, actor user ID, target user ID, allow-listed reason code,
-  timestamp, and request/correlation ID when request context exists;
+  revocation type, actor type, the matching human/system actor identifier,
+  target user ID, allow-listed reason code, timestamp, and request/correlation ID
+  when request context exists;
+- request-driven administrator disable tests assert the authenticated principal is
+  preserved as the human actor across model `save()`, `QuerySet.update()`, and
+  `bulk_update()` entry points;
+- background/system disable tests assert explicit system attribution and never a
+  fabricated human user ID;
 - if a non-replayable session fingerprint is emitted, it must not equal raw
   session material;
-- an operation whose database transaction rolls back emits **no** success audit
-  event;
+- for model `save()`, `QuerySet.update()`, and `bulk_update()`, an injected
+  transaction/revocation failure rolls back the disablement and emits **no**
+  success audit event;
 - retries/idempotent failure paths must not create duplicate success events for
   one committed state transition.
 
