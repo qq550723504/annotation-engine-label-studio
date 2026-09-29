@@ -135,6 +135,17 @@ For user-wide browser-session revocation:
   privilege claims are ignored;
 - reason codes are part of authorization, not arbitrary metadata.
 
+For account disablement, #47 owns the authorization boundary as part of the
+security transition itself:
+
+- account disable requires an active human staff administrator with
+  `users.change_user`;
+- there is no authorized system/background principal for account disablement in
+  the current #46-#48 scope;
+- non-request/background disable attempts without that human authority fail closed;
+- #48 may record who performed the transition, but it must not add or change the
+  authority required to perform it.
+
 Reason policy:
 
 | Reason | Authorized source |
