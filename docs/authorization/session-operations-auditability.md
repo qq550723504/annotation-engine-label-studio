@@ -70,11 +70,29 @@ the security change and its audit intent, or neither. A dispatcher may deliver
 that durable record to logs/SIEM asynchronously after commit, using a stable event
 ID/idempotency key so retries are safe.
 
-This removes both failure windows:
+This establishes one audit-layer state machine around #47 outcomes:
 
-- rollback => no committed security change and no durable audit event;
-- commit followed by process/sink failure => durable audit intent remains and is
-  retried until delivered, without duplication.
+```text
+#47 rejects transition
+  -> no durable audit intent
+
+#47 accepts transition, enclosing transaction rolls back
+  -> no committed transition
+  -> no durable audit intent
+
+#47 accepts transition, audit-intent persistence fails before commit
+  -> augmented transaction fails
+  -> neither #47 transition nor audit intent commits
+
+#47 transition + durable audit intent commit together
+  -> dispatcher may deliver after commit
+  -> sink/process failure retries by stable event ID
+  -> one logical success event
+```
+
+#48 does not re-own the authorization or rollback decisions made by #47. It
+observes those outcomes and guarantees that durable audit state cannot get ahead
+of, lag behind, or partially commit relative to an audited #47 transition.
 
 ### Actor attribution
 
@@ -183,28 +201,36 @@ Require both positive and transactional coverage:
   revocation type, actor type, the matching human/system actor identifier,
   target user ID, an allow-listed reason code already accepted by #47,
   timestamp, and request/correlation ID when request context exists;
-- rejected/free-text/wrong-authority reason codes from #47 produce no durable audit
-  intent and no success event;
+- every #47-rejected audited transition produces no durable audit intent and no
+  delivered success event. Exercise representative rejection classes already
+  owned by #47 — invalid/wrong-authority reason, ordinary unauthorized cross-user
+  actor, staff lacking required permission, stale/revoked actor state,
+  client-submitted actor-ID substitution, and unauthorized system/background
+  account-disable path — without redefining the authorization decision in #48;
 - request-driven administrator disable tests assert the authenticated principal is
   preserved as the human actor across model `save()`, `QuerySet.update()`, and
   `bulk_update()` entry points;
 - repeated/no-op disable writes against already inactive users emit no new
   `account_disabled` event, and mixed bulk operations emit events only for the
   users that actually transitioned active-to-inactive;
-- for a non-request/system account-disable attempt that #47 rejects, #48 commits
-  **no durable audit intent** and emits no success event; this assertion verifies
-  only the audit-layer consequence and does not redefine #47 authorization;
+- rejection-path coverage above is consequence-only: #48 consumes the #47
+  rejection outcome and asserts absence of durable/success audit state; it does
+  not duplicate #47 authorization tests;
 - if a non-replayable session fingerprint is emitted, it must not equal raw
   session material;
-- for model `save()`, `QuerySet.update()`, and `bulk_update()`, an injected
-  transaction/revocation failure rolls back the disablement and emits **no**
-  success audit event;
-- for a multi-user `QuerySet.update()` or `bulk_update()` failure injected after
-  at least one target has been processed, rollback emits **zero success events for
-  every target** in the batch; no per-target event may escape before commit;
-- simulate process exit or audit-sink failure after the security transaction
-  commits but before delivery; on restart/retry, the durable audit record is
-  eventually delivered;
+- when #47 reports/produces a rolled-back revoke-all or account-disable
+  transaction, #48 asserts only the audit consequence: zero committed durable
+  audit intents and zero delivered success events; rollback correctness of the
+  security state itself remains #47's acceptance responsibility;
+- when a multi-user #47 disable batch rolls back after partial target processing,
+  #48 commits zero durable audit intents for every target and delivers zero
+  success events; no per-target audit record may escape before commit;
+- inject failure while inserting the durable audit/outbox record before commit;
+  the augmented #48 transaction must fail so neither the accepted #47 security
+  transition nor its audit intent commits;
+- simulate process exit or audit-sink failure after the security transaction and
+  durable audit intent commit but before delivery; on restart/retry, the durable
+  audit record is eventually delivered;
 - retrying delivery uses a stable event ID/idempotency key and must not create
   duplicate logical success events for one committed state transition.
 
