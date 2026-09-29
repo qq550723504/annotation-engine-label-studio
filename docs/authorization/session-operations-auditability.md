@@ -157,7 +157,17 @@ includes:
 
 If a database restore can reintroduce historical session rows or older revocation
 state, keep traffic drained after restore and force global browser
-reauthentication before reopening service. At minimum, delete/clear restored
+reauthentication before reopening service. The rollback procedure must also
+preserve audit durability:
+
+- retain the outbox schema and a compatible dispatcher/receiver path until all
+  pre-rollback committed audit intents are durably delivered;
+- before restore, snapshot/export any pending/dead-letter audit rows that would be
+  lost by restoring an older database backup;
+- after restore, reconcile/reinsert those preserved rows by stable event ID before
+  normal operations resume;
+- do not discard pending audit intents merely because application code has rolled
+  back to an older release. At minimum, delete/clear restored
 browser sessions; rotate the session-cookie boundary when needed to make the
 cutover explicit. Do not resume traffic while a copied cookie from before the
 restore could match restored server state.
@@ -234,13 +244,21 @@ Require both positive and transactional coverage:
 - simulate process exit or audit-sink failure after the security transaction and
   durable audit intent commit but before delivery; on restart/retry, the durable
   audit record is eventually delivered;
-- inject a crash **after the sink has accepted the event but before the dispatcher
-  records local acknowledgement**; after restart the same event ID is retried and
-  the sink/adapter deduplicates it so only one logical success event exists;
+- inject a crash **after the sink/durable adapter has accepted the event but
+  before the dispatcher records local acknowledgement**; restart both the
+  dispatcher and the receiver/deduplication component, retry the same event ID, and
+  verify durable receiver state prevents a second logical success event;
 - verify the dispatcher never records acknowledgement before sink acceptance;
-- retrying delivery uses a stable event ID/idempotency key plus sink/adapter-side
-  deduplication and must not create duplicate logical success events for one
-  committed state transition.
+- exhaust the normal automatic retry budget during a prolonged sink outage and
+  verify the event remains retryable or moves to a durable dead-letter state;
+  after sink recovery, redrive it with the same event ID and verify eventual
+  successful delivery without duplication;
+- retrying delivery uses a stable event ID/idempotency key plus durable
+  sink/adapter-side deduplication and must not create duplicate logical success
+  events for one committed state transition;
+- exercise rollback/restore with pending audit intents: preserve them across the
+  restore boundary, reconcile by stable event ID, and verify they still drain
+  after a compatible dispatcher/receiver path resumes.
 
 ### Log-safety tests
 
@@ -261,10 +279,14 @@ durable-audit dispatcher operating evidence in operator-facing documentation.
 Dispatcher evidence must include:
 
 - the enabled dispatcher/retry schedule or continuously running worker;
-- observable pending/backlog count and oldest-event age;
-- alerting/escalation for sustained backlog growth;
+- observable pending/backlog and dead-letter counts plus oldest-event age;
+- alerting/escalation for sustained backlog/dead-letter growth;
 - evidence that committed intents continue to drain;
-- restart evidence covering retry after process/sink failure.
+- evidence that retry exhaustion remains redriveable after sink recovery;
+- restart evidence covering both dispatcher and durable receiver/deduplication
+  component failures;
+- rollback/restore evidence showing pending audit intents and the compatible
+  dispatcher/receiver path are preserved or reconciled before retirement.
 
 CI can verify configuration and dispatcher behavior; it cannot by itself prove a
 production scheduler/worker remains enabled.
