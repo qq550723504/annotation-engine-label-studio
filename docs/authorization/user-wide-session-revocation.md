@@ -129,7 +129,12 @@ mixed bulk operation must not advance their session version or emit another
 `account_disabled` event.
 
 For a real disable transition, the `is_active=False` state transition and the
-security-version increment are one atomic security operation. If version
+security-version increment are one atomic security operation. Target discovery
+alone is not enough: before mutating, the disable path must lock/reload the
+authoritative user row(s) inside the transaction and re-evaluate whether each
+target is still active. Only the transaction that observes and performs the real
+`True -> False` transition may advance that user's version and create the
+`account_disabled` audit intent. If version
 advancement fails, the account-state mutation must roll back as well. No supported
 disable path may commit a disabled account without also advancing the revocation
 boundary.
@@ -205,6 +210,8 @@ unknown code.
 - repeating `QuerySet.update(is_active=False)` over already inactive users is a no-op for security version/audit;
 - account disable through `bulk_update()` advances the revocation boundary only for targets that actually transition active-to-inactive;
 - a mixed `bulk_update()` containing active and already-inactive users advances/emits only for the active-to-inactive subset;
+- two concurrent transactions attempting to disable the same active user serialize/revalidate against authoritative state so exactly one transaction performs the real `True -> False` transition, exactly one session-version advance occurs, and exactly one `account_disabled` audit intent is committed;
+- include a concurrency regression for a queryset/bulk-style path where targets are discovered before mutation, proving the second transaction does not act on stale pre-lock active state;
 - multi-user `QuerySet.update()` and `bulk_update()` regressions verify every target's counter/version, every retained pre-disable cookie, and successful re-enable semantics;
 - inject a failure after at least one target in a multi-user `QuerySet.update()` and `bulk_update()` batch has been processed; the entire batch must roll back, with no partially disabled users and no partially advanced session versions;
 - inject revocation/version-write failure for ordinary model `save()`; the disable mutation rolls back and no partial disabled-without-revocation state commits;
