@@ -61,8 +61,20 @@ optional non-replayable session fingerprint
 If a session identifier is needed for correlation, use a one-way representation
 that cannot be replayed as credentials.
 
-Audit emission should occur only for committed security state changes; avoid
-recording a successful revocation before the transaction commits.
+Audit intent must be durable and transactionally coupled to the security state
+change. Do not rely on a best-effort in-process callback after commit.
+
+Use a durable audit-event row or transactional outbox record inserted in the same
+database transaction as the revocation/disablement. The transaction commits both
+the security change and its audit intent, or neither. A dispatcher may deliver
+that durable record to logs/SIEM asynchronously after commit, using a stable event
+ID/idempotency key so retries are safe.
+
+This removes both failure windows:
+
+- rollback => no committed security change and no durable audit event;
+- commit followed by process/sink failure => durable audit intent remains and is
+  retried until delivered, without duplication.
 
 ### Actor attribution
 
@@ -137,11 +149,12 @@ configuration.
 
 Require both positive and transactional coverage:
 
-- a successfully committed revoke-all operation emits exactly one security audit
-  event;
+- a successfully committed revoke-all operation commits exactly one durable audit
+  record/event intent in the same transaction, and eventual delivery produces one
+  logical security audit event;
 - when `revoke_all_sessions()` executes inside an outer database transaction that
-  later rolls back, emit **zero** success audit events; audit emission must be
-  deferred until the enclosing transaction actually commits;
+  later rolls back, commit **zero** durable audit records and emit zero success
+  events;
 - a successfully committed single-user account-disable revocation emits exactly
   one security audit event for each supported disable mutation path: model
   `save()`, `QuerySet.update()`, and `bulk_update()`;
@@ -166,8 +179,11 @@ Require both positive and transactional coverage:
 - for a multi-user `QuerySet.update()` or `bulk_update()` failure injected after
   at least one target has been processed, rollback emits **zero success events for
   every target** in the batch; no per-target event may escape before commit;
-- retries/idempotent failure paths must not create duplicate success events for
-  one committed state transition.
+- simulate process exit or audit-sink failure after the security transaction
+  commits but before delivery; on restart/retry, the durable audit record is
+  eventually delivered;
+- retrying delivery uses a stable event ID/idempotency key and must not create
+  duplicate logical success events for one committed state transition.
 
 ### Log-safety tests
 
