@@ -46,8 +46,12 @@ Therefore:
 - stale user objects cannot overwrite the current version;
 - missing-version recovery cannot reuse a previously issued version;
 - re-enabling an account cannot resurrect pre-disable sessions;
-- restoring an older database snapshot requires forced reauthentication or another
-  mechanism that preserves monotonic invalidation.
+- restoring an older database snapshot must not restore any previously revoked
+  browser credential, including a DB session deleted by logout;
+- any rollback/restore that can reintroduce historical `django_session` rows or
+  older security-version state requires a forced global browser reauthentication
+  barrier before traffic resumes (for example, clear restored browser sessions
+  and rotate the session-cookie boundary as needed).
 
 This is the root invariant behind the replay, recovery, disable/re-enable, and
 missing-row review findings.
@@ -86,15 +90,18 @@ security version increment
 durable audit intent for that target
 ```
 
-For revoke-all:
+For revoke-all, #47 owns the security-state transaction:
 
 ```text
 security version increment
-+
-durable audit intent
 ```
 
-The transaction commits all of the above or none of them.
+#48 layers durable audit intent onto that already-correct transition. When #48 is
+present, the durable audit record/outbox is committed in the same transaction as
+the security state change. The delivery split must not make #47 depend on #48 for
+its own correctness.
+
+The transaction commits all state owned by the active delivery layer or none of it.
 
 For multi-user operations, atomicity applies to the defined batch: partial target
 processing must not leave a mixture of committed and uncommitted security state.
