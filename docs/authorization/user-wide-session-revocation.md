@@ -69,6 +69,20 @@ Before authorizing a revocation, reload the actor's current active state and
 permissions from authoritative server storage. Do not trust a stale in-memory
 administrator/staff object for this security decision.
 
+### Actor-to-target authorization policy
+
+The policy is explicit:
+
+- an authenticated active user may revoke all of **their own** browser sessions;
+- revoking another user's browser sessions requires an active Django staff
+  administrator with the concrete `users.change_user` permission;
+- ordinary authenticated users may not revoke sessions for any other user;
+- inactive/disabled actors may not revoke sessions;
+- staff status alone without the required permission is insufficient.
+
+This policy must be enforced from freshly loaded server-side identity/permission
+state, not from client-supplied actor/target authority assertions.
+
 ## Authorized triggers
 
 At minimum:
@@ -134,6 +148,10 @@ security audit reason field.
 - stale ordinary user saves cannot overwrite the counter;
 - deleting/missing the security-version record causes an already-authenticated browser session to fail closed on its next request;
 - deleting/missing the security-version record also prevents a new browser login from silently recreating a default version or authenticating;
+- self-revocation succeeds for an authenticated active user targeting themselves;
+- a cross-user revoke succeeds only for an active staff actor with `users.change_user`;
+- an ordinary authenticated user attempting to revoke another user's sessions is rejected;
+- staff without `users.change_user` is rejected;
 - actor authorization is enforced at the service boundary using freshly reloaded active state and permissions from authoritative storage;
 - a negative regression revokes the actor's administrative permission or disables the actor directly in the database after an actor object has already been loaded, then verifies that stale privileges cannot revoke another user's sessions;
 - a direct API/admin request that submits another user's actor ID cannot choose or override the revocation actor; the authenticated server-side principal remains authoritative;
