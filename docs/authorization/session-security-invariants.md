@@ -80,26 +80,39 @@ are not authoritative transition evidence.
 A security transition and all state required to make that transition durable and
 auditable form one transaction boundary.
 
-For account disablement, this includes:
+#47 owns the complete security-state transaction for both user-wide revocation
+and account disablement.
+
+For revoke-all:
+
+```text
+security version increment
+```
+
+For account disablement:
 
 ```text
 user active -> inactive
 +
 security version increment
-+
-durable audit intent for that target
 ```
 
-For revoke-all, #47 owns the security-state transaction:
+Those #47 transitions must be fully correct and independently deliverable without
+any audit persistence.
+
+#48 augments only the explicitly audited revocation transitions — revoke-all and
+account disablement — with durable audit intent:
 
 ```text
-security version increment
+#47 security-state transition
++
+durable audit/outbox record for that transition
 ```
 
-#48 layers durable audit intent onto that already-correct transition. When #48 is
-present, the durable audit record/outbox is committed in the same transaction as
-the security state change. The delivery split must not make #47 depend on #48 for
-its own correctness.
+When #48 is present, the audit record is committed in the same transaction as the
+#47 state transition. Expiry, ordinary current-session logout, and project
+authorization changes are not brought under this transactional-outbox contract by
+#48.
 
 The transaction commits all state owned by the active delivery layer or none of it.
 
@@ -169,22 +182,36 @@ A cookie issued before state loss must remain invalid after recovery.
 
 ## 8. Audit durability invariant
 
-A committed security transition must have durable audit intent; an uncommitted
-transition must have none.
+This invariant applies only to the #48 audited revocation transitions:
+
+- user-wide browser-session revoke-all;
+- account disablement that revokes browser sessions.
+
+It does **not** make expiry, ordinary current-session logout, or project
+authorization changes part of the #48 transactional-audit contract.
+
+For an audited revocation transition, committed state must have durable audit
+intent and an uncommitted transition must have none.
 
 Use a durable audit row or transactional outbox in the same database transaction
-as the security transition.
+as the audited revocation transition.
 
 Delivery to logs/SIEM may occur asynchronously, but must use a stable event ID /
 idempotency key so crash/retry behavior is at-least-once transport with exactly
 one logical event.
 
-For batch transitions there is one durable event per affected target user.
+For batch account-disable transitions there is one durable event per affected
+target user.
 
-Human and system actors are explicit:
+Actor attribution and actor authorization are separate concerns. A human audit
+actor is a trusted authenticated user ID. A system audit identity must never be
+treated as authorization merely because it can be named in an event.
 
-- human actor: trusted authenticated user ID;
-- system actor: explicit allow-listed system identifier, never a fabricated user.
+In the current #46-#48 scope, **no system principal is authorized to disable user
+accounts**. Account-disable transitions require the human administrator authority
+defined in section 5. If a future background/security worker needs account-disable
+authority, that requires a separate reviewed system-principal/capability contract;
+until then such a system-initiated disable must fail closed.
 
 ## 9. Acceptance by invariant, not by endpoint
 
