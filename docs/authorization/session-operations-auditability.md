@@ -181,17 +181,19 @@ Require both positive and transactional coverage:
   affected-user set;
 - each emitted event contains the mandatory schema fields: event type,
   revocation type, actor type, the matching human/system actor identifier,
-  target user ID, allow-listed reason code, timestamp, and request/correlation ID
-  when request context exists;
+  target user ID, an allow-listed reason code already accepted by #47,
+  timestamp, and request/correlation ID when request context exists;
+- rejected/free-text/wrong-authority reason codes from #47 produce no durable audit
+  intent and no success event;
 - request-driven administrator disable tests assert the authenticated principal is
   preserved as the human actor across model `save()`, `QuerySet.update()`, and
   `bulk_update()` entry points;
 - repeated/no-op disable writes against already inactive users emit no new
   `account_disabled` event, and mixed bulk operations emit events only for the
   users that actually transitioned active-to-inactive;
-- a non-request/system attempt to disable an account is rejected in the current
-  scope; audit actor metadata cannot be used to bypass the human-administrator
-  authorization requirement;
+- for a non-request/system account-disable attempt that #47 rejects, #48 commits
+  **no durable audit intent** and emits no success event; this assertion verifies
+  only the audit-layer consequence and does not redefine #47 authorization;
 - if a non-replayable session fingerprint is emitted, it must not equal raw
   session material;
 - for model `save()`, `QuerySet.update()`, and `bulk_update()`, an injected
