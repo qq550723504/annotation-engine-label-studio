@@ -30,11 +30,26 @@ are outside the revocation invariant; subsequent authentication checks enforce i
 - `SESSION_COOKIE_SECURE` defaults to true with `DEBUG=false`, and false with
   `DEBUG=true`. HTTPS production must retain true. A local HTTP deployment must
   explicitly select `SESSION_COOKIE_SECURE=false` or enable development mode.
+  The shipped Compose stack exposes HTTP on port 8080 and explicitly defaults
+  `LABEL_STUDIO_SESSION_COOKIE_SECURE=false` so its browser sessions work with
+  `DEBUG=false`. The app's general secure default remains true.
 - `SESSION_COOKIE_HTTPONLY` is always true. SameSite retains the existing `Lax`
   default; an SSO exception requires an explicit documented configuration.
 - Cookies are host-only unless `SESSION_COOKIE_DOMAIN` is explicitly configured.
   `SESSION_COOKIE_NAME` defaults to `sessionid` and can be rotated during cutover.
 - Never emit cookies, raw session keys, or authentication hashes in logs.
+
+When enabling HTTPS for Compose through nginx certificates or an external TLS
+proxy, set these values in the project-root Compose `.env` before starting the
+services (replace the example hostname):
+
+```dotenv
+LABEL_STUDIO_HOST=https://labels.example.test
+LABEL_STUDIO_SESSION_COOKIE_SECURE=true
+```
+
+Use the HTTPS URL for browser access. The explicit cookie setting is also
+inherited by the optional session-cleanup service.
 
 ## User-wide revocation
 

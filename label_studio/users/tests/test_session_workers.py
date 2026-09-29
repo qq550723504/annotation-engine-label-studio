@@ -70,6 +70,23 @@ def test_session_settings_default_to_database_and_hardened_cookies(tmp_path, deb
     }
 
 
+@pytest.mark.parametrize('value,secure', [('false', False), ('true', True), ('0', False), ('1', True)])
+def test_session_settings_accept_explicit_http_and_https_cookie_policy(tmp_path, value, secure):
+    env = {
+        **os.environ,
+        'BASE_DATA_DIR': str(tmp_path),
+        'DEBUG': 'false',
+        'LABEL_STUDIO_SESSION_COOKIE_SECURE': value,
+    }
+    result = run_worker(env, {'action': 'settings'})
+    assert result == {
+        'engine': 'django.contrib.sessions.backends.db',
+        'secure': secure,
+        'httponly': True,
+        'samesite': 'Lax',
+    }
+
+
 @pytest.mark.parametrize(
     'engine,debug',
     [
