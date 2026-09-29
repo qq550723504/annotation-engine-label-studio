@@ -114,6 +114,19 @@ At minimum:
 - credential-compromise response;
 - future "log out all devices".
 
+### Account-disable authorization
+
+Account disablement is part of #47's security boundary, not an audit-layer policy.
+
+- only an active human Django staff administrator with `users.change_user` may
+  initiate a supported account-disable transition;
+- non-request/background/system paths have no account-disable authority in the
+  current #46-#48 scope and must fail closed;
+- stale actor objects must be reloaded before the disable decision;
+- client payloads cannot supply or override the disabling actor;
+- #48 records attribution for an authorized transition but does not grant the
+  authority to perform it.
+
 Re-enabling an account must not resurrect sessions issued before disablement.
 
 ## Concurrency and consistency
@@ -125,8 +138,8 @@ the security counter.
 For account disablement, only a real `is_active=True -> is_active=False` state
 transition is a disable security event. Re-saving an already inactive user,
 repeating `update(is_active=False)`, or including already-inactive users in a
-mixed bulk operation must not advance their session version or emit another
-`account_disabled` event.
+mixed bulk operation must not advance their session version. #48 separately
+defines whether and how an authorized transition is audited.
 
 For a real disable transition, the `is_active=False` state transition and the
 security-version increment are one atomic security operation. Target discovery
@@ -207,7 +220,7 @@ unknown code.
 - account disable through ordinary model `save()` advances the revocation boundary only for a real active-to-inactive transition and replay remains rejected after re-enable;
 - saving an already inactive user, including unrelated field updates, does not advance the version; #48 separately verifies no duplicate disable audit event;
 - account disable through `QuerySet.update()` advances the revocation boundary for every target that actually transitions active-to-inactive and replay remains rejected for every copied cookie after re-enable;
-- repeating `QuerySet.update(is_active=False)` over already inactive users is a no-op for security version/audit;
+- repeating `QuerySet.update(is_active=False)` over already inactive users is a no-op for security-version state;
 - account disable through `bulk_update()` advances the revocation boundary only for targets that actually transition active-to-inactive;
 - a mixed `bulk_update()` containing active and already-inactive users advances only for the active-to-inactive subset; #48 separately verifies audit emission only for that subset;
 - two concurrent transactions attempting to disable the same active user serialize/revalidate against authoritative state so exactly one transaction performs the real `True -> False` transition, exactly one session-version advance occurs; #48 separately verifies exactly-once audit intent for that transition;
@@ -226,6 +239,8 @@ unknown code.
 - actor authorization is enforced at the service boundary using freshly reloaded active state and permissions from authoritative storage;
 - a negative regression revokes the actor's administrative permission or disables the actor directly in the database after an actor object has already been loaded, then verifies that stale privileges cannot revoke another user's sessions;
 - a direct API/admin request that submits another user's actor ID cannot choose or override the revocation actor; the authenticated server-side principal remains authoritative;
+- an authorized human staff administrator with `users.change_user` can perform an account-disable transition;
+- a non-request/background/system account-disable attempt without that human authority is rejected by #47 itself;
 - arbitrary/free-text revocation reasons are rejected, including a value shaped like a copied cookie/session key; only allow-listed reason codes reach audit logging;
 - self-service revocation accepts `logout_all_devices` and rejects administrative-only codes such as `administrator`, `account_disabled`, and `credential_compromise`;
 - a direct call to generic `revoke_all_sessions()` with `reason='account_disabled'` is rejected even for an authorized administrator when the target is still active; only the trusted atomic disable operation may emit that reason;
