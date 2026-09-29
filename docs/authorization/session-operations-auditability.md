@@ -121,11 +121,23 @@ The production runbook should require:
 
 ## Rollback constraints
 
-A rollback must not restore replayable signed-cookie authentication or an older
-security-version snapshot that can resurrect revoked sessions.
+A rollback must not restore any previously invalidated browser credential. This
+includes:
 
-If a rollback cannot preserve the revocation invariant, it is a security event,
-not an ordinary application rollback, and must include forced reauthentication.
+- legacy signed-cookie authentication;
+- an older security-version snapshot;
+- historical `django_session` rows that were deleted by logout after the backup
+  was taken.
+
+If a database restore can reintroduce historical session rows or older revocation
+state, keep traffic drained after restore and force global browser
+reauthentication before reopening service. At minimum, delete/clear restored
+browser sessions; rotate the session-cookie boundary when needed to make the
+cutover explicit. Do not resume traffic while a copied cookie from before the
+restore could match restored server state.
+
+If a rollback cannot preserve this invariant, it is a security event rather than
+an ordinary application rollback.
 
 ## Incident-response operations
 
