@@ -186,6 +186,9 @@ Require both positive and transactional coverage:
 - request-driven administrator disable tests assert the authenticated principal is
   preserved as the human actor across model `save()`, `QuerySet.update()`, and
   `bulk_update()` entry points;
+- repeated/no-op disable writes against already inactive users emit no new
+  `account_disabled` event, and mixed bulk operations emit events only for the
+  users that actually transitioned active-to-inactive;
 - a non-request/system attempt to disable an account is rejected in the current
   scope; audit actor metadata cannot be used to bypass the human-administrator
   authorization requirement;
