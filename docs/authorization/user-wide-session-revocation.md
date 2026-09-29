@@ -24,6 +24,21 @@ UserSessionVersion
 Each successful browser login captures the current version into the authenticated
 session.
 
+### Provisioning and migration
+
+The security-version row is mandatory state, not something authentication may
+silently recreate on demand.
+
+- the schema/data migration must backfill one row for every existing user before
+  fail-closed enforcement is enabled;
+- the backfill should use bounded batches suitable for production-sized user tables;
+- creation of a new user must provision its security-version row atomically with
+  the supported user-creation transaction/path;
+- if provisioning fails, user creation must fail rather than leave an account that
+  cannot authenticate;
+- request-time authentication must never repair a missing row by guessing a default
+  version.
+
 Do not derive user-wide revocation by enumerating serialized Django sessions.
 
 ## Authentication check
@@ -101,16 +116,20 @@ hidden in free text.
 
 ## Required tests
 
+- migration/backfill creates a security-version row for every pre-existing user and those users can authenticate after cutover;
+- every newly created user receives its security-version row through the supported creation path, and provisioning failure cannot leave a partially usable account;
 - two independent sessions for one user are valid before revoke;
 - one atomic version increment invalidates both on their next request;
 - a new login after revoke succeeds;
 - concurrent revoke calls do not decrease or lose the version;
-- disabling an account advances the revocation boundary;
-- re-enable does not reactivate old sessions;
+- account disable through ordinary model `save()` advances the revocation boundary and replay remains rejected after re-enable;
+- account disable through `QuerySet.update()` advances the revocation boundary and replay remains rejected after re-enable;
+- account disable through `bulk_update()` advances the revocation boundary and replay remains rejected after re-enable;
 - stale ordinary user saves cannot overwrite the counter;
 - deleting/missing the security-version record causes an already-authenticated browser session to fail closed on its next request;
 - deleting/missing the security-version record also prevents a new browser login from silently recreating a default version or authenticating;
-- actor authorization is enforced;
+- actor authorization is enforced at the service boundary;
+- a direct API/admin request that submits another user's actor ID cannot choose or override the revocation actor; the authenticated server-side principal remains authoritative;
 - password change remains compatible;
 - token/JWT behavior is unchanged;
 - multi-worker behavior is consistent.
