@@ -65,7 +65,10 @@ Each issue should have its own review checkpoint before the next layer lands:
 
 - #46: replay security, cutover semantics, cross-worker correctness.
 - #47: counter consistency, atomicity, actor authorization, password compatibility.
-- #48: cookie policy, cleanup schedule, audit schema, deployment/incident runbook.
+  It must be independently correct without durable audit persistence.
+- #48: cookie policy, cleanup schedule, durable audit/outbox semantics, and
+  deployment/incident runbook. It adds audit durability to the #47 transitions
+  without changing their revocation semantics.
 
 The parent issue #44 can close only after all three child acceptance sets are
 satisfied in the deployed configuration, not merely because the code is merged.
