@@ -112,6 +112,18 @@ verify:
 - ordinary logout does not advance the user-wide security/session version or
   otherwise revoke unrelated browser sessions.
 
+### Backend validation
+
+Add parameterized startup/configuration coverage:
+
+- `django.contrib.sessions.backends.db` is accepted;
+- `django.contrib.sessions.backends.signed_cookies` is rejected;
+- `django.contrib.sessions.backends.cached_db` is rejected;
+- cache-only session backend is rejected;
+- file-based session backend is rejected;
+- an unknown/custom backend is rejected unless it has gone through a separate
+  consistency/security design and this contract is explicitly revised.
+
 ### Compatibility
 
 - inactivity/max-age policy still works;
