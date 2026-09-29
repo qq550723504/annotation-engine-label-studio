@@ -235,3 +235,12 @@ Once a project has any formal `Submission`, mutable Annotation state is no longe
 Each immutable Submission snapshot must preserve the exact `label_config` plus its hash and must derive task/project identity from the locked Assignment, not mutable Annotation relations.
 
 Preserve these enforcement points across upstream rebases unless the release/export architecture is intentionally redesigned.
+
+## Required main merge gate
+
+The fork's authorization and enterprise browser workflows are required checks for
+every PR targeting `main`. Preserve their unconditional PR triggers, unique check
+names, and default PR merge-ref checkout across upstream upgrades. Repository
+rules must require both GitHub Actions checks, an up-to-date base, and a PR, with
+force pushes and branch deletion blocked. See [main merge gate](main-merge-gate.md)
+for the desired ruleset, application procedure, and acceptance boundaries.

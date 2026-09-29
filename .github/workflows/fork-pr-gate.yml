@@ -9,11 +9,7 @@ on:
       - synchronize
       - reopened
       - ready_for_review
-    paths:
-      - "label_studio/**"
-      - "pyproject.toml"
-      - "poetry.lock"
-      - ".github/workflows/fork-pr-gate.yml"
+    # Required checks must run for every PR, including documentation-only changes.
 
 permissions:
   contents: read
@@ -38,10 +34,8 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      - name: Checkout PR head
+      - name: Checkout PR merge commit
         uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Install Poetry
         run: pipx install "poetry==${{ env.POETRY_VERSION }}"

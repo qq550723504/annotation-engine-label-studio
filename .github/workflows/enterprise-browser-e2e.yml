@@ -4,15 +4,12 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "label_studio/access_control/**"
-      - "label_studio/projects/**"
-      - "label_studio/organizations/**"
-      - "label_studio/tasks/**"
-      - "label_studio/data_manager/**"
-      - "web/apps/labelstudio/**"
-      - "web/apps/labelstudio-e2e/**"
-      - ".github/workflows/enterprise-browser-e2e.yml"
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    # Required checks must run for every PR, including documentation-only changes.
   workflow_dispatch:
 
 permissions:
@@ -41,10 +38,8 @@ jobs:
     timeout-minutes: 35
 
     steps:
-      - name: Checkout PR head
+      - name: Checkout PR merge commit or dispatch ref
         uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install Poetry
         run: pipx install "poetry==${{ env.POETRY_VERSION }}"
