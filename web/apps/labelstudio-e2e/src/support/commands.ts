@@ -9,18 +9,27 @@ declare global {
 }
 
 Cypress.Commands.add('loginAs', (email: string, password: string, nextPath = '/') => {
-  cy.clearCookies();
-  cy.clearLocalStorage();
+  // With testIsolation enabled, Cypress unloads the previous application before
+  // clearing/restoring session data. Late responses from that page must not
+  // restore its signed session cookie while the next actor is logging in.
+  cy.session(['ui-login', email, nextPath], () => {
+    const loginPath = `/user/login/?next=${encodeURIComponent(nextPath)}`;
+    cy.visit(loginPath);
+    cy.location('pathname', { timeout: 30000 }).should('eq', '/user/login/');
+    cy.get('#email', { timeout: 30000 }).should('be.visible').clear().type(email);
+    cy.get('#password', { timeout: 30000 }).should('be.visible').clear().type(password, { log: false });
+    cy.get('button[aria-label="Log In"]').click();
+    cy.location('pathname', { timeout: 20000 }).should('not.eq', '/user/login/');
+  }, {
+    validate() {
+      cy.request('/api/current-user/whoami').then((response) => {
+        expect(response.status).to.eq(200);
+        expect(response.body.email, 'authenticated actor').to.eq(email);
+      });
+    },
+  });
 
-  const loginPath = `/user/login/?next=${encodeURIComponent(nextPath)}`;
-  cy.visit(loginPath);
-  cy.location('pathname', { timeout: 30000 }).should('eq', '/user/login/');
-  cy.get('#email', { timeout: 30000 }).should('be.visible').clear().type(email);
-  cy.get('#password', { timeout: 30000 }).should('be.visible').clear().type(password, { log: false });
-  cy.get('button[aria-label="Log In"]').click();
-
-  cy.location('pathname', { timeout: 20000 }).should('not.eq', '/user/login/');
-  cy.request('/api/current-user/whoami').its('status').should('eq', 200);
+  cy.visit(nextPath);
 });
 
 export {};

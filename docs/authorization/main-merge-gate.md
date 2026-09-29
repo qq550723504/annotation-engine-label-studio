@@ -92,7 +92,26 @@ These historical runs establish the context mapping; they are not CI results
 for the workflow patch or behavioral acceptance of the new ruleset.
 
 Local workflow validation passed with `actionlint v1.7.12` (without optional
-ShellCheck/Pyflakes), and `git diff --check` passed. Direct/force push, deletion,
+ShellCheck/Pyflakes), and `git diff --check` passed. The first PR run passed all
+122 authorization regressions and 9 API smoke tests (11 intentionally skipped),
+but browser E2E failed while switching actors: the login page redirected to the
+previous Manager's project page. Server logs show a member-candidate response
+arriving after logout and immediately before the login redirect.
+
+The browser login helper now uses Cypress's built-in `cy.session()` with explicit
+`testIsolation: true`, a real UI login, and a `whoami` email assertion on session
+creation/restoration. Clearing the prior page prevents its late signed-cookie
+responses from racing with actor changes. Full-flow tests no longer issue a
+background logout while the prior UI is still active. This fixes test context
+isolation without changing server authentication or authorization.
+
+The upstream CE uses signed-cookie sessions, whose logout does not revoke a saved
+cookie on the server. Production session-revocation design needs a separate
+review; browser context isolation is not evidence of server-side session
+revocation. See [Django session semantics](https://docs.djangoproject.com/en/5.1/topics/http/sessions/#using-cookie-based-sessions)
+and [Cypress session isolation](https://docs.cypress.io/api/commands/session).
+
+Direct/force push, deletion,
 each failing-check rejection, and a green PR's merge eligibility have not yet
 been exercised. The path-filter removal must still be delivered to `main`.
 

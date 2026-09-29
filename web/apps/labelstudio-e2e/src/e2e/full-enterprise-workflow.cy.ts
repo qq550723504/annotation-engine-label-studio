@@ -47,11 +47,6 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.then(() => {
       actorSwitchInProgress = true;
     });
-    cy.request({
-      url: "/logout",
-      followRedirect: false,
-      failOnStatusCode: false,
-    }).its("status").should("be.oneOf", [301, 302]);
     cy.loginAs(email, fixture.password, nextPath);
     cy.then(() => {
       actorSwitchInProgress = false;

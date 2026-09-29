@@ -6,6 +6,7 @@ import { nxE2EPreset } from '@nx/cypress/plugins/cypress-preset';
 export default defineConfig({
   e2e: {
     ...nxE2EPreset(__dirname),
+    testIsolation: true,
     supportFile: 'src/support/e2e.ts',
     specPattern: 'src/e2e/**/*.cy.{js,jsx,ts,tsx}',
     setupNodeEvents(on, config) {
