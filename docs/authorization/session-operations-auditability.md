@@ -139,6 +139,9 @@ Require both positive and transactional coverage:
 
 - a successfully committed revoke-all operation emits exactly one security audit
   event;
+- when `revoke_all_sessions()` executes inside an outer database transaction that
+  later rolls back, emit **zero** success audit events; audit emission must be
+  deferred until the enclosing transaction actually commits;
 - a successfully committed single-user account-disable revocation emits exactly
   one security audit event for each supported disable mutation path: model
   `save()`, `QuerySet.update()`, and `bulk_update()`;
