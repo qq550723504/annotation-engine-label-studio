@@ -32,6 +32,11 @@ silently recreate on demand.
 - the schema/data migration must backfill one row for every existing user before
   fail-closed enforcement is enabled;
 - the backfill should use bounded batches suitable for production-sized user tables;
+- rollout must establish a **write quiescence/barrier** before the final backfill
+  verification: pre-#47 workers that can create users must be drained or account
+  creation/user writes must be paused;
+- after that barrier, run a final catch-up verification/backfill and prove there is
+  no user without a security-version row before enabling fail-closed enforcement;
 - creation of a new user must provision its security-version row atomically with
   the supported user-creation transaction/path;
 - if provisioning fails, user creation must fail rather than leave an account that
@@ -164,6 +169,8 @@ unknown code.
 ## Required tests
 
 - migration/backfill creates a security-version row for every pre-existing user and those users can authenticate after cutover;
+- rollout drains/pauses pre-#47 user-creation writers before the final catch-up barrier, then verifies zero users are missing the row before enforcement;
+- a negative transition regression creates a user during the backfill-to-enforcement window using an old/pre-provisioning path and proves the rollout barrier/catch-up detects and backfills it before enforcement can be enabled;
 - every newly created user receives its security-version row through the supported creation path, and provisioning failure cannot leave a partially usable account;
 - two independent sessions for one user are valid before revoke;
 - one atomic version increment invalidates both on their next request;
