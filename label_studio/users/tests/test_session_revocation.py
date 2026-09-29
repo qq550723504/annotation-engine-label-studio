@@ -24,6 +24,42 @@ class TestSessionRevocation(TestCase):
         self.user.set_password('session-test-password')
         self.user.save(update_fields=['password'])
 
+    def test_anonymous_requests_do_not_create_database_sessions(self):
+        for path, status in [('/health/', 200), ('/user/login/', 200), ('/api/current-user/whoami', 401)]:
+            for _ in range(5):
+                response = APIClient().get(path)
+                assert response.status_code == status
+                assert settings.SESSION_COOKIE_NAME not in response.cookies
+                assert Session.objects.count() == 0
+
+    def test_stale_cookie_on_public_requests_does_not_create_new_sessions(self):
+        client = self.login_client()
+        cookie = client.cookies[settings.SESSION_COOKIE_NAME].value
+        client.get('/logout')
+        assert Session.objects.count() == 0
+        for _ in range(5):
+            response = self.replay_client(cookie).get('/health/')
+            assert response.status_code == 200
+            response_cookie = response.cookies.get(settings.SESSION_COOKIE_NAME)
+            assert response_cookie is None or not response_cookie.value
+            assert Session.objects.count() == 0
+
+    def test_authenticated_browser_keeps_session_metadata(self):
+        client = self.login_client()
+        assert client.session['uid']
+        assert client.session['organization_pk'] == self.organization.pk
+        assert Session.objects.count() == 1
+
+    def test_stateless_api_token_does_not_create_browser_sessions(self):
+        self.organization.jwt.legacy_api_tokens_enabled = True
+        self.organization.jwt.save(update_fields=['legacy_api_tokens_enabled'])
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f'Token {self.user.get_token().key}')
+        response = client.get('/api/current-user/whoami')
+        assert response.status_code == 200
+        assert settings.SESSION_COOKIE_NAME not in response.cookies
+        assert Session.objects.count() == 0
+
     def login_client(self):
         client = APIClient()
         response = client.post(

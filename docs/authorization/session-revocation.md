@@ -27,17 +27,25 @@ are outside the revocation invariant; subsequent authentication checks enforce i
   single-session logout. This fork provides no legacy-cookie fallback or opted-in
   signed-cookie mode. Supporting `cached_db` later requires a separate review of
   cache consistency and topology.
-- `SESSION_COOKIE_SECURE` defaults to true with `DEBUG=false`, and false with
-  `DEBUG=true`. HTTPS production must retain true. A local HTTP deployment must
-  explicitly select `SESSION_COOKIE_SECURE=false` or enable development mode.
+- `SESSION_COOKIE_SECURE` defaults to true when the trusted public
+  `LABEL_STUDIO_HOST`/`HOST` starts with `https://`, and false for an HTTP host
+  or the unset host used by the bundled HTTP server. This policy is independent
+  of `DEBUG`; an explicit cookie setting takes precedence. It applies to CLI,
+  plain `docker run`, and Compose launches.
   The shipped Compose stack exposes HTTP on port 8080 and explicitly defaults
-  `LABEL_STUDIO_SESSION_COOKIE_SECURE=false` so its browser sessions work with
-  `DEBUG=false`. The app's general secure default remains true.
+  `LABEL_STUDIO_SESSION_COOKIE_SECURE=false`. HTTPS production must select true.
+  Behind a TLS proxy, configure the public HTTPS host or explicitly set true;
+  deployments deriving their domain from requests must explicitly set true.
+  Cookie security is never inferred from client-supplied headers.
 - `SESSION_COOKIE_HTTPONLY` is always true. SameSite retains the existing `Lax`
   default; an SSO exception requires an explicit documented configuration.
 - Cookies are host-only unless `SESSION_COOKIE_DOMAIN` is explicitly configured.
   `SESSION_COOKIE_NAME` defaults to `sessionid` and can be rotated during cutover.
 - Never emit cookies, raw session keys, or authentication hashes in logs.
+- Browser session UID and organization metadata are initialized only for
+  authenticated Django browser sessions. Anonymous public/login/unauthorized
+  requests and stateless API-token reads do not create database sessions through
+  these middleware. Successful login still creates its normal revocable session.
 
 When enabling HTTPS for Compose through nginx certificates or an external TLS
 proxy, set these values in the project-root Compose `.env` before starting the

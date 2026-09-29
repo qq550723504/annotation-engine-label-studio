@@ -58,9 +58,20 @@ def test_global_revocation_is_shared_by_independent_processes(workers):
     assert status == 200
 
 
-@pytest.mark.parametrize('debug,secure', [('false', True), ('true', False)])
-def test_session_settings_default_to_database_and_hardened_cookies(tmp_path, debug, secure):
+@pytest.mark.parametrize('debug', [None, 'false', 'true'])
+@pytest.mark.parametrize(
+    'host,secure',
+    [(None, False), ('http://labels.example.test/ls-root', False), ('https://labels.example.test/ls-root', True)],
+)
+def test_session_settings_follow_public_host_scheme_with_hardened_cookies(tmp_path, debug, host, secure):
     env = {**os.environ, 'BASE_DATA_DIR': str(tmp_path), 'DEBUG': debug}
+    for prefix in ('', 'LABEL_STUDIO_', 'HEARTEX_'):
+        for name in ('HOST', 'DEBUG', 'SESSION_COOKIE_SECURE'):
+            env.pop(f'{prefix}{name}', None)
+    if debug is not None:
+        env['DEBUG'] = debug
+    if host is not None:
+        env['LABEL_STUDIO_HOST'] = host
     result = run_worker(env, {'action': 'settings'})
     assert result == {
         'engine': 'django.contrib.sessions.backends.db',
@@ -76,6 +87,7 @@ def test_session_settings_accept_explicit_http_and_https_cookie_policy(tmp_path,
         **os.environ,
         'BASE_DATA_DIR': str(tmp_path),
         'DEBUG': 'false',
+        'LABEL_STUDIO_HOST': 'http://labels.example.test' if secure else 'https://labels.example.test',
         'LABEL_STUDIO_SESSION_COOKIE_SECURE': value,
     }
     result = run_worker(env, {'action': 'settings'})
