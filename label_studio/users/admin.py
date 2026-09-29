@@ -9,11 +9,19 @@ from organizations.models import Organization, OrganizationMember
 from projects.models import Project
 from tasks.models import Annotation, Prediction, Task
 from users.models import User
+from users.session_security import revoke_all_sessions
 
 
 class UserAdminShort(UserAdmin):
 
     add_fieldsets = ((None, {'fields': ('email', 'password1', 'password2')}),)
+    actions = ['revoke_browser_sessions']
+
+    @admin.action(description='Revoke all browser sessions', permissions=['change'])
+    def revoke_browser_sessions(self, request, queryset):
+        for user in queryset.iterator():
+            revoke_all_sessions(user, reason='administrator', actor=request.user)
+        self.message_user(request, 'Selected users must log in again. API tokens are unchanged.')
 
     def __init__(self, *args, **kwargs):
         super(UserAdminShort, self).__init__(*args, **kwargs)

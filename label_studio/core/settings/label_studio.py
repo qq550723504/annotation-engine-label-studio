@@ -4,6 +4,7 @@ import json
 
 from core.settings.base import *  # noqa
 from core.utils.secret_key import generate_secret_key_if_missing
+from django.core.exceptions import ImproperlyConfigured
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = generate_secret_key_if_missing(BASE_DATA_DIR)
@@ -24,9 +25,14 @@ DEBUG = get_bool_env('DEBUG', False)
 
 DEBUG_PROPAGATE_EXCEPTIONS = get_bool_env('DEBUG_PROPAGATE_EXCEPTIONS', False)
 
-SESSION_COOKIE_SECURE = get_bool_env('SESSION_COOKIE_SECURE', False)
+SESSION_COOKIE_SECURE = get_bool_env('SESSION_COOKIE_SECURE', not DEBUG)
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_NAME = get_env('SESSION_COOKIE_NAME', 'sessionid')
+SESSION_COOKIE_DOMAIN = get_env('SESSION_COOKIE_DOMAIN', None)
 
-SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
+SESSION_ENGINE = get_env('SESSION_ENGINE', 'django.contrib.sessions.backends.db')
+if SESSION_ENGINE != 'django.contrib.sessions.backends.db':
+    raise ImproperlyConfigured('This fork requires SESSION_ENGINE=django.contrib.sessions.backends.db for revocation.')
 
 SENTRY_DSN = get_env('SENTRY_DSN', 'https://68b045ab408a4d32a910d339be8591a4@o227124.ingest.sentry.io/5820521')
 SENTRY_ENVIRONMENT = get_env('SENTRY_ENVIRONMENT', 'opensource')

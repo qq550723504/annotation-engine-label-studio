@@ -244,3 +244,20 @@ names, and default PR merge-ref checkout across upstream upgrades. Repository
 rules must require both GitHub Actions checks, an up-to-date base, and a PR, with
 force pushes and branch deletion blocked. See [main merge gate](main-merge-gate.md)
 for the desired ruleset, application procedure, and acceptance boundaries.
+
+## Server-authoritative browser session revocation
+
+Preserve the database-only browser session backend, the independent per-user
+security counter, and its inclusion in Django's auth-session hash during upstream
+upgrades. Current-session logout deletes the authoritative DB session; user-wide
+revocation advances the counter without scanning sessions. Account disablement
+must advance the counter transactionally even for QuerySet/bulk writes, and a
+stale User save must never reduce it. Missing security state must fail closed.
+
+Retain Django password-change and secret-key fallback behavior, existing session
+expiry policy, and project/member/assignment authorization as distinct controls.
+The user admin revocation action derives its actor from the authenticated server
+request. API/JWT tokens are unaffected. Require negative copied-cookie and
+cross-process regression tests, and keep expired DB-session cleanup scheduled.
+See [session revocation](session-revocation.md) for configuration, cutover,
+rollback boundaries, and deployment acceptance.

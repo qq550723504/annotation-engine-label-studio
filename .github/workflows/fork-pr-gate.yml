@@ -66,6 +66,10 @@ jobs:
         working-directory: label_studio
         run: |
           poetry run pytest -v \
+            users/tests/test_session_revocation.py \
+            users/tests/test_session_workers.py \
+            users/tests/test_session_version_migration.py \
+            session_policy/tests/test_session_policy.py \
             access_control/tests/test_identity.py \
             tasks/tests/test_annotation_actor_security.py \
             projects/tests/test_project_authorization.py \
