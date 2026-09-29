@@ -106,6 +106,13 @@ advancement fails, the account-state mutation must roll back as well. No support
 disable path may commit a disabled account without also advancing the revocation
 boundary.
 
+For multi-user `QuerySet.update()` and `bulk_update()` disables, the operation
+must cover **every** affected user. Each target's security version must advance
+exactly once in the same transaction as the batch account-state change. A failure
+after only part of the target set has been processed must roll back the entire
+batch: no target may remain disabled and no target may retain a partially advanced
+revocation state.
+
 Required invariant:
 
 ```text
@@ -144,7 +151,10 @@ Reason codes are also authority-scoped:
 
 - self-service revoke-all may use only `logout_all_devices`;
 - `administrator` requires the cross-user administrator authority defined above;
-- `account_disabled` is emitted only by the supported account-disable paths;
+- `account_disabled` is emitted only inside the trusted account-disable
+  operation that atomically changes `is_active` and advances the session version;
+  the generic `revoke_all_sessions()` service must reject this reason even for an
+  otherwise authorized administrator;
 - `credential_compromise` requires administrator/security authority and is not
   accepted from ordinary self-service callers.
 
@@ -160,9 +170,11 @@ unknown code.
 - a new login after revoke succeeds;
 - concurrent revoke calls do not decrease or lose the version;
 - account disable through ordinary model `save()` advances the revocation boundary and replay remains rejected after re-enable;
-- account disable through `QuerySet.update()` advances the revocation boundary and replay remains rejected after re-enable;
-- account disable through `bulk_update()` advances the revocation boundary and replay remains rejected after re-enable;
-- inject revocation/version-write failure for model `save()`, `QuerySet.update()`, and `bulk_update()`; in each case the disable mutation rolls back and no partial disabled-without-revocation state commits;
+- account disable through `QuerySet.update()` advances the revocation boundary for **every** affected user and replay remains rejected for every copied cookie after re-enable;
+- account disable through `bulk_update()` advances the revocation boundary for **every** affected user and replay remains rejected for every copied cookie after re-enable;
+- multi-user `QuerySet.update()` and `bulk_update()` regressions verify every target's counter/version, every retained pre-disable cookie, and successful re-enable semantics;
+- inject a failure after at least one target in a multi-user `QuerySet.update()` and `bulk_update()` batch has been processed; the entire batch must roll back, with no partially disabled users and no partially advanced session versions;
+- inject revocation/version-write failure for ordinary model `save()`; the disable mutation rolls back and no partial disabled-without-revocation state commits;
 - stale ordinary user saves cannot overwrite the counter;
 - deleting/missing the security-version record causes an already-authenticated browser session to fail closed on its next request;
 - deleting/missing the security-version record also prevents a new browser login from silently recreating a default version or authenticating;
@@ -175,6 +187,7 @@ unknown code.
 - a direct API/admin request that submits another user's actor ID cannot choose or override the revocation actor; the authenticated server-side principal remains authoritative;
 - arbitrary/free-text revocation reasons are rejected, including a value shaped like a copied cookie/session key; only allow-listed reason codes reach audit logging;
 - self-service revocation accepts `logout_all_devices` and rejects administrative-only codes such as `administrator`, `account_disabled`, and `credential_compromise`;
+- a direct call to generic `revoke_all_sessions()` with `reason='account_disabled'` is rejected even for an authorized administrator when the target is still active; only the trusted atomic disable operation may emit that reason;
 - password change remains compatible;
 - token/JWT behavior is unchanged;
 - multi-worker behavior is consistent.
