@@ -102,6 +102,16 @@ login
 Authenticate on worker A, logout on A, replay the old cookie on worker B, and
 verify rejection.
 
+### Logout isolation
+
+Create two concurrent browser sessions for the same user. Log out session A and
+verify:
+
+- replay of session A is rejected;
+- session B remains authenticated and usable;
+- ordinary logout does not advance the user-wide security/session version or
+  otherwise revoke unrelated browser sessions.
+
 ### Compatibility
 
 - inactivity/max-age policy still works;
