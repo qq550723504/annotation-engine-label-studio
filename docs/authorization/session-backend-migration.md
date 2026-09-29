@@ -25,8 +25,8 @@ cutover. A dual-mode reader would preserve the replay property this issue remove
 The implementation should:
 
 - make `SESSION_ENGINE` configurable;
-- default hardened deployments to the DB backend;
-- reject `django.contrib.sessions.backends.signed_cookies` at startup for this hardened deployment contract;
+- require `SESSION_ENGINE == django.contrib.sessions.backends.db` for this hardened deployment contract;
+- reject every other backend at startup, including `signed_cookies`, `cached_db`, cache-only, and file-based sessions; support for another backend requires a separately reviewed consistency design;
 - ensure the `django_session` migration exists before activation;
 - optionally rotate `SESSION_COOKIE_NAME` at cutover to make the boundary explicit.
 
