@@ -115,10 +115,29 @@ Document at least:
 Assert Secure/HttpOnly/SameSite/domain behavior under supported production
 configuration.
 
+### Audit-event correctness
+
+Require both positive and transactional coverage:
+
+- a successfully committed revoke-all operation emits exactly one security audit
+  event;
+- a successfully committed account-disable revocation emits exactly one security
+  audit event;
+- each emitted event contains the mandatory schema fields: event type,
+  revocation type, actor user ID, target user ID, allow-listed reason code,
+  timestamp, and request/correlation ID when request context exists;
+- if a non-replayable session fingerprint is emitted, it must not equal raw
+  session material;
+- an operation whose database transaction rolls back emits **no** success audit
+  event;
+- retries/idempotent failure paths must not create duplicate success events for
+  one committed state transition.
+
 ### Log-safety tests
 
-Exercise login/logout/revoke paths and verify captured application/audit logs do
-not contain raw cookie values or session keys.
+Exercise login/logout/revoke/disable paths and verify captured application/audit
+logs do not contain raw cookie values, raw session keys, authentication hashes,
+or rejected free-text reason material.
 
 ### Multi-worker test
 
