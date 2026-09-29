@@ -139,9 +139,13 @@ Require both positive and transactional coverage:
 
 - a successfully committed revoke-all operation emits exactly one security audit
   event;
-- a successfully committed account-disable revocation emits exactly one security
-  audit event for each supported disable mutation path: model `save()`,
-  `QuerySet.update()`, and `bulk_update()`;
+- a successfully committed single-user account-disable revocation emits exactly
+  one security audit event for each supported disable mutation path: model
+  `save()`, `QuerySet.update()`, and `bulk_update()`;
+- for multi-user `QuerySet.update()` and `bulk_update()`, emit exactly **one
+  audit event per affected target user**; each event carries that user's singular
+  `target_user_id`, and the set of emitted targets must equal the committed
+  affected-user set;
 - each emitted event contains the mandatory schema fields: event type,
   revocation type, actor type, the matching human/system actor identifier,
   target user ID, allow-listed reason code, timestamp, and request/correlation ID
@@ -156,6 +160,9 @@ Require both positive and transactional coverage:
 - for model `save()`, `QuerySet.update()`, and `bulk_update()`, an injected
   transaction/revocation failure rolls back the disablement and emits **no**
   success audit event;
+- for a multi-user `QuerySet.update()` or `bulk_update()` failure injected after
+  at least one target has been processed, rollback emits **zero success events for
+  every target** in the batch; no per-target event may escape before commit;
 - retries/idempotent failure paths must not create duplicate success events for
   one committed state transition.
 
