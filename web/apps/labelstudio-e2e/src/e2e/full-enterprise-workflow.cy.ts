@@ -106,6 +106,11 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.get('[data-testid="bottombar-update-button"], [data-testid="bottombar-submit-button"]', {
       timeout: 30000,
     }).should("be.visible");
+    // A visible editor can still be hydrating the previously submitted result.
+    // Confirm revision 1 is loaded before changing it to revision 2.
+    cy.get('#label-studio-dm input[type="checkbox"][name="Positive"]', {
+      timeout: 30000,
+    }).should("be.checked");
   };
 
   const choose = (value: "Positive" | "Negative", taskId: number) => {
@@ -118,18 +123,27 @@ describe("full enterprise collaboration browser workflow", () => {
       expect(editor?.isLoading, "editor initialization complete").to.eq(false);
       expect(annotation?.editable, "editable annotation").to.eq(true);
       expect(annotation?.isReadOnly(), "annotation is not read-only").to.eq(false);
+      expect(annotation?.history?.isFrozen, "annotation history is ready").to.eq(false);
       expect(annotation?.autosave, "autosave listener attached").to.be.a("function");
       expect(annotation?.autosave?.paused, "autosave is not paused").not.to.eq(true);
     });
 
     const choice = `#label-studio-dm input[type="checkbox"][name="${value}"]`;
     cy.get(choice, { timeout: 30000 }).should("not.be.disabled");
-    // Cypress actionability retries race with React replacing the Ant input,
-    // while clicking the whole wrapper exercises unrelated UI behavior.
-    // Invoke the current input's native click synchronously, then let the
-    // downstream draft/submission request prove the selection persisted.
-    cy.get(choice, { timeout: 30000 }).then(($input) => {
-      ($input[0] as HTMLInputElement).click();
+    // React can replace the input between a Cypress query and its callback.
+    // Resolve the mounted input at the instant of the native click, then
+    // confirm the selection before attempting Draft/Submit/Update.
+    cy.window().then((win) => {
+      const input = win.document.querySelector<HTMLInputElement>(choice);
+      expect(input, "current choice input").not.to.eq(null);
+      expect(input?.isConnected, "choice input is mounted").to.eq(true);
+      expect(input?.disabled, "choice input is enabled").to.eq(false);
+      input!.click();
+    });
+    cy.get(choice, { timeout: 30000 }).should("be.checked");
+    cy.window({ timeout: 30000 }).should((win) => {
+      const results = win.Htx.annotationStore.selected.serializeAnnotation();
+      expect(results.some((result) => result.value?.choices?.includes(value)), "editor selected choice").to.eq(true);
     });
   };
 
