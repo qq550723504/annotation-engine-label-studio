@@ -2,6 +2,7 @@
 """
 import logging
 
+from django.contrib.auth import SESSION_KEY
 from organizations.models import Organization
 
 logger = logging.getLogger(__name__)
@@ -12,12 +13,14 @@ class DummyGetSessionMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        org = Organization.objects.first()
         user = request.user
-        if user and user.is_authenticated and user.active_organization is None:
+        if not user or not user.is_authenticated:
+            return self.get_response(request)
+        org = Organization.objects.first()
+        if user.active_organization is None:
             user.active_organization = org
             user.save(update_fields=['active_organization'])
-        if org is not None:
+        if org is not None and SESSION_KEY in request.session:
             request.session['organization_pk'] = org.id
         response = self.get_response(request)
         return response

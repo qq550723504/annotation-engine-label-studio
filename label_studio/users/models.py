@@ -7,12 +7,16 @@ from core.feature_flags import flag_set
 from core.utils.common import load_func
 from core.utils.db import fast_first
 from django.conf import settings
+from django.contrib import auth
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
-from django.db import models
+from django.contrib.auth.signals import user_logged_in
+from django.core.exceptions import PermissionDenied
+from django.db import models, router, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
+from django.utils.crypto import salted_hmac
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 from organizations.models import Organization
@@ -28,7 +32,22 @@ for r in range(YEAR_START, (datetime.datetime.now().year + 1)):
 year = models.IntegerField(_('year'), choices=YEAR_CHOICES, default=datetime.datetime.now().year)
 
 
-class UserManager(BaseUserManager):
+class UserQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        if 'is_active' not in kwargs:
+            return super().update(**kwargs)
+        from users.session_security import _advance_session_version
+
+        with transaction.atomic(using=self.db):
+            user_ids = list(self.values_list('pk', flat=True))
+            count = super().update(**kwargs)
+            disabled = self.model.objects.using(self.db).filter(pk__in=user_ids, is_active=False)
+            for user_id in disabled.values_list('pk', flat=True):
+                _advance_session_version(user_id, reason='account_disabled', actor_id=None, using=self.db)
+            return count
+
+
+class UserManager(BaseUserManager.from_queryset(UserQuerySet)):
     use_in_migrations = True
 
     def _create_user(self, email, password, **extra_fields):
@@ -156,6 +175,27 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ()
 
+    def save(self, *args, **kwargs):
+        # Provisioning/security signals and account state must commit together.
+        using = kwargs.get('using') or router.db_for_write(type(self), instance=self)
+        with transaction.atomic(using=using):
+            return super().save(*args, **kwargs)
+
+    def _get_session_auth_hash(self, secret=None):
+        # Django checks this on every session-authenticated request, including
+        # SECRET_KEY fallback verification. Never use a cached related object.
+        using = self._state.db or router.db_for_write(UserSessionVersion)
+        try:
+            version = UserSessionVersion.objects.using(using).values_list('version', flat=True).get(user_id=self.pk)
+        except UserSessionVersion.DoesNotExist:
+            # Django treats an empty auth hash as invalid and flushes existing
+            # sessions. The login signal below also rejects a new empty hash.
+            return ''
+        password_hash = super()._get_session_auth_hash(secret=secret)
+        return salted_hmac(
+            'users.User.session_security', f'{password_hash}:{version}', secret=secret, algorithm='sha256'
+        ).hexdigest()
+
     class Meta:
         db_table = 'htx_user'
         verbose_name = _('user')
@@ -240,8 +280,30 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
         return initials
 
 
+class UserSessionVersion(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, primary_key=True, on_delete=models.CASCADE)
+    version = models.PositiveBigIntegerField(default=0, editable=False)
+
+    class Meta:
+        db_table = 'htx_user_session_version'
+
+
+@receiver(user_logged_in, sender=User)
+def reject_unversioned_login(sender, request, user, **kwargs):
+    if not request.session.get(auth.HASH_SESSION_KEY):
+        auth.logout(request)
+        raise PermissionDenied('User session security state is missing.')
+
+
 @receiver(post_save, sender=User)
-def init_user(sender, instance=None, created=False, **kwargs):
+def init_user(sender, instance=None, created=False, raw=False, using=None, update_fields=None, **kwargs):
+    if raw:
+        return
     if created:
+        UserSessionVersion.objects.using(using).create(user=instance)
         # create token for user
-        Token.objects.create(user=instance)
+        Token.objects.using(using).create(user=instance)
+    elif not instance.is_active and (update_fields is None or 'is_active' in update_fields):
+        from users.session_security import _advance_session_version
+
+        _advance_session_version(instance.pk, reason='account_disabled', actor_id=None, using=using)

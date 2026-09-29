@@ -100,12 +100,25 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible");
   };
 
-  const reopenAssignedEditor = (email: string, taskId: number, taskText: string) => {
+  const reopenAssignedEditor = (email: string, taskId: number, taskText: string, annotationId: () => number) => {
     openTaskPanel(email, taskId);
     cy.contains(taskText, { timeout: 30000 }).should("be.visible");
-    cy.get('[data-testid="bottombar-update-button"], [data-testid="bottombar-submit-button"]', {
+    // Opening a task can select a new annotation or draft. Select the submitted
+    // annotation explicitly before editing its next revision.
+    cy.then(() => {
+      cy.get(`[data-annotation-id="${annotationId()}"]`, { timeout: 30000 }).should("be.visible").click();
+    });
+    cy.window({ timeout: 30000 }).should((win) => {
+      expect(String(win.Htx?.annotationStore?.selected?.pk), "selected submitted annotation").to.eq(
+        String(annotationId()),
+      );
+    });
+    cy.get('[data-testid="bottombar-update-button"]', { timeout: 30000 }).should("be.visible");
+    // A visible editor can still be hydrating the previously submitted result.
+    // Confirm revision 1 is loaded before changing it to revision 2.
+    cy.get('#label-studio-dm input[type="checkbox"][name="Positive"]', {
       timeout: 30000,
-    }).should("be.visible");
+    }).should("be.checked");
   };
 
   const choose = (value: "Positive" | "Negative", taskId: number) => {
@@ -118,18 +131,27 @@ describe("full enterprise collaboration browser workflow", () => {
       expect(editor?.isLoading, "editor initialization complete").to.eq(false);
       expect(annotation?.editable, "editable annotation").to.eq(true);
       expect(annotation?.isReadOnly(), "annotation is not read-only").to.eq(false);
+      expect(annotation?.history?.isFrozen, "annotation history is ready").to.eq(false);
       expect(annotation?.autosave, "autosave listener attached").to.be.a("function");
       expect(annotation?.autosave?.paused, "autosave is not paused").not.to.eq(true);
     });
 
     const choice = `#label-studio-dm input[type="checkbox"][name="${value}"]`;
     cy.get(choice, { timeout: 30000 }).should("not.be.disabled");
-    // Cypress actionability retries race with React replacing the Ant input,
-    // while clicking the whole wrapper exercises unrelated UI behavior.
-    // Invoke the current input's native click synchronously, then let the
-    // downstream draft/submission request prove the selection persisted.
-    cy.get(choice, { timeout: 30000 }).then(($input) => {
-      ($input[0] as HTMLInputElement).click();
+    // React can replace the input between a Cypress query and its callback.
+    // Resolve the mounted input at the instant of the native click, then
+    // confirm the selection before attempting Draft/Submit/Update.
+    cy.window().then((win) => {
+      const input = win.document.querySelector<HTMLInputElement>(choice);
+      expect(input, "current choice input").not.to.eq(null);
+      expect(input?.isConnected, "choice input is mounted").to.eq(true);
+      expect(input?.disabled, "choice input is enabled").to.eq(false);
+      input!.click();
+    });
+    cy.get(choice, { timeout: 30000 }).should("be.checked");
+    cy.window({ timeout: 30000 }).should((win) => {
+      const results = win.Htx.annotationStore.selected.serializeAnnotation();
+      expect(results.some((result) => result.value?.choices?.includes(value)), "editor selected choice").to.eq(true);
     });
   };
 
@@ -254,9 +276,15 @@ describe("full enterprise collaboration browser workflow", () => {
     choose("Positive", fixture.full_flow.tasks.a.id);
     saveDraftImmediately(fixture.full_flow.tasks.a.id);
 
+    let savedDraftId: number;
+    let annotationId: number;
     waitForDraft(fixture.full_flow.tasks.a.id).then((drafts) => {
       expect(drafts.status).to.eq(200);
       expect(drafts.body.length).to.be.greaterThan(0);
+      savedDraftId = drafts.body[0].id;
+      cy.window({ timeout: 30000 }).should((win) => {
+        expect(win.Htx?.annotationStore?.selected?.draftId, "current editor saved draft").to.eq(savedDraftId);
+      });
     });
     cy.request(`/api/submissions/?project=${projectId()}`).then((submissions) => {
       expect(submissions.status).to.eq(200);
@@ -265,7 +293,13 @@ describe("full enterprise collaboration browser workflow", () => {
 
     cy.intercept("POST", `**/api/tasks/${fixture.full_flow.tasks.a.id}/annotations*`).as("submitRevision1");
     cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible").click();
-    cy.wait("@submitRevision1").its("response.statusCode").should("be.oneOf", [200, 201]);
+    cy.wait("@submitRevision1").then((submission) => {
+      expect(submission.request.body.draft_id, "submitted draft id").to.eq(savedDraftId);
+      expect(submission.response?.statusCode).to.be.oneOf([200, 201]);
+      annotationId = submission.response?.body.id;
+      expect(annotationId, "submitted annotation id").to.be.a("number");
+    });
+    cy.request(`/api/tasks/${fixture.full_flow.tasks.a.id}/drafts`).its("body").should("have.length", 0);
 
     let revision1Id: number;
     let revision1Hash: string;
@@ -300,6 +334,7 @@ describe("full enterprise collaboration browser workflow", () => {
       fixture.users.annotator_a.email,
       fixture.full_flow.tasks.a.id,
       "Full flow Annotator A task",
+      () => annotationId,
     );
     choose("Negative", fixture.full_flow.tasks.a.id);
     cy.intercept("PATCH", `**/api/annotations/**`).as("submitRevision2");

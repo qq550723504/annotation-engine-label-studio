@@ -1,0 +1,15 @@
+# Opt in alongside the normal deployment:
+# docker compose -f docker-compose.yml -f docker-compose.sessions.yml up -d
+services:
+  session-cleanup:
+    extends:
+      file: docker-compose.yml
+      service: app
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        while true; do
+          python3 /label-studio/label_studio/manage.py clearsessions
+          sleep 86400
+        done

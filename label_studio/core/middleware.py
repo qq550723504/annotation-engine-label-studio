@@ -9,7 +9,7 @@ import ujson as json
 from core.utils.contextlog import ContextLog
 from csp.middleware import CSPMiddleware
 from django.conf import settings
-from django.contrib.auth import logout
+from django.contrib.auth import SESSION_KEY, logout
 from django.core.exceptions import MiddlewareNotUsed
 from django.core.handlers.base import BaseHandler
 from django.http import HttpResponsePermanentRedirect
@@ -109,7 +109,7 @@ class CommonMiddlewareAppendSlashWithoutRedirect(CommonMiddleware):
 
 class SetSessionUIDMiddleware(CommonMiddleware):
     def process_request(self, request):
-        if 'uid' not in request.session:
+        if request.user.is_authenticated and SESSION_KEY in request.session and 'uid' not in request.session:
             request.session['uid'] = str(uuid4())
 
 
