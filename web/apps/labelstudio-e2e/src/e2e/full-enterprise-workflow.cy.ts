@@ -47,7 +47,11 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.then(() => {
       actorSwitchInProgress = true;
     });
-    cy.visit("/logout");
+    cy.request({
+      url: "/logout",
+      followRedirect: false,
+      failOnStatusCode: false,
+    }).its("status").should("be.oneOf", [301, 302]);
     cy.loginAs(email, fixture.password, nextPath);
     cy.then(() => {
       actorSwitchInProgress = false;
@@ -160,6 +164,7 @@ describe("full enterprise collaboration browser workflow", () => {
       expect(Number(editor?.task?.id), "editor task before draft save").to.eq(taskId);
       expect(annotation?.editable, "editable annotation before draft save").to.eq(true);
 
+      annotation.autosave?.cancel?.();
       if (annotation.isDraftSaving) {
         return;
       }
