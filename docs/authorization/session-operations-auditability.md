@@ -83,14 +83,19 @@ Audit attribution must never fabricate a human actor.
 - request-driven administrative disables must propagate the trusted authenticated
   server-side principal into the disable/revocation operation and emit
   `actor_type=human` with that user's ID;
-- background jobs, migrations, or internal maintenance paths without a human
-  principal must emit `actor_type=system`, `actor_user_id=null`, and a stable
-  allow-listed `actor_system_id` identifying the subsystem/process;
-- model/queryset/bulk hooks must accept or receive attribution through an explicit
-  trusted application context rather than guessing from ambient request globals;
-- if a request-driven path loses actor context, it must not silently downgrade to
-  an anonymous/system attribution unless that path is explicitly defined as a
-  system operation.
+- account-disable operations in the current delivery require an authorized human
+  administrator; there is no system principal with account-disable capability in
+  #46-#48;
+- background jobs, migrations, or maintenance processes may use
+  `actor_type=system` only for audit events belonging to operations they are
+  explicitly authorized to perform; naming an `actor_system_id` never grants
+  authority by itself;
+- a non-request path that attempts account disablement without an authorized human
+  principal must fail closed in the current scope;
+- model/queryset/bulk hooks must receive attribution through explicit trusted
+  application context rather than guessing from ambient request globals;
+- if a request-driven path loses actor context, it must fail closed rather than
+  silently downgrade to system attribution.
 
 ## Operational control matrix
 
@@ -181,8 +186,9 @@ Require both positive and transactional coverage:
 - request-driven administrator disable tests assert the authenticated principal is
   preserved as the human actor across model `save()`, `QuerySet.update()`, and
   `bulk_update()` entry points;
-- background/system disable tests assert explicit system attribution and never a
-  fabricated human user ID;
+- a non-request/system attempt to disable an account is rejected in the current
+  scope; audit actor metadata cannot be used to bypass the human-administrator
+  authorization requirement;
 - if a non-replayable session fingerprint is emitted, it must not equal raw
   session material;
 - for model `save()`, `QuerySet.update()`, and `bulk_update()`, an injected
