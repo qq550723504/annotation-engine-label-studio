@@ -71,8 +71,9 @@ become valid again. The supported recovery path must either:
   sessions for that user before establishing a fresh recovery version.
 
 Never recreate a missing row with a default such as `0`, `1`, or a guessed
-historical value. Recovery must be an explicit operator/service action, audited
-and transactional.
+historical value. Recovery must be an explicit operator/service action and
+transactional. Auditability for recovery is not part of #47 and is not introduced
+implicitly by this contract.
 
 ## Service boundary
 
@@ -240,6 +241,8 @@ unknown code.
 - a negative regression revokes the actor's administrative permission or disables the actor directly in the database after an actor object has already been loaded, then verifies that stale privileges cannot revoke another user's sessions;
 - a direct API/admin request that submits another user's actor ID cannot choose or override the revocation actor; the authenticated server-side principal remains authoritative;
 - an authorized human staff administrator with `users.change_user` can perform an account-disable transition;
+- an ordinary authenticated human user cannot perform an account-disable transition;
+- a staff user lacking `users.change_user` cannot perform an account-disable transition;
 - a non-request/background/system account-disable attempt without that human authority is rejected by #47 itself;
 - arbitrary/free-text revocation reasons are rejected, including a value shaped like a copied cookie/session key; only allow-listed reason codes reach audit logging;
 - self-service revocation accepts `logout_all_devices` and rejects administrative-only codes such as `administrator`, `account_disabled`, and `credential_compromise`;
