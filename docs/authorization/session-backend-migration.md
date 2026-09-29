@@ -26,7 +26,7 @@ The implementation should:
 
 - make `SESSION_ENGINE` configurable;
 - default hardened deployments to the DB backend;
-- reject or clearly mark signed-cookie configuration as an insecure downgrade;
+- reject `django.contrib.sessions.backends.signed_cookies` at startup for this hardened deployment contract;
 - ensure the `django_session` migration exists before activation;
 - optionally rotate `SESSION_COOKIE_NAME` at cutover to make the boundary explicit.
 
