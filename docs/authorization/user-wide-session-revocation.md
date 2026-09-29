@@ -57,6 +57,23 @@ For each authenticated browser-session request:
 
 The check must not turn stateless API-token/JWT reads into browser sessions.
 
+### Missing-state recovery
+
+A missing security-version row is a security incident/recovery condition, not an
+ordinary lazy-create case.
+
+Recovery must ensure that no version previously issued to a browser session can
+become valid again. The supported recovery path must either:
+
+- restore/recreate the row with a **never-before-issued** monotonic version derived
+  from authoritative recovery state; or
+- force full browser reauthentication by deleting/invalidating all server-side
+  sessions for that user before establishing a fresh recovery version.
+
+Never recreate a missing row with a default such as `0`, `1`, or a guessed
+historical value. Recovery must be an explicit operator/service action, audited
+and transactional.
+
 ## Service boundary
 
 Expose one server-side operation:
@@ -105,7 +122,13 @@ The version increment must be transactional and safe under concurrent revocation
 A stale in-memory user object must not be able to write an older version back over
 the security counter.
 
-For account disablement, the `is_active=False` state transition and the
+For account disablement, only a real `is_active=True -> is_active=False` state
+transition is a disable security event. Re-saving an already inactive user,
+repeating `update(is_active=False)`, or including already-inactive users in a
+mixed bulk operation must not advance their session version or emit another
+`account_disabled` event.
+
+For a real disable transition, the `is_active=False` state transition and the
 security-version increment are one atomic security operation. If version
 advancement fails, the account-state mutation must roll back as well. No supported
 disable path may commit a disabled account without also advancing the revocation
@@ -176,15 +199,19 @@ unknown code.
 - one atomic version increment invalidates both on their next request;
 - a new login after revoke succeeds;
 - concurrent revoke calls do not decrease or lose the version;
-- account disable through ordinary model `save()` advances the revocation boundary and replay remains rejected after re-enable;
-- account disable through `QuerySet.update()` advances the revocation boundary for **every** affected user and replay remains rejected for every copied cookie after re-enable;
-- account disable through `bulk_update()` advances the revocation boundary for **every** affected user and replay remains rejected for every copied cookie after re-enable;
+- account disable through ordinary model `save()` advances the revocation boundary only for a real active-to-inactive transition and replay remains rejected after re-enable;
+- saving an already inactive user, including unrelated field updates, does not advance the version and does not emit another disable event;
+- account disable through `QuerySet.update()` advances the revocation boundary for every target that actually transitions active-to-inactive and replay remains rejected for every copied cookie after re-enable;
+- repeating `QuerySet.update(is_active=False)` over already inactive users is a no-op for security version/audit;
+- account disable through `bulk_update()` advances the revocation boundary only for targets that actually transition active-to-inactive;
+- a mixed `bulk_update()` containing active and already-inactive users advances/emits only for the active-to-inactive subset;
 - multi-user `QuerySet.update()` and `bulk_update()` regressions verify every target's counter/version, every retained pre-disable cookie, and successful re-enable semantics;
 - inject a failure after at least one target in a multi-user `QuerySet.update()` and `bulk_update()` batch has been processed; the entire batch must roll back, with no partially disabled users and no partially advanced session versions;
 - inject revocation/version-write failure for ordinary model `save()`; the disable mutation rolls back and no partial disabled-without-revocation state commits;
 - stale ordinary user saves cannot overwrite the counter;
 - deleting/missing the security-version record causes an already-authenticated browser session to fail closed on its next request;
 - deleting/missing the security-version record also prevents a new browser login from silently recreating a default version or authenticating;
+- after explicit missing-state recovery, replay of a cookie issued before the row was deleted remains rejected; recovery uses a never-before-issued version or forces reauthentication/session invalidation before establishing fresh state;
 - self-revocation succeeds for an authenticated active user targeting themselves;
 - a cross-user revoke succeeds only for an active staff actor with `users.change_user`;
 - an ordinary authenticated user attempting to revoke another user's sessions is rejected;
