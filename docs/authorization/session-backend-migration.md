@@ -97,6 +97,22 @@ login
 -> new login creates a different valid session
 ```
 
+### Legacy pre-cutover cookie rejection
+
+Add an explicit migration regression that:
+
+1. runs with the legacy signed-cookie backend and creates a valid authenticated
+   signed cookie;
+2. retains the exact cookie value;
+3. switches to the hardened DB-only configuration with no compatibility reader;
+4. replays the retained legacy cookie;
+5. verifies both `/api/current-user/whoami` and another protected API reject it;
+6. verifies the request does not transparently migrate/convert that legacy cookie
+   into a valid DB session.
+
+This test must exercise an actually pre-cutover signed cookie, not a DB-session
+cookie issued after the new backend is enabled.
+
 ### Multi-worker replay
 
 Authenticate on worker A, logout on A, replay the old cookie on worker B, and
