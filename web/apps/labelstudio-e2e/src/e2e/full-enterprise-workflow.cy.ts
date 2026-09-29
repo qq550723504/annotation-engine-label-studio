@@ -154,12 +154,18 @@ describe("full enterprise collaboration browser workflow", () => {
   };
 
   const saveDraftImmediately = (taskId: number) => {
-    cy.window({ timeout: 30000 }).then(async (win) => {
+    cy.window({ timeout: 30000 }).then((win) => {
       const editor = win.Htx;
       const annotation = editor?.annotationStore?.selected;
       expect(Number(editor?.task?.id), "editor task before draft save").to.eq(taskId);
       expect(annotation?.editable, "editable annotation before draft save").to.eq(true);
-      await annotation.saveDraftImmediately();
+      annotation.saveDraftImmediately();
+    });
+
+    cy.window({ timeout: 30000 }).should((win) => {
+      const annotation = win.Htx?.annotationStore?.selected;
+      expect(annotation?.isDraftSaving, "editor draft save settled").to.eq(false);
+      expect(Number(annotation?.draftId), "editor draft id").to.be.greaterThan(0);
     });
   };
 
