@@ -9,6 +9,7 @@ on:
       - synchronize
       - reopened
       - ready_for_review
+      - edited
     # Required checks must run for every PR, including documentation-only changes.
 
 permissions:

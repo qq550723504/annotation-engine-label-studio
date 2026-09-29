@@ -37,7 +37,11 @@ check without running its tests.
 
 PR workflows use the default `actions/checkout` merge ref so the tests exercise
 the PR integrated with its base. Browser manual dispatch uses the selected ref.
-Both workflows handle `opened`, `synchronize`, `reopened`, and `ready_for_review`.
+Both workflows handle `opened`, `synchronize`, `reopened`, `ready_for_review`, and
+`edited`. Changing a PR's base branch to `main` emits `edited`; both required
+checks must run even when the head SHA has not changed. Title/body edits also run
+both suites. Keep these jobs unconditional so an edit cannot satisfy a failing
+required check through a skipped job.
 The existing test suites and job names are unchanged.
 
 ## Apply and inspect
