@@ -8,6 +8,7 @@ from django.urls import path, re_path
 from django.views.static import serve
 from rest_framework import routers
 from users import api, views
+from users.locale_api import CurrentUserLocaleAPI, select_anonymous_locale
 from users.product_tours import api as product_tours_api
 
 router = routers.DefaultRouter()
@@ -25,6 +26,8 @@ urlpatterns = [
     path('api/current-user/reset-token/', api.UserResetTokenAPI.as_view(), name='current-user-reset-token'),
     path('api/current-user/token', api.UserGetTokenAPI.as_view(), name='current-user-token'),
     path('api/current-user/whoami', api.UserWhoAmIAPI.as_view(), name='current-user-whoami'),
+    path('api/current-user/locale/', CurrentUserLocaleAPI.as_view(), name='current-user-locale'),
+    path('api/ui-locale/', select_anonymous_locale, name='ui-locale'),
     # Product tours
     path('api/current-user/product-tour', product_tours_api.ProductTourAPI.as_view(), name='product-tour'),
     path('api/current-user/hotkeys/', api.UserHotkeysAPI.as_view(), name='current-user-hotkeys'),

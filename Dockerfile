@@ -82,6 +82,7 @@ RUN apk add --no-cache \
     linux-headers \
     python3-dev \
     pcre2-dev
+    gettext
 
 ADD https://install.python-poetry.org /tmp/install-poetry.py
 RUN python /tmp/install-poetry.py
@@ -113,6 +114,7 @@ COPY label_studio label_studio
 RUN --mount=type=cache,target=/.poetry-cache,id=poetry-cache-alpine,sharing=locked \
     # `--extras uwsgi` is mandatory here due to poetry bug: https://github.com/python-poetry/poetry/issues/7302
     poetry install --only-root --extras uwsgi && \
+    python3 label_studio/manage.py compilemessages -l en_US -l zh_Hans && \
     python3 label_studio/manage.py collectstatic --no-input
 
 ################################ Stage: py-version-generator

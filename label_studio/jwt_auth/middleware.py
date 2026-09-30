@@ -28,6 +28,9 @@ class JWTAuthenticationMiddleware:
                 if JWT_ACCESS_TOKEN_ENABLED and user.active_organization.jwt.api_tokens_enabled:
                     request.user = user
                     request.is_jwt = True
+                    from users.locale import activate_request_locale
+
+                    activate_request_locale(request, user)
         except User.DoesNotExist:
             logger.info('JWT authentication failed: User no longer exists')
             return JsonResponse({'detail': 'User not found'}, status=status.HTTP_401_UNAUTHORIZED)

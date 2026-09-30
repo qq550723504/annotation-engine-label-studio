@@ -41,6 +41,7 @@ from django.db.models.signals import (
 )
 from django.db.utils import OperationalError
 from django.utils import timezone
+from django.utils.translation import gettext as _
 from django.utils.crypto import get_random_string
 from django.utils.module_loading import import_string
 from drf_spectacular.types import OpenApiTypes
@@ -107,7 +108,7 @@ def custom_exception_handler(exc, context):
         'id': exception_id,
         'status_code': status.HTTP_500_INTERNAL_SERVER_ERROR,  # default value
         'version': label_studio.__version__,
-        'detail': 'Unknown error',  # default value
+        'detail': _('Unknown error'),  # default value
         'exc_info': None,
     }
 
@@ -124,7 +125,7 @@ def custom_exception_handler(exc, context):
             response.data = response_data
         # move validation errors to separate namespace
         else:
-            response_data['detail'] = 'Validation error'
+            response_data['detail'] = _('Validation error')
             response_data['validation_errors'] = (
                 response.data if isinstance(response.data, dict) else {'non_field_errors': response.data}
             )
@@ -139,8 +140,9 @@ def custom_exception_handler(exc, context):
 
         exc_tb = tb.format_exc()
         logger.debug(exc_tb)
-        response_data['detail'] = str(exc)
-        if not settings.DEBUG_MODAL_EXCEPTIONS:
+        # Keep the diagnostic ID for support while avoiding raw exception text
+        # in a user-facing response. No permission decision relies on this text.
+        if not (settings.DEBUG and settings.DEBUG_MODAL_EXCEPTIONS):
             exc_tb = None
         response_data['exc_info'] = exc_tb
         # Thrown by sdk when label config is invalid

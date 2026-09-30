@@ -24,6 +24,11 @@ logger = logging.getLogger()
 @login_required
 def logout(request):
     auth.logout(request)
+    from users.locale import COOKIE_NAME, activate_request_locale
+
+    request._locale_clear_cookie = True
+    request.COOKIES.pop(COOKIE_NAME, None)
+    activate_request_locale(request)
 
     if settings.LOGOUT_REDIRECT_URL:
         return redirect(settings.LOGOUT_REDIRECT_URL)

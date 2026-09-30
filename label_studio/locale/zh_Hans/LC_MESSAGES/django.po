@@ -1,0 +1,47 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: zh_Hans\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Unknown error"
+msgstr "未知错误"
+
+msgid "Validation error"
+msgstr "验证错误"
+
+msgid "Provide only the preference field."
+msgstr "只能提交语言偏好字段。"
+
+msgid "Choose English, Simplified Chinese, or Automatic."
+msgstr "请选择英语、简体中文或自动。"
+
+msgid "Only anonymous visitors can select a display cookie."
+msgstr "只有未登录访客可以设置显示语言 Cookie。"
+
+msgid "Invalid locale request."
+msgstr "语言请求无效。"
+
+msgid "The email and password you entered don't match."
+msgstr "邮箱和密码不匹配。"
+
+msgid "Email is too long"
+msgstr "邮箱地址过长。"
+
+msgid "Invalid email"
+msgstr "邮箱地址无效。"
+
+msgid "User with username already exists"
+msgstr "该用户名已存在。"
+
+msgid "User with this email already exists"
+msgstr "该邮箱已注册。"
+
+msgid "User"
+msgstr "用户"
+
+msgid "Email"
+msgstr "邮箱"
+
+msgid "Work Email"
+msgstr "工作邮箱"

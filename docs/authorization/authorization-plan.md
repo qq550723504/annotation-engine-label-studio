@@ -261,3 +261,14 @@ request. API/JWT tokens are unaffected. Require negative copied-cookie and
 cross-process regression tests, and keep expired DB-session cleanup scheduled.
 See [session revocation](session-revocation.md) for configuration, cutover,
 rollback boundaries, and deployment acceptance.
+
+## Display locale remains outside authorization
+
+The request-locale middleware runs after Django session authentication and
+wraps JWT middleware and DRF views. A successful JWT or legacy API-token
+authentication may update only the active display locale for that request.
+It must not establish, replace, or revive an authenticated actor. Keep the
+preference in its separate `UserLocalePreference` table, never in session
+security state. Preserve the existing token enablement and revocation checks
+before applying a token user's locale, and re-run the negative authorization,
+CSRF, and copied-cookie tests after upstream middleware/authenticator upgrades.
