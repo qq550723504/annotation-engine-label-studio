@@ -164,8 +164,12 @@ preserve audit durability:
   pre-rollback committed audit intents are durably delivered;
 - before restore, snapshot/export any pending/dead-letter audit rows that would be
   lost by restoring an older database backup;
-- after restore, reconcile/reinsert those preserved rows by stable event ID before
-  normal operations resume;
+- if receiver accepted-ID/deduplication state shares the restore boundary, preserve
+  and reconcile that state as well; alternatively, place receiver deduplication
+  state outside the application database restore boundary and document that
+  topology explicitly;
+- after restore, reconcile/reinsert preserved outbox rows **and** any receiver
+  accepted-ID state by stable event ID before normal operations resume;
 - do not discard pending audit intents merely because application code has rolled
   back to an older release. At minimum, delete/clear restored
 browser sessions; rotate the session-cookie boundary when needed to make the
@@ -256,9 +260,14 @@ Require both positive and transactional coverage:
 - retrying delivery uses a stable event ID/idempotency key plus durable
   sink/adapter-side deduplication and must not create duplicate logical success
   events for one committed state transition;
-- exercise rollback/restore with pending audit intents: preserve them across the
-  restore boundary, reconcile by stable event ID, and verify they still drain
-  after a compatible dispatcher/receiver path resumes.
+- exercise rollback/restore with pending audit intents **and receiver accepted-ID
+  state**: preserve or isolate both sides of the deduplication boundary, reconcile
+  by stable event ID, and verify replay after restore does not create a duplicate
+  logical event;
+- add a late-redrive regression whose event is replayed after the normal
+  dedup-retention interval but still within the maximum supported dead-letter /
+  backup restore horizon; the receiver tombstone must still suppress duplicate
+  logical delivery.
 
 ### Log-safety tests
 
@@ -285,8 +294,11 @@ Dispatcher evidence must include:
 - evidence that retry exhaustion remains redriveable after sink recovery;
 - restart evidence covering both dispatcher and durable receiver/deduplication
   component failures;
-- rollback/restore evidence showing pending audit intents and the compatible
-  dispatcher/receiver path are preserved or reconciled before retirement.
+- rollback/restore evidence showing pending audit intents, receiver accepted-ID
+  state, and the compatible dispatcher/receiver path are preserved or reconciled
+  before retirement;
+- documented receiver tombstone/dedup retention proving it covers the maximum
+  supported dead-letter and backup replay horizon.
 
 CI can verify configuration and dispatcher behavior; it cannot by itself prove a
 production scheduler/worker remains enabled.
