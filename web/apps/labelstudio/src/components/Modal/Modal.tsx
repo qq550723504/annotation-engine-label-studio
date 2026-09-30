@@ -22,12 +22,18 @@ import { queryClient } from "../../utils/query-client";
 import { appLocaleRuntime } from "../../providers/AppLocaleRuntime";
 import { getAntdLocale, useLocaleTranslation } from "@humansignal/i18n";
 import { ConfigProvider as AntdConfigProvider } from "antd";
+import { ModalCloseButton } from "@humansignal/ui/lib/modal/ModalCloseButton";
 
 export type { ButtonProps as ButtonVariant } from "@humansignal/ui/lib/button/button";
 
 const ModalLocaleAdapter = ({ children }: { children?: ReactNode }) => {
   const { locale } = useLocaleTranslation("common");
   return <AntdConfigProvider locale={getAntdLocale(locale)}>{children}</AntdConfigProvider>;
+};
+
+const AppModalCloseButton = () => {
+  const { t } = useLocaleTranslation("common");
+  return <ModalCloseButton label={t("closeModal")} />;
 };
 
 /**
@@ -54,10 +60,19 @@ const modalTypes = {
 
 const createModal = (type: keyof typeof modalTypes) => {
   return <T,>(props: ModalProps<T> & ExtraProps): ModalUpdateProps<T> => {
+    const AppLocaleProvider = appLocaleRuntime.provider;
+    // A simple modal deliberately omits the App's API and toast providers.
+    // It still needs the locale runtime for its close control and live switch.
+    const providers = props.simple
+      ? [<AppLocaleProvider key="locale" />]
+      : (props.providers ?? getDefaultProviders());
     return modalTypes[type]({
-      simple: false,
-      providers: getDefaultProviders(),
+      closeButton: <AppModalCloseButton />,
       ...props,
+      // The core `simple` flag discards providers. The reduced provider list
+      // above preserves its no-API behavior while retaining locale context.
+      simple: false,
+      providers,
     });
   };
 };

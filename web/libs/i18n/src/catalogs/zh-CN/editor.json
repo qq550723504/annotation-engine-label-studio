@@ -1,5 +1,13 @@
 {
   "annotation": "标注",
+  "submitCurrentAnnotation": "提交当前标注",
+  "rejectCurrentAnnotation": "驳回当前标注",
+  "acceptCurrentAnnotation": "接受当前标注",
+  "cancelSkip": "取消跳过并返回标注",
+  "skipCurrentTask": "跳过当前任务",
+  "updateCurrentAnnotation": "更新当前标注",
+  "submitAnnotation": "提交标注",
+  "updateAnnotation": "更新标注",
   "annotationId": "标注 ID",
   "annotationIdCopied": "已复制标注 ID",
   "annotationLinkCopied": "已复制标注链接",

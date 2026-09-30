@@ -106,7 +106,7 @@ describe("project member and role management UI", () => {
       cy.contains("button", "Add member").click();
       cy.get('[data-testid="members-error"]')
         .should("exist")
-        .and("contain.text", "already a member");
+        .and("contain.text", "The requested member change could not be completed.");
 
       // The failed duplicate mutation must not report success, but the roster
       // still reflects the authoritative server state created out-of-band.

@@ -367,7 +367,7 @@ export const MembersSettings = () => {
           </select>
         </div>
 
-        <Button type="submit" waiting={processing === "add"} disabled={!selectedUserId || processing !== null}>
+        <Button type="submit" data-testid="member-add" waiting={processing === "add"} disabled={!selectedUserId || processing !== null}>
           {t("addMember")}
         </Button>
       </form>
@@ -469,6 +469,7 @@ export const MembersSettings = () => {
                   <td>{member.enabled ? t("enabled") : t("disabled")}</td>
                   <td className={cn("members-settings").elem("actions").toClassName()}>
                     <Button
+                      data-testid={`member-toggle-${member.id}`}
                       size="small"
                       look="outlined"
                       disabled={isCreator || busy || processing !== null}
@@ -478,6 +479,7 @@ export const MembersSettings = () => {
                       {member.enabled ? t("disable") : t("enable")}
                     </Button>
                     <Button
+                      data-testid={`member-remove-${member.id}`}
                       size="small"
                       variant="negative"
                       look="outlined"

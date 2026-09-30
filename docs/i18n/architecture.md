@@ -224,3 +224,45 @@ negative paths: invalid locale, spoofed user ID, CSRF, token/session isolation,
 cross-user response cache, stale browser after revocation, no extra writes on
 language switch, preserved unsaved editor/review text, and unchanged
 assignment/review/release authorization.
+
+## Release, rollback and upstream upgrade (#57)
+
+Build the frontend from the locked `web/yarn.lock`, compile Django catalogs
+with GNU gettext, then build the image or wheel. The exact extraction and
+compilation commands are in [backend-runtime.md](backend-runtime.md); the
+frontend checks are in [frontend-runtime.md](frontend-runtime.md). The wheel
+must contain both `django.po` and compiled `django.mo` for `en_US` and
+`zh_Hans`, plus the built App bundles with the local en-US/zh-CN resources.
+The runtime does not fetch a dictionary from the network. Deploy migration
+`users.0013_user_locale_preference` before this version; existing accounts
+have no preference row and resolve as Automatic. The migration has no
+identity/session/authorization data operation. Its upgrade test preserves a
+pre-existing user and session version across 0012→0013.
+
+For a faulty locale release, redeploy a known-good English artifact from the
+authorization-preserving `main` lineage while leaving the additive preference
+table in place. The earlier English code ignores the new display preference
+and anonymous locale cookie. Do not roll back session security migrations,
+switch to an older session backend, or delete the preference table to recover
+the UI. `UI_DEFAULT_LOCALE=en-US` controls only the default resolution path;
+it does not override a saved user preference or a browser language and is not
+a global kill switch. Repair the catalogs/runtime and redeploy after the
+required checks pass.
+
+Keep the existing required `Authorization foundation tests` and `Current
+enterprise UI validation` contexts on every main pull request. The browser
+job must reseed isolated synthetic data, run the prior enterprise specs with
+an explicit English display premise, then the locale component journeys and
+the full workflow independently in en-US and zh-CN. A local candidate run is
+not a PR merge-ref run; a passing PR run is not a merged-main or deployed
+run. Record the tested commit and run URL at each stage.
+
+During an approved upstream upgrade, inspect the App, Data Manager and editor
+root mounts and their destruction/async task-selection paths; Django
+middleware order, token/session resolution and CSRF; Ant Design/date picker
+adapters; API error envelopes and `Content-Language`; imperative modal/toast
+roots; and new human strings. Keep machine fields, permission checks, review
+and release contracts unchanged. Expand the checked-in migrated-file manifest
+only when the new owner is implemented, and register any stable machine or
+proper-name exception with its exact reason. Do not merge `develop` or a
+nightly release into `main` as part of this locale change.

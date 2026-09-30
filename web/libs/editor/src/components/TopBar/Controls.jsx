@@ -84,7 +84,7 @@ export const Controls = controlsInjector(
       return (
         <ButtonTooltip key="reject" title={t("rejectTooltip")}>
           <Button
-            aria-label="Reject current annotation"
+            aria-label={t("rejectCurrentAnnotation")}
             disabled={disabled}
             look="danger"
             onClick={async (e) => {
@@ -109,7 +109,7 @@ export const Controls = controlsInjector(
       buttons.push(
         <ButtonTooltip key="accept" title={t("acceptTooltip")}>
           <Button
-            aria-label="Accept current annotation"
+            aria-label={t("acceptCurrentAnnotation")}
             disabled={disabled}
             look="primary"
             onClick={async () => {
@@ -130,7 +130,7 @@ export const Controls = controlsInjector(
       buttons.push(
         <ButtonTooltip key="cancel-skip" title={t("unskipTooltip")}>
           <Button
-            aria-label="Cancel skip and return to annotation"
+            aria-label={t("cancelSkip")}
             disabled={disabled}
             look="outlined"
             onClick={async () => {
@@ -171,7 +171,7 @@ export const Controls = controlsInjector(
         buttons.push(
           <ButtonTooltip key="skip" title={tooltip}>
             <Button
-              aria-label="Skip current task"
+              aria-label={t("skipCurrentTask")}
               disabled={isDisabled}
               variant="negative"
               look="outlined"
@@ -199,7 +199,8 @@ export const Controls = controlsInjector(
           <ButtonTooltip key="submit" title={title}>
             <div className={cn("controls").elem("tooltip-wrapper").toClassName()}>
               <Button
-                aria-label="Submit current annotation"
+                aria-label={t("submitCurrentAnnotation")}
+                data-testid="submit-current-annotation"
                 disabled={disabled || submitDisabled}
                 look="primary"
                 onClick={async () => {
@@ -219,7 +220,7 @@ export const Controls = controlsInjector(
         const button = (
           <ButtonTooltip key="update" title={t("updateTooltipOld")}>
             <Button
-              aria-label="Update current annotation"
+              aria-label={t("updateCurrentAnnotation")}
               disabled={disabled || submitDisabled}
               look="primary"
               onClick={async () => {

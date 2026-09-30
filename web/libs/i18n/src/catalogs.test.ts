@@ -45,7 +45,7 @@ describe("catalog validator", () => {
   });
   it("fails on invalid plural categories and empty namespace", () => {
     edit("en-US", "common", (data) => { data.selectedCount_few = "{{count}} items"; });
-    edit("zh-CN", "editor", (data) => { delete data.annotation; });
+    edit("zh-CN", "editor", (data) => { for (const key of Object.keys(data)) delete data[key]; });
     expect(validateCatalogs(copy).join("\n")).toContain("invalid plural category");
     expect(validateCatalogs(copy).join("\n")).toContain("empty namespace");
   });

@@ -89,7 +89,7 @@ describe("task assignment management UI", () => {
 
     cy.contains('[data-testid^="assignment-row-"]', fixture.users.annotator_a.email)
       .should("exist")
-      .and("contain.text", "assigned");
+      .and("contain.text", "Assigned");
 
     cy.request(
       `/api/task-assignments/?project=${fixture.project_id}&task=${fixture.tasks.c.id}&active=true`,

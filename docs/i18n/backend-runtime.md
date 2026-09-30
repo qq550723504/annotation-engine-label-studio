@@ -37,7 +37,7 @@ cd label_studio
 python manage.py makemessages -l en_US -l zh_Hans -d django
 python manage.py compilemessages -l en_US -l zh_Hans
 python manage.py migrate --noinput
-pytest -q users/tests/test_locale.py users/tests/test_session_revocation.py
+pytest -q users/tests/test_locale.py users/tests/test_locale_templates.py users/tests/test_locale_migration.py users/tests/test_session_revocation.py
 ```
 
 Run extraction from `label_studio/` so Django finds the application templates

@@ -19,6 +19,7 @@ import {
 } from "./FormContext";
 import * as Validators from "./Validation/Validators";
 import { ToastProvider, ToastViewport } from "@humansignal/ui";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 const PASSWORD_PROTECTED_VALUE = "got ya, suspicious hacker!";
 
@@ -403,6 +404,7 @@ Form.Builder = React.forwardRef(
     },
     ref,
   ) => {
+    const { t } = useLocaleTranslation("app");
     const formRef = ref ?? useRef();
     const [fields, setFields] = useState(defaultFields ?? []);
     const [formData, setFormData] = useState(defaultFormData ?? {});
@@ -524,8 +526,8 @@ Form.Builder = React.forwardRef(
         {children}
         {props.autosubmit !== true && withActions === true && (
           <Form.Actions>
-            <Button type="submit" className="w-[120px]" aria-label="Submit form">
-              Save
+            <Button type="submit" className="w-[120px]" aria-label={t("submitForm")}>
+              {t("save")}
             </Button>
           </Form.Actions>
         )}

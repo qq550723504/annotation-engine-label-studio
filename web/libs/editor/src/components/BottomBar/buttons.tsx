@@ -65,7 +65,7 @@ export const AcceptButton = memo(
       <Tooltip title={tooltip} disabled={!store.settings.enableTooltips} className="whitespace-nowrap max-w-none">
         <Button
           key="accept"
-          aria-label="accept-annotation"
+          aria-label={t("acceptCurrentAnnotation")}
           disabled={isDisabled}
           onClick={async () => {
             annotation.submissionInProgress();
@@ -136,7 +136,7 @@ export const SkipButton = memo(
         )}
         <Button
           key="skip"
-          aria-label="skip-task"
+          aria-label={t("skipCurrentTask")}
           disabled={isDisabled}
           look="outlined"
           tooltip={tooltip}
@@ -168,7 +168,7 @@ export const UnskipButton = memo(
       <Button
         key="cancel-skip"
         tooltip={t("unskipTooltip")}
-        aria-label="cancel-skip"
+        aria-label={t("cancelSkip")}
         look="outlined"
         disabled={disabled}
         onClick={async () => {

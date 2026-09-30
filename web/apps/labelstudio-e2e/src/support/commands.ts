@@ -30,6 +30,18 @@ Cypress.Commands.add('loginAs', (email: string, password: string, nextPath = '/'
   });
 
   cy.visit(nextPath);
+  // Legacy enterprise specs assert English copy. Establish that test premise
+  // explicitly when requested; bilingual specs choose their own locale.
+  const loginLocale = Cypress.env('loginLocale');
+  if (loginLocale) {
+    if (loginLocale !== 'en-US' && loginLocale !== 'zh-CN') throw new Error(`Unsupported login locale: ${loginLocale}`);
+    cy.get('[data-testid="user-menu-trigger"]', { timeout: 30000 }).click();
+    cy.get('[data-testid="menu-language-select"]').then(($select) => {
+      if ($select.val() !== loginLocale) cy.wrap($select).select(loginLocale);
+    });
+    cy.get('html').should('have.attr', 'lang', loginLocale);
+    cy.get('[data-testid="user-menu-trigger"]').click();
+  }
 });
 
 export {};

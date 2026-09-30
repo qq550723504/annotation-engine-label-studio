@@ -1,5 +1,6 @@
 {
   "language": "语言",
+  "closeModal": "关闭弹窗",
   "translationUnavailable": "翻译暂不可用。",
   "selectedCount_other": "已选择 {{count}} 项",
   "greeting": "你好，{{name}}"
