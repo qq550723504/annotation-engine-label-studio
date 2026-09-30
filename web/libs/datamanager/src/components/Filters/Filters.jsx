@@ -1,5 +1,6 @@
 import { inject } from "mobx-react";
 import React from "react";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import { cn } from "../../utils/bem";
 import { Button } from "@humansignal/ui";
 import { FilterLine } from "./FilterLine/FilterLine";
@@ -16,8 +17,18 @@ const injector = inject(({ store }) => ({
 }));
 
 export const Filters = injector(({ store, views, currentView, filters, projectId }) => {
+  const { t } = useLocaleTranslation("datamanager");
   const { sidebarEnabled } = views;
   const { fields, saveOnSwitch, saveInPlace } = useRecentFilters(projectId, currentView.availableFilters);
+  const displayFields = fields.map((field) => {
+    if (field.value === "__recent_header__") {
+      return { ...field, title: t("recent"), original: { ...field.original, field: { title: t("recent") } } };
+    }
+    if (field.value === "__all_fields_header__") {
+      return { ...field, title: t("allFields"), original: { ...field.original, field: { title: t("allFields") } } };
+    }
+    return field.id === "tasks" ? { ...field, title: t("tasks") } : field;
+  });
   const [copyFeedback, setCopyFeedback] = React.useState(false);
   const [pasteFeedback, setPasteFeedback] = React.useState(false);
   const [prePasteSnapshot, setPrePasteSnapshot] = React.useState(null);
@@ -45,7 +56,7 @@ export const Filters = injector(({ store, views, currentView, filters, projectId
     try {
       text = await navigator.clipboard.readText();
     } catch {
-      showToast("Cannot read clipboard. Please allow clipboard access and try again.");
+      showToast(t("clipboardReadFailed"));
       return;
     }
 
@@ -53,12 +64,12 @@ export const Filters = injector(({ store, views, currentView, filters, projectId
     try {
       snapshot = JSON.parse(text);
     } catch {
-      showToast("Clipboard does not contain valid JSON.");
+      showToast(t("clipboardInvalidJson"));
       return;
     }
 
     if (!snapshot || typeof snapshot !== "object" || !Array.isArray(snapshot.items)) {
-      showToast('Invalid filter format. Expected { "conjunction": "and"|"or", "items": [...] }');
+      showToast(t("clipboardInvalidFilter"));
       return;
     }
 
@@ -66,14 +77,14 @@ export const Filters = injector(({ store, views, currentView, filters, projectId
 
     const result = currentView.importFilters(snapshot);
     if (result === false) {
-      showToast("No matching filter columns found in this project. Filters may be from a different project.");
+      showToast(t("clipboardNoMatchingColumns"));
       return;
     }
 
     setPrePasteSnapshot(beforePaste);
     setPasteFeedback(true);
     setTimeout(() => setPasteFeedback(false), 1500);
-  }, [currentView, showToast]);
+  }, [currentView, showToast, t]);
 
   const handleUndoPaste = React.useCallback(() => {
     if (!prePasteSnapshot) return;
@@ -93,14 +104,14 @@ export const Filters = injector(({ store, views, currentView, filters, projectId
               sidebar={sidebarEnabled}
               value={filter.currentValue}
               key={`${filter.filter.id}-${i}`}
-              availableFilters={fields}
+              availableFilters={displayFields}
               dropdownClassName={cn("filters").elem("selector").toClassName()}
               onSaveOnSwitch={saveOnSwitch}
               onSaveInPlace={saveInPlace}
             />
           ))
         ) : (
-          <div className={cn("filters").elem("empty").toClassName()}>No filters applied</div>
+          <div className={cn("filters").elem("empty").toClassName()}>{t("noFiltersApplied")}</div>
         )}
       </div>
       <div className={cn("filters").elem("actions").toClassName()}>
@@ -110,7 +121,7 @@ export const Filters = injector(({ store, views, currentView, filters, projectId
           onClick={() => currentView.createFilter()}
           leading={<IconPlus className="!h-3 !w-3" />}
         >
-          Add {filters.length ? "Another Filter" : "Filter"}
+          {filters.length ? t("addAnotherFilter") : t("addFilter")}
         </Button>
 
         <div className={cn("filters").elem("actions-right").toClassName()}>
@@ -118,9 +129,9 @@ export const Filters = injector(({ store, views, currentView, filters, projectId
             <Button
               size="small"
               look="string"
-              tooltip={copyFeedback ? "Copied!" : "Copy filters to clipboard; Tip: Use it in Label Studio SDK"}
+              tooltip={copyFeedback ? t("copied") : t("copyFiltersTip")}
               onClick={handleCopyFilters}
-              aria-label="Copy filters"
+              aria-label={t("copyFilters")}
             >
               <IconCopyOutline className="!w-4 !h-4" />
             </Button>
@@ -129,9 +140,9 @@ export const Filters = injector(({ store, views, currentView, filters, projectId
           <Button
             size="small"
             look="string"
-            tooltip={pasteFeedback ? "Pasted!" : "Paste filters from clipboard"}
+            tooltip={pasteFeedback ? t("pasted") : t("pasteFilters")}
             onClick={handlePasteFilters}
-            aria-label="Paste filters"
+            aria-label={t("pasteFilters")}
           >
             <IconClipboardCheck className="!w-4 !h-4" />
           </Button>
@@ -140,9 +151,9 @@ export const Filters = injector(({ store, views, currentView, filters, projectId
             <Button
               size="small"
               look="string"
-              tooltip="Undo paste — restore previous filters"
+              tooltip={t("undoPasteTip")}
               onClick={handleUndoPaste}
-              aria-label="Undo paste"
+              aria-label={t("undoPaste")}
             >
               <IconUndo className="!w-4 !h-4" />
             </Button>
@@ -153,9 +164,9 @@ export const Filters = injector(({ store, views, currentView, filters, projectId
               look="string"
               type="link"
               size="small"
-              tooltip="Pin to sidebar"
+              tooltip={t("pinToSidebar")}
               onClick={() => views.expandFilters()}
-              aria-label="Pin filters to sidebar"
+              aria-label={t("pinFiltersToSidebar")}
             >
               <IconChevronRight className="!w-4 !h-4" />
             </Button>

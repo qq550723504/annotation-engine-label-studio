@@ -81,6 +81,7 @@ export const SUPPORT_URL_REQUEST_ID_PARAM = "tf_37934448633869"; // request_id f
 const OVERLAP_TOAST_ID = "overlap-reached-toast";
 
 export class LSFWrapper {
+  destroyed = false;
   /** @type {HTMLElement} */
   root = null;
 
@@ -297,11 +298,14 @@ export class LSFWrapper {
     if (params) {
       const task = await api.call("task", { params });
       const noData = !task || (!task.annotations?.length && !task.drafts?.length);
-      const body = `Task #${taskID}${commentId ? ` with comment #${commentId}` : ""} was not found!`;
+      const t = (key, values) => this.datamanager.localeRuntime.t(`datamanager:${key}`, values);
+      const body = commentId
+        ? t("taskCommentNotFound", { taskId: taskID, commentId })
+        : t("taskNotFound", { taskId: taskID });
 
       if (noData) {
         Modal.modal({
-          title: "Can't find task",
+          title: t("cannotFindTask"),
           body,
         });
         return false;
@@ -351,12 +355,13 @@ export class LSFWrapper {
 
     if (isFF(FF_DEV_2887) && this.lsf?.commentStore?.hasUnsaved) {
       Modal.confirm({
-        title: "You have unsaved changes",
-        body: "There are comments which are not persisted. Please submit the annotation. Continuing will discard these comments.",
+        title: this.datamanager.localeRuntime.t("datamanager:unsavedChanges"),
+        body: this.datamanager.localeRuntime.t("datamanager:unsavedCommentsWarning"),
         onOk() {
           nextAction();
         },
-        okText: "Discard and continue",
+        okText: this.datamanager.localeRuntime.t("datamanager:discardAndContinue"),
+        cancelText: this.datamanager.localeRuntime.t("datamanager:cancel"),
       });
       return;
     }
@@ -384,7 +389,7 @@ export class LSFWrapper {
   }
 
   async setLSFTask(task, annotationID, fromHistory, selectPrediction = false) {
-    if (!this.lsf) return;
+    if (this.destroyed || !this.lsf) return;
 
     if (isFF(FF_FIT_1304_STRICT_OVERLAP)) {
       this.dismissOverlapToast();
@@ -397,7 +402,7 @@ export class LSFWrapper {
     // Let the browser paint the loading indicator before heavy store operations
     await waitForPaint();
 
-    if (!this.lsf) return;
+    if (this.destroyed || !this.lsf) return;
 
     // Pure data preparation (no MobX mutations)
     const lsfTask = taskToLSFormat(task);
@@ -439,7 +444,7 @@ export class LSFWrapper {
         this.overlapReached = overlapReached;
         this.overlapReachedMessage =
           this.task.overlap_reached_message ||
-          "Annotation overlap has been reached for this task. Your draft is preserved but cannot be submitted.";
+          this.datamanager.localeRuntime.t("datamanager:overlapBlocked");
 
         this.lsf.setFlags({
           overlapReached,
@@ -455,6 +460,7 @@ export class LSFWrapper {
     });
 
     await this.setAnnotation(annotationID, fromHistory || isRejectedQueue, selectPrediction);
+    if (this.destroyed || !this.lsf) return;
     this.setLoading(false);
 
     if (isFF(FF_FIT_1304_STRICT_OVERLAP) && this.overlapReached) {
@@ -569,6 +575,7 @@ export class LSFWrapper {
 
   /** @private */
   async setAnnotation(annotationID, selectAnnotation = false, selectPrediction = false) {
+    if (this.destroyed || !this.lsf) return;
     const id = annotationID ? annotationID.toString() : null;
     const { annotationStore: cs } = this.lsf;
     let annotation;
@@ -627,6 +634,7 @@ export class LSFWrapper {
       } else if (isDefined(annotationID) && selectAnnotation) {
         // Lazy load annotation if it's a stub (FIT-720)
         await this.ensureAnnotationLoaded(annotationID);
+        if (this.destroyed || !this.lsf) return;
         annotation = this.annotations.find(({ pk }) => pk === annotationID);
       } else if (showPredictions && this.predictions.length > 0 && !this.isInteractivePreannotations) {
         annotation = cs.addAnnotationFromPrediction(this.predictions[0]);
@@ -710,26 +718,39 @@ export class LSFWrapper {
   }
 
   onLabelStudioLoad = async (ls) => {
+    if (this.destroyed) return;
     this.datamanager.invoke("labelStudioLoad", ls);
     this.lsf = ls;
 
-    if (!this.lsf.task) this.setLoading(true);
+    // AppStore can render its initial task before Data Manager has finished
+    // selecting the same task. Keep edits closed until that selection settles.
+    this.setLoading(true);
 
     const _taskHistory = await this.datamanager.store.taskStore.loadTaskHistory({
       projectId: this.datamanager.store.project.id,
     });
 
+    if (this.destroyed) return;
+
     this.lsf.setTaskHistory(_taskHistory);
 
     await this.loadUserLabels();
+
+    if (this.destroyed) return;
 
     if (this.canPreloadTask && isFF(FF_DEV_1752)) {
       await this.preloadTask();
     } else if (this.labelStream) {
       await this.loadTask();
+    } else if (this.datamanager.store.taskStore.selected) {
+      await this.datamanager.startLabeling();
     }
 
-    this.setLoading(false);
+    // An explorer task can arrive after the editor root. The taskSelected
+    // event will release loading once startLabeling has selected it.
+    if (this.labelStream || this.datamanager.store.taskStore.selected) {
+      if (!this.datamanager.taskSelectionPromise) this.setLoading(false);
+    }
   };
 
   /** @private */
@@ -773,9 +794,10 @@ export class LSFWrapper {
   };
 
   /** @private */
-  showOperationToast(status, successMessage, errorAction, result) {
+  showOperationToast(status, successKey, errorKey, result) {
+    const t = (key) => this.datamanager.localeRuntime.t(`datamanager:${key}`);
     if (status === 200 || status === 201) {
-      this.datamanager.invoke("toast", { message: successMessage, type: "info" });
+      this.datamanager.invoke("toast", { message: t(successKey), type: "info" });
     } else if (status !== undefined) {
       // Skip toast for errors that are handled by global modal handlers via display_context
       // These errors bubble up to ApiProvider which shows appropriate modals
@@ -789,7 +811,7 @@ export class LSFWrapper {
           this.overlapReached = true;
           this.overlapReachedMessage =
             result?.response?.detail ||
-            "Annotation overlap has been reached for this task. Your draft is preserved but cannot be submitted.";
+            t("overlapBlocked");
           // Set overlap state on LSF store - this will disable buttons with tooltips
           this.lsf.setFlags({
             overlapReached: true,
@@ -805,7 +827,7 @@ export class LSFWrapper {
       this.datamanager.invoke("toast", {
         message: (
           <span>
-            {errorAction}, please try again or{" "}
+            {t(errorKey)}{t("errorRetryPrefix")}{" "}
             <a
               href={supportUrl}
               target="_blank"
@@ -813,9 +835,8 @@ export class LSFWrapper {
               style={{ color: "inherit", textDecoration: "underline" }}
               onClick={(e) => e.stopPropagation()}
             >
-              contact our team
-            </a>{" "}
-            if it doesn't help.
+              {t("contactTeam")}
+            </a>{t("errorRetrySuffix")}
           </span>
         ),
         type: "error",
@@ -849,7 +870,7 @@ export class LSFWrapper {
     );
     const status = result?.$meta?.status;
 
-    this.showOperationToast(status, "Annotation saved successfully", "Annotation is not saved", result);
+    this.showOperationToast(status, "annotationSaved", "annotationSaveFailed", result);
 
     // FIT-720: Invalidate caches after successful submit
     if (status < 400) {
@@ -890,7 +911,7 @@ export class LSFWrapper {
     });
     const status = result?.$meta?.status;
 
-    this.showOperationToast(status, "Annotation updated successfully", "Annotation is not updated", result);
+    this.showOperationToast(status, "annotationUpdated", "annotationUpdateFailed", result);
 
     this.datamanager.invoke("updateAnnotation", ls, annotation, result);
 
@@ -959,7 +980,7 @@ export class LSFWrapper {
   };
 
   draftToast = (status, result = null) => {
-    this.showOperationToast(status, "Draft saved successfully", "Draft is not saved", result);
+    this.showOperationToast(status, "draftSaved", "draftSaveFailed", result);
   };
 
   needsDraftSave = (annotation) => {
@@ -1044,7 +1065,7 @@ export class LSFWrapper {
     const canSkip = !skipDisabled || hasForceSkipPermission;
     if (!canSkip) {
       console.warn("Task cannot be skipped: allow_skip is false and user lacks manager role");
-      this.showOperationToast(400, null, "This task cannot be skipped", {
+      this.showOperationToast(400, null, "taskCannotSkip", {
         error: "Task cannot be skipped",
       });
       return;
@@ -1072,7 +1093,7 @@ export class LSFWrapper {
     );
     const status = result?.$meta?.status;
 
-    this.showOperationToast(status, "Task skipped successfully", "Task is not skipped", result);
+    this.showOperationToast(status, "taskSkipped", "taskSkipFailed", result);
   };
 
   onUnskipTask = async () => {
@@ -1451,6 +1472,8 @@ export class LSFWrapper {
   }
 
   destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
     // Clean up overlap error event listeners and dismiss toast (only when feature flag is enabled)
     if (isFF(FF_FIT_1304_STRICT_OVERLAP)) {
       window.removeEventListener("overlap-error-next-task", this.handleOverlapNextTask);
@@ -1467,6 +1490,7 @@ export class LSFWrapper {
 
     this.lsfInstance?.destroy?.();
     this.lsfInstance = null;
+    this.lsf = null;
   }
 
   /**

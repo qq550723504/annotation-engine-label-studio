@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { renderWithLocale as render } from "../../../../__tests__/localeTestUtils";
 import "@testing-library/jest-dom";
 import { Relations, Info } from "../DetailsPanel";
 

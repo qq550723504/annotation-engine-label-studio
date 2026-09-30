@@ -9,10 +9,12 @@ import { Icon } from "../Common/Icon/Icon";
 import { Resizer } from "../Common/Resizer/Resizer";
 import { Space } from "../Common/Space/Space";
 import { DataView } from "../MainView";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import "./Label.scss";
 
 // Todo: consider renaming this file to something like LabelingWrapper as it is not a Label component
 const LabelingHeader = ({ SDK, onClick, isExplorerMode }) => {
+  const { t } = useLocaleTranslation("datamanager");
   return (
     <div className={cn("label-view").elem("header").mod({ labelStream: !isExplorerMode }).toClassName()}>
       <Space size="large">
@@ -23,7 +25,7 @@ const LabelingHeader = ({ SDK, onClick, isExplorerMode }) => {
             onClick={onClick}
             style={{ fontSize: 18, padding: 0, color: "black" }}
           >
-            Back
+            {t("back")}
           </Button>
         )}
 
@@ -32,7 +34,7 @@ const LabelingHeader = ({ SDK, onClick, isExplorerMode }) => {
             wrapper={FieldsButton.Checkbox}
             icon={<Icon icon={IconGearNewUI} />}
             trailingIcon={<Icon icon={IconChevronDown} />}
-            title={"Fields"}
+            title={t("fields")}
           />
         ) : null}
       </Space>

@@ -11,7 +11,7 @@ import { Tooltip, Button } from "@humansignal/ui";
 import { IconInfoOutline } from "@humansignal/icons";
 import type { MSTStore } from "../../stores/types";
 import { FF_FIT_1304_STRICT_OVERLAP, isFF } from "../../utils/feature-flags";
-import { INCOMPLETE_ACCEPT_TOOLTIP } from "./Controls";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 type MixedInParams = {
   store: MSTStore;
@@ -53,12 +53,13 @@ type AcceptButtonProps = {
 
 export const AcceptButton = memo(
   observer(({ disabled, history, store }: AcceptButtonProps) => {
+    const { t } = useLocaleTranslation("editor");
     const annotation = store.annotationStore.selected;
     // changes in current sessions or saved draft
     const hasChanges = history.canUndo || annotation.versions.draft;
     const hasIncompleteRegions = annotation.hasIncompletePolygons;
     const isDisabled = disabled || hasIncompleteRegions;
-    const tooltip = hasIncompleteRegions ? INCOMPLETE_ACCEPT_TOOLTIP : "Accept annotation: [ Ctrl+Enter ]";
+    const tooltip = hasIncompleteRegions ? t("incompleteAccept") : t("acceptTooltip");
 
     return (
       <Tooltip title={tooltip} disabled={!store.settings.enableTooltips} className="whitespace-nowrap max-w-none">
@@ -73,7 +74,7 @@ export const AcceptButton = memo(
           }}
           data-testid="bottombar-accept-button"
         >
-          {hasChanges ? "Fix + Accept" : "Accept"}
+          {hasChanges ? t("fixAndAccept") : t("accept")}
         </Button>
       </Tooltip>
     );
@@ -107,6 +108,7 @@ const MANAGER_ROLES = ["OW", "AD", "MA"];
 
 export const SkipButton = memo(
   observer(({ disabled, store, onSkipWithComment }: SkipButtonProps) => {
+    const { t } = useLocaleTranslation("editor");
     const task = store.task;
     const isEnterprise = (window as any).APP_SETTINGS?.billing?.enterprise;
     const skipDisabled = isEnterprise ? (task as any)?.allow_skip === false : false;
@@ -120,15 +122,15 @@ export const SkipButton = memo(
     const tooltip: string = overlapReached
       ? store.overlapReachedMessage
       : canSkip
-        ? "Cancel (skip) task [ Ctrl+Space ]"
-        : "This task cannot be skipped";
+        ? t("skipTooltip")
+        : t("cannotSkip");
 
     const showInfoIcon = skipDisabled && hasForceSkipPermission;
 
     return (
       <>
         {showInfoIcon && (
-          <Tooltip title="Annotators and Reviewers will not be able to skip this task">
+          <Tooltip title={t("managerSkipHelp")}>
             <IconInfoOutline width={20} height={20} className="text-neutral-content ml-auto cursor-pointer" />
           </Tooltip>
         )}
@@ -152,7 +154,7 @@ export const SkipButton = memo(
           }}
           data-testid="bottombar-skip-button"
         >
-          Skip
+          {t("skip")}
         </Button>
       </>
     );
@@ -161,10 +163,11 @@ export const SkipButton = memo(
 
 export const UnskipButton = memo(
   observer(({ disabled, store }: { disabled: boolean; store: MSTStore }) => {
+    const { t } = useLocaleTranslation("editor");
     return (
       <Button
         key="cancel-skip"
-        tooltip="Cancel skip: []"
+        tooltip={t("unskipTooltip")}
         aria-label="cancel-skip"
         look="outlined"
         disabled={disabled}
@@ -177,7 +180,7 @@ export const UnskipButton = memo(
         }}
         data-testid="bottombar-unskip-button"
       >
-        Cancel skip
+        {t("unskip")}
       </Button>
     );
   }),

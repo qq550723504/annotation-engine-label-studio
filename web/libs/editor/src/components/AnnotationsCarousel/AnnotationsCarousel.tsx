@@ -7,6 +7,7 @@ import { cn } from "../../utils/bem";
 import { clamp, sortAnnotations } from "../../utils/utilities";
 import { isActive, FF_FIT_720_LAZY_LOAD_ANNOTATIONS } from "@humansignal/core/lib/utils/feature-flags";
 import { AnnotationButton } from "./AnnotationButton";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import "./AnnotationsCarousel.scss";
 
 const ITEM_WIDTH = 200; // Approximate width of each annotation button (min-width: 186px + gap)
@@ -42,6 +43,7 @@ const VirtualizedAnnotationButton = ({ index, style, data }: ListChildComponentP
 };
 
 export const AnnotationsCarousel = observer(({ store, annotationStore }: AnnotationsCarouselInterface) => {
+  const { t } = useLocaleTranslation("editor");
   const [entities, setEntities] = useState<any[]>([]);
   const enableAnnotations = store.hasInterface("annotations:tabs");
   const enablePredictions = store.hasInterface("predictions:tabs");
@@ -215,7 +217,7 @@ export const AnnotationsCarousel = observer(({ store, annotationStore }: Annotat
           <div className={cn("annotations-carousel").elem("carousel-controls").toClassName()}>
             <Button
               disabled={isLeftDisabled}
-              aria-label="Carousel left"
+              aria-label={t("carouselLeft")}
               size="small"
               variant="neutral"
               onClick={scrollLeft}
@@ -224,7 +226,7 @@ export const AnnotationsCarousel = observer(({ store, annotationStore }: Annotat
             </Button>
             <Button
               disabled={isRightDisabled}
-              aria-label="Carousel right"
+              aria-label={t("carouselRight")}
               size="small"
               variant="neutral"
               onClick={scrollRight}
@@ -262,7 +264,7 @@ export const AnnotationsCarousel = observer(({ store, annotationStore }: Annotat
         <div className={cn("annotations-carousel").elem("carousel-controls").toClassName()}>
           <Button
             disabled={isLeftDisabledOriginal}
-            aria-label="Carousel left"
+            aria-label={t("carouselLeft")}
             size="small"
             variant="neutral"
             onClick={(e) => !isLeftDisabledOriginal && updatePosition(e, true)}
@@ -271,7 +273,7 @@ export const AnnotationsCarousel = observer(({ store, annotationStore }: Annotat
           </Button>
           <Button
             disabled={isRightDisabledOriginal}
-            aria-label="Carousel right"
+            aria-label={t("carouselRight")}
             size="small"
             variant="neutral"
             onClick={(e) => !isRightDisabledOriginal && updatePosition(e, false)}

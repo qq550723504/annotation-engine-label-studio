@@ -23,6 +23,8 @@ import { type BaseProps as OrigBaseProps, Side } from "./types";
 import { resizers } from "./utils";
 import "./PanelTabsBase.scss";
 import React from "react";
+import { useLocaleTranslation } from "@humansignal/i18n";
+import { displayPanelTitle } from "./displayPanelTitle";
 
 const distance = (x1: number, x2: number, y1: number, y2: number) => {
   return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
@@ -74,6 +76,7 @@ export const PanelTabsBase: FC<BasePropsWithChildren> = ({
   contentRef,
   ...props
 }) => {
+  const { t } = useLocaleTranslation("editor");
   const headerRef = useRef<HTMLDivElement>();
   const panelRef = useRef<HTMLDivElement>();
   const resizerRef = useRef<HTMLDivElement>();
@@ -94,7 +97,7 @@ export const PanelTabsBase: FC<BasePropsWithChildren> = ({
   const isParentOfCollapsedPanel = attachedKeys && attachedKeys[0] === key;
   const isChildOfGroup = attachedKeys && attachedKeys.includes(key) && attachedKeys[0] !== key;
   const collapsedHeader = !(collapsed && !isParentOfCollapsedPanel);
-  const tooltipText = visible && !collapsed ? "Collapse" : "Expand";
+  const tooltipText = t(visible && !collapsed ? "collapse" : "expand");
   const settings = props.currentEntity?.store?.settings || props.currentEntity?.settings;
   const [bottomCollapsed, setBottomCollapsed] = useState(() => {
     if (isBottomPanel && settings?.defaultCollapsedBottomPanel) return true;
@@ -427,7 +430,7 @@ export const PanelTabsBase: FC<BasePropsWithChildren> = ({
                 )}
                 {!visible && !collapsed && (
                   <div className={cn("tabs-panel").elem("title").toClassName()}>
-                    {panelViews.map((view) => view.title).join(" ")}
+                    {panelViews.map((view) => displayPanelTitle(view.name, view.title, t)).join(" ")}
                   </div>
                 )}
               </div>
@@ -436,7 +439,7 @@ export const PanelTabsBase: FC<BasePropsWithChildren> = ({
                   <div
                     className={cn("tabs-panel").elem("toggle").mod({ detached, collapsed, alignment }).toClassName()}
                     onClick={handleGroupPanelToggle}
-                    data-tooltip={`${tooltipText} Group`}
+                    data-tooltip={t(visible && !collapsed ? "collapseGroup" : "expandGroup")}
                   >
                     {Side.left === alignment ? <IconChevronLeft /> : <IconChevronRight />}
                   </div>

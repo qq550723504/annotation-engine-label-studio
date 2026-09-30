@@ -1,7 +1,18 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import { EmptyState } from "./EmptyState";
+import { createLocaleRuntime, type LocaleRuntime } from "@humansignal/i18n";
+
+let localeRuntime: LocaleRuntime | undefined;
+const renderLocalized = (content: ReactElement) => {
+  localeRuntime = createLocaleRuntime("en-US");
+  const LocaleProvider = localeRuntime.provider;
+  return render(<LocaleProvider>{content}</LocaleProvider>);
+};
+
+afterEach(() => localeRuntime?.destroy());
 
 // Mock the external dependencies
 jest.mock("@humansignal/ui", () => ({
@@ -74,9 +85,21 @@ describe("EmptyState Component", () => {
     jest.clearAllMocks();
   });
 
+  it("updates the visible language in place without triggering import or changing actions", () => {
+    const onImport = jest.fn();
+    renderLocalized(<EmptyState canImport onOpenImportModal={onImport} />);
+    expect(screen.getByTestId("dm-import-button")).toHaveTextContent("Import");
+    act(() => { localeRuntime?.updateLocale("zh-CN"); });
+    expect(screen.getByText("导入数据以开始使用项目")).toBeInTheDocument();
+    expect(screen.getByTestId("dm-import-button")).toHaveTextContent("导入");
+    expect(onImport).not.toHaveBeenCalled();
+    screen.getByTestId("dm-import-button").click();
+    expect(onImport).toHaveBeenCalledTimes(1);
+  });
+
   describe("Basic Import Functionality", () => {
     it("should render the default import state when no role is specified", () => {
-      render(<EmptyState {...defaultProps} />);
+      renderLocalized(<EmptyState {...defaultProps} />);
 
       // Check main title and description
       expect(screen.getByText("Import data to get your project started")).toBeInTheDocument();
@@ -95,7 +118,7 @@ describe("EmptyState Component", () => {
     });
 
     it("should render non-interactive state when canImport is false", () => {
-      render(<EmptyState {...defaultProps} canImport={false} />);
+      renderLocalized(<EmptyState {...defaultProps} canImport={false} />);
 
       const label = screen.getByTestId("empty-state-label");
       expect(label).toHaveAttribute("aria-labelledby", "dm-empty-title");
@@ -108,7 +131,7 @@ describe("EmptyState Component", () => {
     });
 
     it("should render interactive state when canImport is true", () => {
-      render(<EmptyState {...defaultProps} canImport={true} />);
+      renderLocalized(<EmptyState {...defaultProps} canImport={true} />);
 
       const label = screen.getByTestId("empty-state-label");
       expect(label).toHaveAttribute("aria-labelledby", "dm-empty-title");
@@ -125,7 +148,7 @@ describe("EmptyState Component", () => {
       const user = userEvent.setup();
       const mockOpenStorage = jest.fn();
 
-      render(<EmptyState {...defaultProps} onOpenSourceStorageModal={mockOpenStorage} />);
+      renderLocalized(<EmptyState {...defaultProps} onOpenSourceStorageModal={mockOpenStorage} />);
 
       const connectButton = screen.getByTestId("dm-connect-source-storage-button");
       await user.click(connectButton);
@@ -137,7 +160,7 @@ describe("EmptyState Component", () => {
       const user = userEvent.setup();
       const mockOpenImport = jest.fn();
 
-      render(<EmptyState {...defaultProps} onOpenImportModal={mockOpenImport} />);
+      renderLocalized(<EmptyState {...defaultProps} onOpenImportModal={mockOpenImport} />);
 
       const importButton = screen.getByTestId("dm-import-button");
       await user.click(importButton);
@@ -149,7 +172,7 @@ describe("EmptyState Component", () => {
   describe("Role-Based Empty States", () => {
     describe("Filter-based Empty State", () => {
       it("should render filter empty state when hasFilters is true", () => {
-        render(<EmptyState {...defaultProps} hasFilters={true} onClearFilters={jest.fn()} />);
+        renderLocalized(<EmptyState {...defaultProps} hasFilters={true} onClearFilters={jest.fn()} />);
 
         expect(screen.getByText("No tasks found")).toBeInTheDocument();
         expect(screen.getByText("Try adjusting or clearing the filters to see more results")).toBeInTheDocument();
@@ -161,7 +184,7 @@ describe("EmptyState Component", () => {
         const user = userEvent.setup();
         const mockClearFilters = jest.fn();
 
-        render(<EmptyState {...defaultProps} hasFilters={true} onClearFilters={mockClearFilters} />);
+        renderLocalized(<EmptyState {...defaultProps} hasFilters={true} onClearFilters={mockClearFilters} />);
 
         const clearButton = screen.getByTestId("dm-clear-filters-button");
         await user.click(clearButton);
@@ -172,7 +195,7 @@ describe("EmptyState Component", () => {
 
     describe("Reviewer Role", () => {
       it("should render reviewer empty state", () => {
-        render(<EmptyState {...defaultProps} userRole="REVIEWER" />);
+        renderLocalized(<EmptyState {...defaultProps} userRole="REVIEWER" />);
 
         expect(screen.getByText("No tasks available for review or labeling")).toBeInTheDocument();
         expect(screen.getByText("Tasks imported to this project will appear here")).toBeInTheDocument();
@@ -189,7 +212,7 @@ describe("EmptyState Component", () => {
           },
         };
 
-        render(
+        renderLocalized(
           <EmptyState {...defaultProps} userRole="ANNOTATOR" project={project} onLabelAllTasks={mockLabelAllTasks} />,
         );
 
@@ -208,7 +231,7 @@ describe("EmptyState Component", () => {
           },
         };
 
-        render(
+        renderLocalized(
           <EmptyState {...defaultProps} userRole="ANNOTATOR" project={project} onLabelAllTasks={mockLabelAllTasks} />,
         );
 
@@ -225,7 +248,7 @@ describe("EmptyState Component", () => {
           },
         };
 
-        render(<EmptyState {...defaultProps} userRole="ANNOTATOR" project={project} />);
+        renderLocalized(<EmptyState {...defaultProps} userRole="ANNOTATOR" project={project} />);
 
         expect(screen.getByText("No tasks available")).toBeInTheDocument();
         expect(screen.getByText("Tasks assigned to you will appear here")).toBeInTheDocument();
@@ -240,7 +263,7 @@ describe("EmptyState Component", () => {
           },
         };
 
-        render(<EmptyState {...defaultProps} userRole="ANNOTATOR" project={project} />);
+        renderLocalized(<EmptyState {...defaultProps} userRole="ANNOTATOR" project={project} />);
 
         expect(screen.getByText("No tasks available")).toBeInTheDocument();
         expect(screen.getByText("Tasks will appear here when they become available")).toBeInTheDocument();
@@ -251,7 +274,7 @@ describe("EmptyState Component", () => {
 
   describe("Accessibility", () => {
     it("should have proper ARIA attributes", () => {
-      render(<EmptyState {...defaultProps} />);
+      renderLocalized(<EmptyState {...defaultProps} />);
 
       const label = screen.getByTestId("empty-state-label");
       const title = screen.getByText("Import data to get your project started");
@@ -264,7 +287,7 @@ describe("EmptyState Component", () => {
     });
 
     it("should render documentation link with proper accessibility", () => {
-      render(<EmptyState {...defaultProps} />);
+      renderLocalized(<EmptyState {...defaultProps} />);
 
       const docLink = screen.getByTestId("dm-docs-data-import-link");
       expect(docLink).toHaveAttribute("href", "https://docs.example.com/guide/tasks");
@@ -284,7 +307,7 @@ describe("EmptyState Component", () => {
         writable: true,
       });
 
-      render(<EmptyState {...defaultProps} />);
+      renderLocalized(<EmptyState {...defaultProps} />);
 
       expect(screen.queryByTestId("dm-docs-data-import-link")).not.toBeInTheDocument();
 
@@ -296,7 +319,7 @@ describe("EmptyState Component", () => {
     });
 
     it("should show documentation link when whitelabel is not active", () => {
-      render(<EmptyState {...defaultProps} />);
+      renderLocalized(<EmptyState {...defaultProps} />);
 
       expect(screen.getByTestId("dm-docs-data-import-link")).toBeInTheDocument();
     });
@@ -304,7 +327,7 @@ describe("EmptyState Component", () => {
 
   describe("Storage Provider Icons", () => {
     it("should render storage provider icons with proper tooltips", () => {
-      render(<EmptyState {...defaultProps} />);
+      renderLocalized(<EmptyState {...defaultProps} />);
 
       const iconsContainer = screen.getByTestId("dm-storage-provider-icons");
       expect(iconsContainer).toBeInTheDocument();
@@ -322,7 +345,7 @@ describe("EmptyState Component", () => {
     });
 
     it("should show storage icons in correct order", () => {
-      render(<EmptyState {...defaultProps} />);
+      renderLocalized(<EmptyState {...defaultProps} />);
 
       const iconsContainer = screen.getByTestId("dm-storage-provider-icons");
       const iconContainers = iconsContainer.querySelectorAll("[aria-label]");
@@ -337,14 +360,14 @@ describe("EmptyState Component", () => {
 
   describe("Button States and Props", () => {
     it("should render buttons with correct text content", () => {
-      render(<EmptyState {...defaultProps} />);
+      renderLocalized(<EmptyState {...defaultProps} />);
 
       expect(screen.getByTestId("dm-connect-source-storage-button")).toHaveTextContent("Connect Cloud Storage");
       expect(screen.getByTestId("dm-import-button")).toHaveTextContent("Import");
     });
 
     it("should render Clear Filters button with correct text", () => {
-      render(<EmptyState {...defaultProps} hasFilters={true} onClearFilters={jest.fn()} />);
+      renderLocalized(<EmptyState {...defaultProps} hasFilters={true} onClearFilters={jest.fn()} />);
 
       expect(screen.getByTestId("dm-clear-filters-button")).toHaveTextContent("Clear Filters");
     });
@@ -356,7 +379,7 @@ describe("EmptyState Component", () => {
         },
       };
 
-      render(<EmptyState {...defaultProps} userRole="ANNOTATOR" project={project} onLabelAllTasks={jest.fn()} />);
+      renderLocalized(<EmptyState {...defaultProps} userRole="ANNOTATOR" project={project} onLabelAllTasks={jest.fn()} />);
 
       const labelButton = screen.getByTestId("dm-label-all-tasks-button");
       expect(labelButton).toHaveTextContent("Label All Tasks");
@@ -366,7 +389,7 @@ describe("EmptyState Component", () => {
 
   describe("Edge Cases", () => {
     it("should handle missing project object gracefully", () => {
-      render(<EmptyState {...defaultProps} userRole="ANNOTATOR" />);
+      renderLocalized(<EmptyState {...defaultProps} userRole="ANNOTATOR" />);
 
       // Should render fallback state
       expect(screen.getByText("No tasks available")).toBeInTheDocument();
@@ -376,7 +399,7 @@ describe("EmptyState Component", () => {
     it("should handle missing assignment settings gracefully", () => {
       const project = {}; // No assignment_settings
 
-      render(<EmptyState {...defaultProps} userRole="ANNOTATOR" project={project} />);
+      renderLocalized(<EmptyState {...defaultProps} userRole="ANNOTATOR" project={project} />);
 
       // Should render fallback state
       expect(screen.getByText("No tasks available")).toBeInTheDocument();

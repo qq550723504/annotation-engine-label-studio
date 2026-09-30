@@ -1,0 +1,126 @@
+/// <reference types="cypress" />
+
+type Fixture = {
+  password: string;
+  project_id: number;
+  users: { annotator_a: { email: string } };
+  tasks: { a: { id: number } };
+};
+
+describe("Data Manager and editor display locale", () => {
+  let fixture: Fixture;
+
+  before(() => {
+    cy.readFile(".enterprise-e2e.json").then((data) => { fixture = data as Fixture; });
+  });
+
+  it("updates three mounted roots without replacing the task or issuing an annotation write", () => {
+    const path = `/projects/${fixture.project_id}/data?task=${fixture.tasks.a.id}`;
+    cy.loginAs(fixture.users.annotator_a.email, fixture.password, "/user/account/personal-info");
+    cy.get('[data-testid="language-preference-select"]').select("en-US");
+    cy.get("html").should("have.attr", "lang", "en-US");
+    cy.intercept("GET", "**/api/projects/*/label-stream-history*").as("labelStreamHistory");
+    cy.intercept("GET", "**/api/label_links*").as("labelLinks");
+    cy.visit(path);
+    cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible");
+    cy.wait("@labelStreamHistory");
+    cy.wait("@labelLinks");
+    cy.window().should((win: any) => {
+      expect(win.dataManager?.localeRuntime?.locale).to.eq("en-US");
+      expect(win.dataManager?.lsf?.lsfInstance?.localeRuntime?.locale).to.eq("en-US");
+      expect(Number(win.Htx?.task?.id)).to.eq(fixture.tasks.a.id);
+      expect(Number(win.dataManager?.lsf?.task?.id), "Data Manager task selection started").to.eq(fixture.tasks.a.id);
+      const annotation = win.Htx?.annotationStore?.selected;
+      expect(win.Htx?.isLoading, "editor initialization complete").to.eq(false);
+      expect(annotation?.editable, "editable annotation").to.eq(true);
+      expect(annotation?.isReadOnly(), "annotation is not read-only").to.eq(false);
+      expect(annotation?.history?.isFrozen, "annotation history ready").to.eq(false);
+      expect(annotation?.autosave, "autosave listener attached").to.be.a("function");
+      expect(annotation?.autosave?.paused, "autosave active").not.to.eq(true);
+    });
+    let chosen: "Positive" | "Negative" = "Positive";
+    cy.intercept({
+      method: /POST|PATCH/,
+      url: /\/api\/(?:tasks\/\d+\/drafts|drafts\/\d+)\/?(?:\?.*)?$/,
+    }).as("initialDraft");
+    cy.get('#label-studio-dm input[type="checkbox"][name="Positive"]').should("not.be.disabled");
+    cy.window().then((win: any) => {
+      const positive = win.document.querySelector('#label-studio-dm input[type="checkbox"][name="Positive"]') as HTMLInputElement | null;
+      chosen = positive?.checked ? "Negative" : "Positive";
+      const input = win.document.querySelector(`#label-studio-dm input[type="checkbox"][name="${chosen}"]`) as HTMLInputElement | null;
+      expect(input?.isConnected, "mounted choice input").to.eq(true);
+      input!.click();
+    });
+    cy.then(() => cy.get(`#label-studio-dm input[type="checkbox"][name="${chosen}"]`).should("be.checked"));
+    cy.window().should((win: any) => {
+      const results = win.Htx.annotationStore.selected.serializeAnnotation();
+      expect(results.some((result: any) => result.value?.choices?.includes(chosen))).to.eq(true);
+    });
+    cy.window().then(async (win: any) => {
+      const annotation = win.Htx.annotationStore.selected;
+      annotation.autosave?.cancel?.();
+      await annotation.saveDraftImmediatelyWithResults();
+    });
+    cy.wait("@initialDraft").its("response.statusCode").should("be.oneOf", [200, 201]);
+    cy.window().should((win: any) => {
+      expect(win.Htx.annotationStore.selected.isDraftSaving).to.eq(false);
+    });
+
+    let dm: any;
+    let editor: any;
+    let editorStore: any;
+    let annotationResult: string;
+    let selectedId: string | number;
+    let canUndo: boolean;
+    let assignmentId: number | null;
+    let assignmentVersion: number | null;
+    let annotationWrites = 0;
+    cy.window().then((win: any) => {
+      dm = win.dataManager;
+      editor = dm.lsf.lsfInstance;
+      editorStore = editor.store;
+      expect(win.Htx).to.eq(editorStore);
+      const selectedAnnotation = editorStore.annotationStore.selected;
+      selectedId = selectedAnnotation.id;
+      annotationResult = JSON.stringify(selectedAnnotation.serializeAnnotation());
+      canUndo = selectedAnnotation.history.canUndo;
+      expect(annotationResult).to.contain(chosen);
+      assignmentId = dm.store.taskStore.selected.assignment_id;
+      assignmentVersion = dm.store.taskStore.selected.assignment_version;
+      expect(assignmentId).to.be.a("number");
+      expect(assignmentVersion).to.be.a("number");
+      expect(dm.taskSelectionPromise, "initial task selection finished").to.be.null;
+    });
+    cy.intercept({ method: /POST|PATCH|PUT|DELETE/, url: "**/api/**" }, (request) => {
+      if (/\/(annotations|drafts|submissions|tasks)\b/.test(request.url)) annotationWrites += 1;
+    });
+    cy.get('[data-testid="user-menu-trigger"]').click();
+    cy.window().should((win: any) => {
+      expect(win.dataManager, "DM after opening menu").to.eq(dm);
+      expect(win.dataManager.lsf.lsfInstance, "editor after opening menu").to.eq(editor);
+      expect(win.Htx, "editor store after opening menu").to.eq(editorStore);
+      expect(dm.taskSelectionPromise, "no later task selection").to.be.null;
+      expect(win.Htx.annotationStore.selected.id, "annotation id after opening menu").to.eq(selectedId);
+      expect(JSON.stringify(win.Htx.annotationStore.selected.serializeAnnotation()), "result after opening menu").to.eq(annotationResult);
+    });
+    cy.get('[data-testid="menu-language-select"]').select("zh-CN");
+    cy.get("html").should("have.attr", "lang", "zh-CN");
+    cy.get('[data-testid="bottombar-submit-button"]').should("contain.text", "提交");
+    cy.get('[data-testid="columns-picker-quickview"]').should("contain.text", "列");
+    cy.get("body").should("contain.text", "标注区域将在这里显示");
+    cy.get("#Regions-draggable").should("contain.text", "区域");
+    cy.window().should((win: any) => {
+      expect(win.dataManager).to.eq(dm);
+      expect(win.dataManager.localeRuntime.locale).to.eq("zh-CN");
+      expect(win.dataManager.lsf.lsfInstance).to.eq(editor);
+      expect(editor.localeRuntime.locale).to.eq("zh-CN");
+      expect(editor.store).to.eq(editorStore);
+      expect(JSON.stringify(win.Htx.annotationStore.selected.serializeAnnotation())).to.eq(annotationResult);
+      expect(win.Htx.annotationStore.selected.history.canUndo).to.eq(canUndo);
+      expect(dm.store.taskStore.selected.assignment_id).to.eq(assignmentId);
+      expect(dm.store.taskStore.selected.assignment_version).to.eq(assignmentVersion);
+      expect(Number(win.Htx.task.id)).to.eq(fixture.tasks.a.id);
+    });
+    cy.then(() => expect(annotationWrites, "language switch must not write annotations or tasks").to.eq(0));
+  });
+});

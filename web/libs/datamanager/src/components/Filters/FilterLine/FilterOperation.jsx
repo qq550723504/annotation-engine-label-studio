@@ -1,6 +1,7 @@
 import { observer } from "mobx-react";
 import { getRoot } from "mobx-state-tree";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import { cn } from "../../../utils/bem";
 import { debounce } from "@humansignal/core/lib/utils/debounce";
 import { FilterDropdown } from "../FilterDropdown";
@@ -18,6 +19,7 @@ import { Common } from "../types/Common";
  * @param {{field: FieldConfig}} param0
  */
 export const FilterOperation = observer(({ filter, field, operator, value, disabled }) => {
+  const { t } = useLocaleTranslation("datamanager");
   const cellView = filter.cellView;
   const types = cellView?.customOperators ?? [
     ...(FilterInputs[filter.filter.currentType] ?? FilterInputs.String),
@@ -35,9 +37,14 @@ export const FilterOperation = observer(({ filter, field, operator, value, disab
       result = types[0];
     }
 
-    filter.setOperator(result.key);
     return result;
   }, [operator, types, filter]);
+
+  // Repair an absent or invalid operator only when the underlying filter changes.
+  // A locale render must never write a filter or trigger its autosave path.
+  useEffect(() => {
+    if (selected && operator !== selected.key) filter.setOperator(selected.key);
+  }, [operator, selected?.key, filter]);
 
   const saveFilter = useCallback(
     debounce(() => {
@@ -74,6 +81,23 @@ export const FilterOperation = observer(({ filter, field, operator, value, disab
         if (key === "not_contains") label = "is not";
       }
     }
+    const translatedLabels = {
+      contains: "filterContains",
+      not_contains: "filterNotContains",
+      regex: "filterRegex",
+      empty: "filterIsEmpty",
+      in: "filterBetween",
+      not_in: "filterNotBetween",
+    };
+    if (label === "includes all") label = t("filterIncludesAll");
+    else if (label === "does not include all") label = t("filterNotIncludesAll");
+    else if (label === "is") label = t("filterIs");
+    else if (label === "is not") label = t("filterIsNot");
+    else if (label === "is before") label = t("filterBefore");
+    else if (label === "is after") label = t("filterAfter");
+    else if (label === "equal") label = t("filterEqual");
+    else if (label === "not equal") label = t("filterNotEqual");
+    else if (typeof label === "string" && translatedLabels[key]) label = t(translatedLabels[key]);
     return { value: key, label };
   });
   const columnClass = cn("filterLine").elem("column");
@@ -82,7 +106,7 @@ export const FilterOperation = observer(({ filter, field, operator, value, disab
     <>
       <div className={columnClass.mix("operation").toClassName()}>
         <FilterDropdown
-          placeholder="Condition"
+          placeholder={t("condition")}
           value={filter.operator}
           disabled={types.length === 1 || disabled}
           items={availableOperators ? operators.filter((op) => availableOperators.includes(op.value)) : operators}

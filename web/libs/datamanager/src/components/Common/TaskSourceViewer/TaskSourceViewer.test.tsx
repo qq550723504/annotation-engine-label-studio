@@ -1,7 +1,14 @@
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render as renderReact, screen, waitFor, act } from "@testing-library/react";
+import { createLocaleRuntime } from "@humansignal/i18n";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import { TaskSourceViewer } from "./TaskSourceViewer";
+
+const runtime = createLocaleRuntime("en-US");
+const LocaleProvider = runtime.provider;
+const render = (view: ReactElement) => renderReact(<LocaleProvider>{view}</LocaleProvider>);
+afterAll(() => runtime.destroy());
 
 // Mock feature flags
 jest.mock("../../../utils/feature-flags", () => ({

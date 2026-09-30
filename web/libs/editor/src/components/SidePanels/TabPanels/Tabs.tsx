@@ -7,6 +7,8 @@ import "./Tabs.scss";
 import { type BaseProps, Side, type TabProps } from "./types";
 import { determineDroppableArea, determineLeftOrRight } from "./utils";
 import { Button } from "../../../common/Button/Button";
+import { useLocaleTranslation } from "@humansignal/i18n";
+import { displayPanelTitle } from "./displayPanelTitle";
 
 const classAddedTabs: (Element | undefined)[] = [];
 
@@ -39,6 +41,7 @@ const Tab = ({
   name,
   rootRef,
   tabTitle: tabText,
+  displayTitle,
   tabIndex,
   panelKey,
   viewLength,
@@ -166,7 +169,7 @@ const Tab = ({
         .toClassName()}
     >
       {!locked && <IconOutlinerDrag className={cn("panel-tabs").elem("icon").toClassName()} />}
-      {tabText}
+      {displayTitle}
     </div>
   );
 
@@ -205,6 +208,7 @@ export const Tabs = (
     panelHeight?: number;
   },
 ) => {
+  const { t } = useLocaleTranslation("editor");
   const ActiveComponent = props.locked
     ? props.panelViews[props.breakPointActiveTab].component
     : props.panelViews?.find((view) => view.active)?.component;
@@ -229,6 +233,7 @@ export const Tabs = (
                   tabIndex={index}
                   active={view.active}
                   tabTitle={view.title}
+                  displayTitle={displayPanelTitle(view.name, view.title, t)}
                   panelWidth={props.width}
                   viewLength={props.panelViews.length}
                   locked={props.locked}
@@ -269,7 +274,7 @@ export const Tabs = (
                 cursor: "pointer",
               }}
               onClick={() => props.setBottomCollapsed?.(!props.bottomCollapsed)}
-              title={props.bottomCollapsed ? "Expand Bottom Panel" : "Collapse Bottom Panel"}
+              title={t(props.bottomCollapsed ? "expandBottomPanel" : "collapseBottomPanel")}
             >
               {props.bottomCollapsed ? <IconExpandSmall /> : <IconCollapseSmall />}
             </Button>

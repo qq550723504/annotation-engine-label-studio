@@ -3,6 +3,8 @@ import { Button, ButtonGroup, EnterpriseBadge } from "@humansignal/ui";
 import { inject } from "mobx-react";
 import { FieldsButton } from "../../Common/FieldsButton";
 import { Space } from "../../Common/Space/Space";
+import { useLocaleTranslation } from "@humansignal/i18n";
+import { displayColumnTitle } from "../../displayColumn";
 
 const injector = inject(({ store }) => {
   const view = store?.currentView;
@@ -14,16 +16,17 @@ const injector = inject(({ store }) => {
 });
 
 export const OrderButton = injector(({ size, ordering, view, ...rest }) => {
+  const { t } = useLocaleTranslation("datamanager");
   return (
     <Space style={{ fontSize: 12 }}>
       <ButtonGroup collapsed {...rest}>
         <FieldsButton
           size={size}
           style={{ minWidth: 67, textAlign: "left", marginRight: -1 }}
-          title={ordering ? ordering.column?.title : "Order by"}
+          title={ordering ? displayColumnTitle(ordering.column, t) : t("orderBy")}
           onClick={(col) => view.setOrdering(col.id)}
           onReset={() => view.setOrdering(null)}
-          resetTitle="Default"
+          resetTitle={t("default")}
           selected={ordering?.field}
           filter={(col) => {
             return col.orderable ?? col.original?.orderable;
@@ -47,7 +50,7 @@ export const OrderButton = injector(({ size, ordering, view, ...rest }) => {
           variant="neutral"
           disabled={!!ordering === false}
           onClick={() => view.setOrdering(ordering?.field)}
-          aria-label={ordering?.desc ? "Sort ascending" : "Sort descending"}
+          aria-label={ordering?.desc ? t("sortAscending") : t("sortDescending")}
         >
           {ordering?.desc ? <IconSortUp /> : <IconSortDown />}
         </Button>

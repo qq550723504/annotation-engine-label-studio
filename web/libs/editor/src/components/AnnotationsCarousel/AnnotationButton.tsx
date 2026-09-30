@@ -5,6 +5,8 @@ import { isAlive } from "mobx-state-tree";
 import truncate from "truncate-middle";
 import clsx from "clsx";
 import { format, isValid } from "date-fns";
+import { enUS, zhCN } from "date-fns/locale";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import { useCopyText } from "@humansignal/core";
 import { isDefined, userDisplayName } from "@humansignal/core/lib/utils/helpers";
 import { cn } from "../../utils/bem";
@@ -89,12 +91,12 @@ const renderCommentIcon = (ent: any) => {
   return null;
 };
 
-const renderCommentTooltip = (ent: any) => {
+const renderCommentTooltip = (ent: any, t: (key: string) => string) => {
   if (ent.unresolved_comment_count > 0) {
-    return "Unresolved Comments";
+    return t("unresolvedComments");
   }
   if (ent.comment_count > 0) {
-    return "All Comments Resolved";
+    return t("resolvedComments");
   }
 
   return "";
@@ -197,6 +199,7 @@ function AnnotationButtonTooltip({
   onMouseLeave?: (e: React.MouseEvent) => void;
   position?: { top: number; left: number };
 }) {
+  const { t, locale } = useLocaleTranslation("editor");
   // Determine status badge (only for annotations, not predictions)
   // Draft/Submitted are separate from Skipped/Ground Truth
   const statusBadge = useMemo(() => {
@@ -209,28 +212,28 @@ function AnnotationButtonTooltip({
     // Check for both ephemeral drafts (isDraft) and saved drafts (isDraftSaved)
     // Exception: If Draft AND Skipped, show both Draft and Skipped
     if (isDraft || isDraftSaved) {
-      return createBadgeStyle("Draft", "grape");
+      return createBadgeStyle(t("draft"), "grape");
     }
     if (acceptedState) {
       switch (acceptedState) {
         case "accepted":
-          return createBadgeStyle("Accepted", "kale");
+          return createBadgeStyle(t("accepted"), "kale");
         case "rejected":
-          return createBadgeStyle("Rejected", "persimmon");
+          return createBadgeStyle(t("rejected"), "persimmon");
         case "fixed":
         case "fixed_and_accepted":
-          return createBadgeStyle("Fixed", "canteloupe");
+          return createBadgeStyle(t("fixed"), "canteloupe");
         default:
           break;
       }
     }
     // Exception: If Submitted AND Skipped, only show Skipped (don't show Submitted)
     if (isSubmitted && !isSkipped) {
-      return createBadgeStyle("Submitted", "kale");
+      return createBadgeStyle(t("submitted"), "kale");
     }
 
     return null;
-  }, [isPrediction, isDraft, isDraftSaved, acceptedState, isSubmitted, isSkipped]);
+  }, [isPrediction, isDraft, isDraftSaved, acceptedState, isSubmitted, isSkipped, locale]);
 
   // Format date using date-fns, matching Data Manager format: "MMM dd yyyy, HH:mm:ss" (e.g., "Jan 15 2024, 14:30:45")
   const formatDate = useCallback((dateString: string | null | undefined): string | null => {
@@ -241,40 +244,40 @@ function AnnotationButtonTooltip({
       if (!isValid(date)) return null;
 
       // Use the same format as Data Manager's DateTimeCell
-      return format(date, "MMM dd yyyy, HH:mm:ss");
+      return format(date, "MMM dd yyyy, HH:mm:ss", { locale: locale === "zh-CN" ? zhCN : enUS });
     } catch {
       return null;
     }
-  }, []);
+  }, [locale]);
 
   const tooltipData = useMemo(() => {
     const rows: Array<{ label: string; value: string }> = [];
 
     // Add Annotation ID first if available
     if (annotationId) {
-      rows.push({ label: "Annotation ID", value: String(annotationId) });
+      rows.push({ label: t("annotationId"), value: String(annotationId) });
     }
 
     // Add Type for all annotations/predictions
     if (isPrediction) {
-      rows.push({ label: "Type", value: "Prediction" });
+      rows.push({ label: t("type"), value: t("prediction") });
       if (isDefined(predictionScore)) {
-        rows.push({ label: "Prediction Score", value: `${(predictionScore * 100).toFixed(2)}%` });
+        rows.push({ label: t("predictionScore"), value: `${(predictionScore * 100).toFixed(2)}%` });
       }
     } else {
-      rows.push({ label: "Type", value: "Annotation" });
+      rows.push({ label: t("type"), value: t("annotation") });
     }
 
     // Add Last Updated after Type
     if (lastUpdated) {
       const formattedDate = formatDate(lastUpdated);
       if (formattedDate) {
-        rows.push({ label: "Last Updated", value: formattedDate });
+        rows.push({ label: t("lastUpdated"), value: formattedDate });
       }
     }
 
     return rows;
-  }, [annotationId, isPrediction, predictionScore, lastUpdated, formatDate]);
+  }, [annotationId, isPrediction, predictionScore, lastUpdated, formatDate, locale]);
 
   const isRenderable =
     tooltipData.length > 0 || !!displayUsername || !!statusBadge || !!isSkipped || !!isGroundTruth || !!annotationId;
@@ -323,7 +326,7 @@ function AnnotationButtonTooltip({
                 border: "none",
               }}
             >
-              Skipped
+              {t("skipped")}
             </Badge>
           )}
           {/* Ground Truth badge shown last */}
@@ -335,7 +338,7 @@ function AnnotationButtonTooltip({
                 border: "none",
               }}
             >
-              Ground Truth
+              {t("groundTruth")}
             </Badge>
           )}
         </div>
@@ -380,6 +383,7 @@ const AnnotationButtonContextMenu = injector(
       onAnnotationChange?: () => void;
       annotationStore: any;
     }) => {
+      const { t } = useLocaleTranslation("editor");
       // Check if entity is alive - must be done before any hooks
       const entityIsAlive = isAlive(entity);
 
@@ -419,19 +423,19 @@ const AnnotationButtonContextMenu = injector(
         copyLink();
         dropdown?.close();
         toast?.show({
-          message: "Annotation link copied to clipboard",
+          message: t("annotationLinkCopied"),
           type: ToastType.info,
         });
-      }, [copyLink, toast, dropdown]);
+      }, [copyLink, toast, dropdown, t]);
       const [copyAnnotationId] = useCopyText({ defaultText: entity.pk?.toString() ?? entity.id?.toString() ?? "" });
       const copyAnnotationIdHandler = useCallback<MenuActionOnClick>(() => {
         copyAnnotationId();
         dropdown?.close();
         toast?.show({
-          message: "Annotation ID copied to clipboard",
+          message: t("annotationIdCopied"),
           type: ToastType.info,
         });
-      }, [copyAnnotationId, toast, dropdown]);
+      }, [copyAnnotationId, toast, dropdown, t]);
       const openPerformanceDashboard = useCallback<MenuActionOnClick>(() => {
         // Only available in LSE
         const isLSE = (window as any).APP_SETTINGS?.version?.edition === "Enterprise";
@@ -467,21 +471,22 @@ const AnnotationButtonContextMenu = injector(
       const deleteAnnotation = useCallback(() => {
         clickHandler();
         confirm({
-          title: "Delete annotation?",
+          title: t("deleteAnnotationQuestion"),
           body: (
             <>
-              This will <strong>delete all existing regions</strong>. Are you sure you want to delete them?
+              {t("deleteRegionsBefore")} <strong>{t("deleteRegionsEmphasis")}</strong>. {t("deleteRegionsAfter")}
               <br />
-              This action cannot be undone.
+              {t("cannotUndo")}
             </>
           ),
           buttonLook: "negative",
-          okText: "Delete",
+          okText: t("delete"),
+          cancelText: t("cancel"),
           onOk: () => {
             entity.list.deleteAnnotation(entity);
           },
         });
-      }, [entity, onAnnotationChange]);
+      }, [entity, onAnnotationChange, t]);
       const isPrediction = entity.type === "prediction";
       const isDraft = !isDefined(entity.pk);
       const showGroundTruth = capabilities.groundTruthEnabled && !isPrediction && !isDraft;
@@ -494,13 +499,13 @@ const AnnotationButtonContextMenu = injector(
       const actions = useMemo<ContextMenuAction[]>(
         () => [
           {
-            label: "Copy Annotation ID",
+            label: t("copyAnnotationId"),
             onClick: copyAnnotationIdHandler,
             icon: <IconClipboardCheck width={20} height={20} />,
             enabled: !isDraft,
           },
           {
-            label: `${isGroundTruth ? "Unset " : "Set "} as Ground Truth`,
+            label: t(isGroundTruth ? "unsetGroundTruth" : "setGroundTruth"),
             onClick: setGroundTruth,
             icon: isGroundTruth ? (
               <IconStar color="#FFC53D" width={iconSize} height={iconSize} />
@@ -510,31 +515,31 @@ const AnnotationButtonContextMenu = injector(
             enabled: showGroundTruth,
           },
           {
-            label: "Duplicate Annotation",
+            label: t("duplicateAnnotation"),
             onClick: duplicateAnnotation,
             icon: <IconDuplicate width={20} height={20} />,
             enabled: showDuplicateAnnotation,
           },
           {
-            label: "Copy Annotation Link",
+            label: t("copyAnnotationLink"),
             onClick: linkAnnotation,
             icon: <IconLink />,
             enabled: !isDraft && store.hasInterface("annotations:copy-link"),
           },
           {
-            label: "Open Performance Dashboard",
+            label: t("openPerformanceDashboard"),
             onClick: openPerformanceDashboard,
             icon: <IconAnalytics width={20} height={20} />,
             enabled: isLSE && hasProjectId && !isDraft && !isPrediction,
           },
           {
-            label: "Show Other Annotations",
+            label: t("showOtherAnnotations"),
             onClick: showOtherAnnotations,
             icon: <IconViewAll width={20} height={20} />,
             enabled: true,
           },
           {
-            label: "Delete Annotation",
+            label: t("deleteAnnotation"),
             onClick: deleteAnnotation,
             icon: <IconTrashRect />,
             separator: true,
@@ -561,6 +566,7 @@ const AnnotationButtonContextMenu = injector(
           linkAnnotation,
           iconSize,
           store,
+          t,
         ],
       );
 
@@ -576,6 +582,7 @@ const AnnotationButtonContextMenu = injector(
 
 export const AnnotationButton = observer(
   ({ entity, capabilities, annotationStore, onAnnotationChange }: AnnotationButtonInterface) => {
+    const { t } = useLocaleTranslation("editor");
     // Check if entity is alive - must be done before any hooks to avoid accessing dead entity
     // But we'll return null AFTER all hooks are called to maintain hook order
     const entityIsAlive = isAlive(entity);
@@ -1004,7 +1011,7 @@ export const AnnotationButton = observer(
               <div className={cn("annotation-button").elem("info").toClassName()}>
                 <TimeAgo className={cn("annotation-button").elem("date").toClassName()} date={entity.createdDate} />
                 {isPrediction && isDefined(entity.score) && (
-                  <span title={`Prediction score = ${entity.score}`}>
+                  <span title={t("predictionScoreValue", { score: entity.score })}>
                     {" · "} {(entity.score * 100).toFixed(2)}%
                   </span>
                 )}
@@ -1014,28 +1021,28 @@ export const AnnotationButton = observer(
           {!isPrediction && (
             <div className={cn("annotation-button").elem("icons").toClassName()}>
               {(entity.draftId > 0 || isDraft) && (
-                <Tooltip title="Draft">
+                <Tooltip title={t("draft")}>
                   <div className={cn("annotation-button").elem("icon").mod({ draft: true }).toClassName()}>
                     <IconDraftCreated2 color="#617ADA" />
                   </div>
                 </Tooltip>
               )}
               {entity.skipped && (
-                <Tooltip title="Skipped">
+                <Tooltip title={t("skipped")}>
                   <div className={cn("annotation-button").elem("icon").mod({ skipped: true }).toClassName()}>
                     <IconAnnotationSkipped2 color="#DD0000" />
                   </div>
                 </Tooltip>
               )}
               {isGroundTruth && (
-                <Tooltip title="Ground-truth">
+                <Tooltip title={t("groundTruth")}>
                   <div className={cn("annotation-button").elem("icon").mod({ groundTruth: true }).toClassName()}>
                     <IconAnnotationGroundTruth />
                   </div>
                 </Tooltip>
               )}
               {CommentIcon && (
-                <Tooltip title={renderCommentTooltip(entity)}>
+                <Tooltip title={renderCommentTooltip(entity, t)}>
                   <div className={cn("annotation-button").elem("icon").mod({ comments: true }).toClassName()}>
                     <CommentIcon />
                   </div>

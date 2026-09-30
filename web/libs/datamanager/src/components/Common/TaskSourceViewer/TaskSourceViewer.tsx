@@ -4,6 +4,7 @@ import { FF_LOPS_E_3, FF_INTERACTIVE_JSON_VIEWER, isFF } from "../../../utils/fe
 import { CodeView } from "./CodeView";
 import styles from "./TaskSourceViewer.module.scss";
 import { ViewToggle, type ViewMode } from "./ViewToggle";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 export type { ViewMode };
 
@@ -76,6 +77,7 @@ export const TaskSourceViewer: FC<TaskSourceViewerProps> = ({
   storageKey,
   renderToggle,
 }) => {
+  const { t } = useLocaleTranslation("datamanager");
   const isInteractiveViewerEnabled = isFF(FF_INTERACTIVE_JSON_VIEWER);
 
   const [taskData, setTaskData] = useState(content);
@@ -170,7 +172,7 @@ export const TaskSourceViewer: FC<TaskSourceViewerProps> = ({
             storageKey={storageKey}
             toolbarExtra={
               <div style={{ marginLeft: "auto" }}>
-                <Toggle label="Resolve URIs" checked={resolveUrls} onChange={handleResolveUrlsChange} />
+                <Toggle label={t("resolveUris")} checked={resolveUrls} onChange={handleResolveUrlsChange} />
               </div>
             }
           />

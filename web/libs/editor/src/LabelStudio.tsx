@@ -4,7 +4,8 @@ import { render, unmountComponentAtNode } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { camelCase } from "@humansignal/core/lib/utils/string";
 import { LabelStudio as LabelStudioReact } from "./Component";
-import App from "./components/App/App";
+import { EditorLocaleRoot } from "./EditorLocaleRoot";
+import { createLocaleRuntime, type LocaleRuntime } from "@humansignal/i18n";
 import { configureStore } from "./configureStore";
 import legacyEvents from "./core/External";
 import { Hotkey } from "./core/Hotkey";
@@ -35,6 +36,7 @@ type LSFTask = any;
 // because those options will go as initial values for AppStore
 // but it's not types yet, so here is some excerpt of its parameters
 type LSFOptions = Record<string, any> & {
+  locale?: "en-US" | "zh-CN";
   interfaces: string[];
   keymap?: any;
   user?: LSFUser;
@@ -62,8 +64,14 @@ export class LabelStudio {
   root: Element | string;
   store: any;
   reactRoot: any;
+  localeRuntime: LocaleRuntime;
+  private isDestroyed = false;
 
-  destroy: (() => void) | null = () => {};
+  destroy: (() => void) | null = () => {
+    this.isDestroyed = true;
+    this.localeRuntime.destroy();
+    LabelStudio.instances.delete(this);
+  };
   events = new EventInvoker();
 
   getRootElement(root: Element | string) {
@@ -84,6 +92,7 @@ export class LabelStudio {
 
   constructor(root: Element | string, userOptions: Partial<LSFOptions> = {}) {
     const options = { ...defaultOptions, ...userOptions };
+    this.localeRuntime = createLocaleRuntime(options.locale);
 
     if (options.keymap) {
       Hotkey.setKeymap(options.keymap);
@@ -120,10 +129,18 @@ export class LabelStudio {
     }
   }
 
+  setLocale(locale: unknown): boolean {
+    return this.localeRuntime.updateLocale(locale);
+  }
+
   // This is a temporary solution that allows React 17 to work in the meantime.
   // and we can update our other usages of LabelStudio to use createRoot, namely tests will likely be affected.
   async createAppV17() {
     const { store } = await configureStore(this.options, this.events);
+    if (this.isDestroyed) {
+      destroy(store);
+      return;
+    }
     const rootElement = this.getRootElement(this.root);
 
     this.store = store;
@@ -135,7 +152,7 @@ export class LabelStudio {
       if (isRendered) {
         clearRenderedApp();
       }
-      render(<App store={this.store} />, rootElement);
+      render(<EditorLocaleRoot runtime={this.localeRuntime} store={this.store} />, rootElement);
     };
 
     const clearRenderedApp = () => {
@@ -166,9 +183,14 @@ export class LabelStudio {
     });
 
     this.destroy = () => {
+      if (this.isDestroyed) return;
+      this.isDestroyed = true;
       if (isFF(FF_LSDV_4620_3_ML)) {
         clearRenderedApp();
+      } else {
+        unmountComponentAtNode(rootElement);
       }
+      this.localeRuntime.destroy();
       destroySharedStore();
       if (isFF(FF_LSDV_4620_3_ML)) {
         /*
@@ -179,6 +201,7 @@ export class LabelStudio {
       }
       destroy(this.store);
       Hotkey.unbindAll();
+      LabelStudio.instances.delete(this);
       if (isFF(FF_LSDV_4620_3_ML)) {
         /*
             ...
@@ -195,6 +218,10 @@ export class LabelStudio {
   // and render the app with it, and properly unmount it and cleanup all references
   async createAppV18() {
     const { store } = await configureStore(this.options, this.events);
+    if (this.isDestroyed) {
+      destroy(store);
+      return;
+    }
     const rootElement = this.getRootElement(this.root);
 
     this.store = store;
@@ -207,8 +234,7 @@ export class LabelStudio {
         clearRenderedApp();
       }
       this.reactRoot = createRoot(rootElement);
-      const AppComponent = App as any;
-      this.reactRoot.render(<AppComponent store={this.store} />);
+      this.reactRoot.render(<EditorLocaleRoot runtime={this.localeRuntime} store={this.store} />);
       isRendered = true;
     };
 
@@ -231,8 +257,11 @@ export class LabelStudio {
     });
 
     this.destroy = () => {
+      if (this.isDestroyed) return;
+      this.isDestroyed = true;
       // Clear rendered app
       clearRenderedApp();
+      this.localeRuntime.destroy();
 
       // Destroy shared store
       destroySharedStore();

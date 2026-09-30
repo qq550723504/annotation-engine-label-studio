@@ -15,6 +15,7 @@ import { LabelButton } from "./LabelButton";
 import { LoadingPossum } from "./LoadingPossum";
 import { OrderButton } from "./OrderButton";
 import { RefreshButton } from "./RefreshButton";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import { ViewToggle } from "./ViewToggle";
 
 const style = {
@@ -27,7 +28,8 @@ const style = {
  * If expired it renders disabled Import button with a tooltip.
  */
 const ImportButtonWithChecks = ({ size }) => {
-  const simpleButton = <ImportButton size={size}>Import</ImportButton>;
+  const { t } = useLocaleTranslation("datamanager");
+  const simpleButton = <ImportButton size={size}>{t("import")}</ImportButton>;
   const isOpenSource = !window.APP_SETTINGS.billing;
   // Check if user is on Starter Cloud plan
   const isStarterCloud = isStarterCloudPlan();
@@ -51,7 +53,7 @@ const ImportButtonWithChecks = ({ size }) => {
   // Disabled buttons ignore hover, so we use wrapper to properly handle a tooltip
   return (
     <Tooltip
-      title="You must upgrade your plan to import data"
+      title={t("upgradeToImport")}
       style={{
         maxWidth: 200,
         textAlign: "center",
@@ -59,11 +61,34 @@ const ImportButtonWithChecks = ({ size }) => {
     >
       <div className={cn("button-wrapper").toClassName()}>
         <ImportButton disabled size={size}>
-          Import
+          {t("import")}
         </ImportButton>
       </div>
     </Tooltip>
   );
+};
+
+const ColumnsInstrument = ({ size }) => {
+  const { t } = useLocaleTranslation("datamanager");
+  const iconProps = {
+    style: { marginRight: 4 },
+    icon: IconChevronDown,
+  };
+  return (
+    <FieldsButton
+      wrapper={FieldsButton.Checkbox}
+      trailingIcon={<Icon {...iconProps} />}
+      title={t("columns")}
+      size={size}
+      style={style}
+      openUpwardForShortViewport={false}
+    />
+  );
+};
+
+const ExportInstrument = ({ size }) => {
+  const { t } = useLocaleTranslation("datamanager");
+  return <Interface name="export"><ExportButton size={size}>{t("export")}</ExportButton></Interface>;
 };
 
 export const instruments = {
@@ -73,24 +98,7 @@ export const instruments = {
   "density-toggle": ({ size }) => {
     return <DensityToggle size={size} />;
   },
-  columns: ({ size }) => {
-    const iconProps = {
-      style: {
-        marginRight: 4,
-      },
-      icon: IconChevronDown,
-    };
-    return (
-      <FieldsButton
-        wrapper={FieldsButton.Checkbox}
-        trailingIcon={<Icon {...iconProps} />}
-        title={"Columns"}
-        size={size}
-        style={style}
-        openUpwardForShortViewport={false}
-      />
-    );
-  },
+  columns: ColumnsInstrument,
   filters: ({ size }) => {
     return <FiltersPane size={size} style={style} />;
   },
@@ -122,11 +130,5 @@ export const instruments = {
       </Interface>
     );
   },
-  "export-button": ({ size }) => {
-    return (
-      <Interface name="export">
-        <ExportButton size={size}>Export</ExportButton>
-      </Interface>
-    );
-  },
+  "export-button": ExportInstrument,
 };

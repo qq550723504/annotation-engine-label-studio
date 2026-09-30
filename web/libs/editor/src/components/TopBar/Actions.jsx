@@ -8,8 +8,10 @@ import { GroundTruth } from "../CurrentEntity/GroundTruth";
 import { EditingHistory } from "./HistoryActions";
 import { confirm } from "../../common/Modal/Modal";
 import { useCallback } from "react";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 export const Actions = ({ store }) => {
+  const { t } = useLocaleTranslation("editor");
   const annotationStore = store.annotationStore;
   const entity = annotationStore.selected;
   const saved = !entity.userGenerate || entity.sentUserGenerate;
@@ -24,10 +26,10 @@ export const Actions = ({ store }) => {
   return (
     <div className={cn("topbar").elem("section").toClassName()}>
       {store.hasInterface("annotations:view-all") && !isBulkMode && (
-        <Tooltip title="Compare all annotations">
+        <Tooltip title={t("compareAllAnnotations")}>
           <Button
             icon={<IconViewAll />}
-            aria-label="Compare all annotations"
+            aria-label={t("compareAllAnnotations")}
             onClick={() => onToggleVisibility()}
             variant={isViewAll ? "primary" : "neutral"}
             look={isViewAll ? "filled" : "string"}
@@ -45,19 +47,20 @@ export const Actions = ({ store }) => {
       {!isPrediction && !isViewAll && store.hasInterface("edit-history") && <EditingHistory entity={entity} />}
 
       {!isViewAll && !isBulkMode && store.hasInterface("annotations:delete") && (
-        <Tooltip title="Delete annotation">
+        <Tooltip title={t("deleteAnnotationTitle")}>
           <Button
             icon={<IconTrash />}
             variant="negative"
             look="string"
             type="text"
-            aria-label="Delete"
+            aria-label={t("delete")}
             onClick={() => {
               confirm({
-                title: "Delete annotation",
-                body: "This action cannot be undone",
+                title: t("deleteAnnotationTitle"),
+                body: t("cannotUndoNoPeriod"),
                 buttonLook: "destructive",
-                okText: "Proceed",
+                okText: t("proceed"),
+                cancelText: t("cancel"),
                 onOk: () => entity.list.deleteAnnotation(entity),
               });
             }}
@@ -71,13 +74,13 @@ export const Actions = ({ store }) => {
       )}
 
       {!isViewAll && !isBulkMode && store.hasInterface("annotations:add-new") && saved && (
-        <Tooltip title={`Create copy of current ${entity.type}`}>
+        <Tooltip title={t("createCopyOfCurrent", { type: entity.type === "prediction" ? t("predictionLower") : t("annotationLower") })}>
           <Button
             icon={<IconCopy style={{ width: 36, height: 36 }} />}
             variant="neutral"
             look="string"
             type="text"
-            aria-label="Copy Annotation"
+            aria-label={t("copyAnnotation")}
             onClick={(ev) => {
               ev.preventDefault();
 
@@ -102,7 +105,7 @@ export const Actions = ({ store }) => {
         icon={<IconSettings />}
         variant="neutral"
         look="string"
-        aria-label="Settings"
+        aria-label={t("settings")}
         onClick={() => store.toggleSettings()}
         style={{
           height: 36,
@@ -116,7 +119,7 @@ export const Actions = ({ store }) => {
           icon={<IconInfo style={{ width: 16, height: 16 }} />}
           variant={store.showingDescription ? "primary" : "neutral"}
           look={store.showingDescription ? "filled" : "string"}
-          aria-label="Instructions"
+          aria-label={t("instructions")}
           onClick={() => store.toggleDescription()}
           style={{
             height: 36,

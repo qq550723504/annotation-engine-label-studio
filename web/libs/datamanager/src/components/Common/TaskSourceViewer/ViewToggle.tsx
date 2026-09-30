@@ -1,4 +1,5 @@
 import { Tabs, TabsList, TabsTrigger } from "@humansignal/ui";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 export type ViewMode = "code" | "interactive";
 
@@ -15,11 +16,12 @@ interface ViewToggleProps {
  * ViewToggle - Controls for switching between Code and Interactive view modes
  */
 export const ViewToggle = ({ view, onViewChange, className }: ViewToggleProps) => {
+  const { t } = useLocaleTranslation("datamanager");
   return (
     <Tabs value={view} onValueChange={(newValue: string) => onViewChange(newValue as ViewMode)} variant="default">
       <TabsList className={className}>
-        <TabsTrigger value="code">Code</TabsTrigger>
-        <TabsTrigger value="interactive">Interactive</TabsTrigger>
+        <TabsTrigger value="code">{t("codeView")}</TabsTrigger>
+        <TabsTrigger value="interactive">{t("interactiveView")}</TabsTrigger>
       </TabsList>
     </Tabs>
   );

@@ -1,6 +1,7 @@
 import { observer } from "mobx-react";
 import { isDefined } from "../../../utils/utils";
 import { FilterInput } from "../FilterInput";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 const valueFilter = (value) => {
   if (isDefined(value)) {
@@ -22,6 +23,7 @@ const NumberInput = observer(({ onChange, ...rest }) => {
 });
 
 const RangeInput = observer(({ schema, value, onChange }) => {
+  const { t } = useLocaleTranslation("datamanager");
   const min = value?.min ?? null;
   const max = value?.max ?? null;
 
@@ -39,9 +41,9 @@ const RangeInput = observer(({ schema, value, onChange }) => {
 
   return (
     <div className="flex w-full min-w-[100px]">
-      <NumberInput placeholder="Min" value={min} onChange={onChangeMin} schema={schema} style={{ flex: 1 }} />
-      <span style={{ padding: "0 10px" }}>and</span>
-      <NumberInput placeholder="Max" value={max} onChange={onChangeMax} schema={schema} style={{ flex: 1 }} />
+      <NumberInput placeholder={t("minimum")} value={min} onChange={onChangeMin} schema={schema} style={{ flex: 1 }} />
+      <span style={{ padding: "0 10px" }}>{t("andLower")}</span>
+      <NumberInput placeholder={t("maximum")} value={max} onChange={onChangeMax} schema={schema} style={{ flex: 1 }} />
     </div>
   );
 });

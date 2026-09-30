@@ -17,10 +17,13 @@ import { getRoot } from "mobx-state-tree";
 import { AgreementSelected } from "../../../CellViews/AgreementSelected";
 import { IconChevronDown } from "@humansignal/icons";
 import { isActive, FF_AGREEMENT_FILTERED } from "@humansignal/core/lib/utils/feature-flags";
+import { useLocaleTranslation } from "@humansignal/i18n";
+import { displayColumnTitle } from "../../../displayColumn";
 
 const tableHeadCN = cn("table-head");
 
 const DropdownWrapper = observer(({ column, cellViews, children, onChange }) => {
+  const { t } = useLocaleTranslation("datamanager");
   const types = ViewColumnType._types
     .map((t) => t.value)
     .filter((t) => {
@@ -35,7 +38,7 @@ const DropdownWrapper = observer(({ column, cellViews, children, onChange }) => 
   return (
     <Dropdown.Trigger
       content={
-        <Menu title="Display as" size="compact" selectedKeys={[column.currentType]}>
+        <Menu title={t("displayAs")} size="compact" selectedKeys={[column.currentType]}>
           {types.map((type) => {
             return (
               <Menu.Item key={type} onClick={() => onChange?.(column, type)}>
@@ -114,6 +117,7 @@ const ColumnRenderer = observer(
     onResize,
     onReset,
   }) => {
+    const { t } = useLocaleTranslation("datamanager");
     const { Header, Cell: _, id, ...column } = columnInput;
 
     if (Header instanceof Function) {
@@ -131,7 +135,7 @@ const ColumnRenderer = observer(
     const canOrder = sortingEnabled && column.original?.canOrder;
     const Decoration = decoration?.get?.(column);
     const extra = !isDE && columnHeaderExtra ? columnHeaderExtra(column, Decoration) : null;
-    const content = Decoration?.content ? Decoration.content(column) : column.title;
+    const content = Decoration?.content ? Decoration.content(column) : displayColumnTitle(column.original, t);
     const style = getStyle(cellViews, column, Decoration);
 
     const headContent = (
