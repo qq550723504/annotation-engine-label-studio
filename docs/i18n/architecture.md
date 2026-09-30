@@ -74,6 +74,14 @@ HTML template → locale bootstrap → React App.jsx/provider tree → DataManag
 
 The server-rendered [base template](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/templates/base.html#L159-L205) owns `APP_SETTINGS` and currently hardcodes `<html lang="en">`. [Login/new-ui](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/users/templates/users/new-ui/user_login.html) extends `simple.html`, so it needs its own template locale input; it must not assume `APP_SETTINGS` exists there. The main [App.jsx](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/web/apps/labelstudio/src/app/App.jsx) renders one React tree, but [DataManager.jsx](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/web/apps/labelstudio/src/pages/DataManager/DataManager.jsx#L22-L56) dynamically imports and constructs Data Manager. [Data Manager](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/web/libs/datamanager/src/sdk/app-create.jsx#L86-L96) renders its own root and [editor](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/web/libs/editor/src/LabelStudio.tsx#L120-L200) renders another. React context does not cross those roots.
 
+The current account route `/user/account/:sectionId` is also a React page:
+[`pages/index.js`](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/web/apps/labelstudio/src/pages/index.js)
+mounts [`@humansignal/app-common` AccountSettings](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/web/libs/app-common/src/pages/AccountSettings/AccountSettings.tsx).
+The Django [`user_account.html`](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/users/templates/users/user_account.html)
+provides the initial HTML/bootstrap and legacy account content. #54 owns both
+surfaces; translating the template alone would leave the live React account
+sections in English.
+
 ## Frozen storage, transport and frontend interfaces
 
 #53 owns an isolated `UserLocalePreference` table (unique `user_id`, nullable
