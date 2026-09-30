@@ -82,6 +82,15 @@ provides the initial HTML/bootstrap and legacy account content. #54 owns both
 surfaces; translating the template alone would leave the live React account
 sections in English.
 
+Route metadata also needs a live display boundary: baseline
+[`RoutesProvider`](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/web/apps/labelstudio/src/providers/RoutesProvider.jsx)
+builds breadcrumbs from route titles, and [`Menu.Builder`](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/web/apps/labelstudio/src/components/Menu/Menu.jsx)
+reads static menu labels. #54 must recompute **display** titles on locale
+change without changing route paths or remounting the page. The account page
+currently imports `SidebarMenu` back from the application layer (marked
+legacy in its source); #54 should use the existing UI there and document that
+upstream-sensitive coupling, rather than creating a second menu system.
+
 ## Frozen storage, transport and frontend interfaces
 
 #53 owns an isolated `UserLocalePreference` table (unique `user_id`, nullable
