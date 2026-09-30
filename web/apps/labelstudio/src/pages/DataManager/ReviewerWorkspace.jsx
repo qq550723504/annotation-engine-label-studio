@@ -3,24 +3,15 @@ import { Button, Typography } from "@humansignal/ui";
 import { Spinner } from "../../components/Spinner/Spinner";
 import { useAPI } from "../../providers/ApiProvider";
 import { cn } from "../../utils/bem";
+import { useLocaleTranslation } from "@humansignal/i18n";
+import { collaborationErrorCode, displayCollaborationDate, displayCollaborationError, displaySubmissionStatus } from "./collaborationDisplay";
 import "./ReviewerWorkspace.scss";
 
-const flattenError = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.flatMap(flattenError);
-  if (typeof value === "object") return Object.values(value).flatMap(flattenError);
-  return [String(value)];
-};
-
-const errorMessage = (result, fallback) => {
-  const messages = flattenError(result?.response);
-  return messages.length ? messages.join(" ") : result?.error ?? fallback;
-};
-
-const displayIdentity = (user) =>
-  user?.email || [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "Unknown submitter";
+const displayIdentity = (user, t) =>
+  user?.email || [user?.first_name, user?.last_name].filter(Boolean).join(" ") || t("unknownSubmitter");
 
 export const ReviewerWorkspace = ({ projectId }) => {
+  const { locale, t } = useLocaleTranslation("collaboration");
   const api = useAPI();
   const callApiRef = useRef(api.callApi);
   callApiRef.current = api.callApi;
@@ -98,12 +89,10 @@ export const ReviewerWorkspace = ({ projectId }) => {
       setPendingHasPrevious(false);
       setHistoryHasNext(false);
       setHistoryHasPrevious(false);
-      setError(
-        errorMessage(
-          reviewableResult?.error ? reviewableResult : historyResult,
-          "Review workspace could not be loaded.",
-        ),
-      );
+      setError(collaborationErrorCode(
+        reviewableResult?.error || reviewableResult?.$meta?.ok === false ? reviewableResult : historyResult,
+        "reviewLoadFailed",
+      ));
       setLoading(false);
       return;
     }
@@ -150,7 +139,7 @@ export const ReviewerWorkspace = ({ projectId }) => {
   const decide = async (decision) => {
     if (!selected) return;
     if (decision === "rejected" && !rejectReason.trim()) {
-      setError("A rejection reason is required.");
+      setError("rejectionReasonRequired");
       return;
     }
 
@@ -168,13 +157,13 @@ export const ReviewerWorkspace = ({ projectId }) => {
     });
 
     if (!result || result?.error || result?.$meta?.ok === false) {
-      setError(errorMessage(result, "The review decision could not be saved."));
+      setError(collaborationErrorCode(result, "reviewSaveFailed"));
       setProcessing(null);
       await refresh(pendingPage, historyPage);
       return;
     }
 
-    setNotice(`Submission #${selected.id} revision ${selected.revision} was ${decision}.`);
+    setNotice({ id: selected.id, revision: selected.revision, decision });
     setRejectReason("");
     await refresh(pendingPage, historyPage);
     setProcessing(null);
@@ -192,20 +181,22 @@ export const ReviewerWorkspace = ({ projectId }) => {
     <div className={cn("reviewer-workspace").toClassName()} data-testid="reviewer-workspace">
       {notice && (
         <div className={cn("reviewer-workspace").elem("notice").toClassName()} role="status">
-          {notice}
+          {notice.decision === "approved"
+            ? t("reviewApprovedNotice", { id: notice.id, revision: notice.revision })
+            : t("reviewRejectedNotice", { id: notice.id, revision: notice.revision })}
         </div>
       )}
       {error && (
         <div className={cn("reviewer-workspace").elem("error").toClassName()} role="alert" data-testid="review-error">
-          {error}
+          {displayCollaborationError(error, t)}
         </div>
       )}
 
       <div className={cn("reviewer-workspace").elem("layout").toClassName()}>
         <aside className={cn("reviewer-workspace").elem("queue").toClassName()}>
-          <Typography variant="headline" size="small">Pending reviews</Typography>
+          <Typography variant="headline" size="small">{t("pendingReviews")}</Typography>
           {pendingSubmissions.length === 0 ? (
-            <div data-testid="review-queue-empty">No pending submissions.</div>
+            <div data-testid="review-queue-empty">{t("noPendingSubmissions")}</div>
           ) : (
             pendingSubmissions.map((submission) => (
               <button
@@ -215,8 +206,8 @@ export const ReviewerWorkspace = ({ projectId }) => {
                 onClick={() => setSelectedId(submission.id)}
                 data-testid={`review-submission-${submission.id}`}
               >
-                <strong>Revision {submission.revision}</strong>
-                <span>{displayIdentity(submission.submitted_by)}</span>
+                <strong>{t("revisionNumber", { revision: submission.revision })}</strong>
+                <span>{displayIdentity(submission.submitted_by, t)}</span>
                 <span>#{submission.id}</span>
               </button>
             ))
@@ -231,9 +222,9 @@ export const ReviewerWorkspace = ({ projectId }) => {
                 setSelectedId(null);
               }}
             >
-              Previous pending
+              {t("previousPending")}
             </Button>
-            <span>Page {pendingPage}</span>
+            <span>{t("pageNumber", { page: pendingPage })}</span>
             <Button
               size="small"
               look="outlined"
@@ -243,13 +234,13 @@ export const ReviewerWorkspace = ({ projectId }) => {
                 setSelectedId(null);
               }}
             >
-              Next pending
+              {t("nextPending")}
             </Button>
           </div>
 
-          <Typography variant="headline" size="small">Submission history</Typography>
+          <Typography variant="headline" size="small">{t("submissionHistory")}</Typography>
           {historySubmissions.length === 0 ? (
-            <div data-testid="review-history-empty">No reviewed submissions.</div>
+            <div data-testid="review-history-empty">{t("noReviewedSubmissions")}</div>
           ) : (
             historySubmissions.map((submission) => (
               <button
@@ -259,9 +250,9 @@ export const ReviewerWorkspace = ({ projectId }) => {
                 onClick={() => setSelectedId(submission.id)}
                 data-testid={`review-history-${submission.id}`}
               >
-                <strong>Revision {submission.revision}</strong>
-                <span>{submission.status}</span>
-                <span>{displayIdentity(submission.submitted_by)}</span>
+                <strong>{t("revisionNumber", { revision: submission.revision })}</strong>
+                <span>{displaySubmissionStatus(submission.status, t)}</span>
+                <span>{displayIdentity(submission.submitted_by, t)}</span>
               </button>
             ))
           )}
@@ -275,9 +266,9 @@ export const ReviewerWorkspace = ({ projectId }) => {
                 setSelectedId(null);
               }}
             >
-              Previous history
+              {t("previousHistory")}
             </Button>
-            <span>Page {historyPage}</span>
+            <span>{t("pageNumber", { page: historyPage })}</span>
             <Button
               size="small"
               look="outlined"
@@ -287,7 +278,7 @@ export const ReviewerWorkspace = ({ projectId }) => {
                 setSelectedId(null);
               }}
             >
-              Next history
+              {t("nextHistory")}
             </Button>
           </div>
         </aside>
@@ -297,16 +288,16 @@ export const ReviewerWorkspace = ({ projectId }) => {
             <>
               <div className={cn("reviewer-workspace").elem("meta").toClassName()}>
                 <Typography variant="headline" size="small">
-                  Submission #{selected.id} · revision {selected.revision}
+                  {t("submissionRevision", { id: selected.id, revision: selected.revision })}
                 </Typography>
-                <span>Submitted by {displayIdentity(selected.submitted_by)}</span>
-                <span>{selected.submitted_at}</span>
-                <span data-testid="review-status">{selected.status}</span>
+                <span>{t("submittedBy", { user: displayIdentity(selected.submitted_by, t) })}</span>
+                <span>{displayCollaborationDate(selected.submitted_at, locale)}</span>
+                <span data-testid="review-status">{displaySubmissionStatus(selected.status, t)}</span>
                 <code data-testid="review-result-hash">{selected.result_hash}</code>
               </div>
 
               <div>
-                <Typography variant="body" size="medium">Immutable submitted snapshot</Typography>
+                <Typography variant="body" size="medium">{t("immutableSnapshot")}</Typography>
                 <pre data-testid="review-result-snapshot">
                   {JSON.stringify(selected.result_snapshot, null, 2)}
                 </pre>
@@ -314,7 +305,7 @@ export const ReviewerWorkspace = ({ projectId }) => {
 
               {selectedIsReviewable && (
                 <>
-                  <label htmlFor="review-reject-reason">Rejection reason</label>
+                  <label htmlFor="review-reject-reason">{t("rejectionReason")}</label>
                   <textarea
                     id="review-reject-reason"
                     data-testid="review-reject-reason"
@@ -331,7 +322,7 @@ export const ReviewerWorkspace = ({ projectId }) => {
                       waiting={processing === "approved"}
                       onClick={() => decide("approved")}
                     >
-                      Approve
+                      {t("approve")}
                     </Button>
                     <Button
                       data-testid="review-reject"
@@ -341,14 +332,14 @@ export const ReviewerWorkspace = ({ projectId }) => {
                       waiting={processing === "rejected"}
                       onClick={() => decide("rejected")}
                     >
-                      Reject
+                      {t("reject")}
                     </Button>
                   </div>
                 </>
               )}
             </>
           ) : (
-            <div data-testid="review-detail-empty">Select a pending submission.</div>
+            <div data-testid="review-detail-empty">{t("selectPendingSubmission")}</div>
           )}
         </section>
       </div>
