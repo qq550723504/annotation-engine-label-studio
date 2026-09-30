@@ -207,9 +207,18 @@ intent and an uncommitted transition must have none.
 Use a durable audit row or transactional outbox in the same database transaction
 as the audited revocation transition.
 
-Delivery to logs/SIEM may occur asynchronously, but must use a stable event ID /
-idempotency key so crash/retry behavior is at-least-once transport with exactly
-one logical event.
+Delivery to logs/SIEM is at-least-once transport with exactly one **logical**
+event, which requires more than a stable event ID:
+
+- receiver acceptance/deduplication state is crash-durable;
+- receiver accepted-ID/tombstone retention covers the maximum supported replay
+  horizon (dead-letter redrive, backup restore, and operator recovery windows);
+- unacknowledged events remain retryable or enter a durable monitored
+  dead-letter/redrive state rather than becoming terminally stranded;
+- rollback/restore preserves or reconciles both pending/dead-letter audit intents
+  and receiver accepted-ID state by stable event ID;
+- a compatible dispatcher/receiver path remains available until preserved backlog
+  drains.
 
 For batch account-disable transitions there is one durable event per affected
 target user.
@@ -235,7 +244,9 @@ Tests should be organized around the invariants above:
 5. batch operations cover every actual target and no non-target;
 6. authorization is derived from fresh server state;
 7. migration/recovery never create a replay window;
-8. committed transitions remain auditable across process or sink failure.
+8. committed transitions remain auditable across dispatcher, receiver, sink,
+   retry-exhaustion, and rollback/restore failures without duplicate logical
+   delivery or lost pending intent.
 
 Endpoint-specific and ORM-path-specific tests are evidence for these invariants,
 not independent security models.
