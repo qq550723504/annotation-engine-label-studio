@@ -5,6 +5,7 @@ import "./Config.scss";
 import { EMPTY_CONFIG } from "./Template";
 import { API_CONFIG } from "../../../config/ApiConfig";
 import { useAPI } from "../../../providers/ApiProvider";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 const configClass = cn("configure");
 
@@ -19,6 +20,7 @@ const loadDependencies = async () => {
 };
 
 export const Preview = ({ config, data, error, loading, project }) => {
+  const { t } = useLocaleTranslation("projects");
   // @see comment about dependencies above
   loadDependencies();
 
@@ -141,11 +143,11 @@ export const Preview = ({ config, data, error, loading, project }) => {
 
   return (
     <div className={configClass.elem("preview").toClassName()}>
-      <h3>Preview</h3>
+      <h3>{t("preview")}</h3>
       {error && (
         <div className={configClass.elem("preview-error").toClassName()}>
           <h2>
-            {error.detail} {error.id}
+            {error.localErrorKey ? t(error.localErrorKey) : error.detail} {error.id}
           </h2>
           {error.validation_errors?.non_field_errors?.map?.((err) => (
             <p key={err}>{err}</p>

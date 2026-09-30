@@ -12,8 +12,10 @@ import { MembersSettings } from "./MembersSettings";
 import { PredictionsSettings } from "./PredictionsSettings/PredictionsSettings";
 import { StorageSettings } from "./StorageSettings/StorageSettings";
 import "./settings.scss";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 export const MenuLayout = ({ children, ...routeProps }) => {
+  const { t } = useLocaleTranslation("projects");
   const api = useAPI();
   const callApi = useRef(api.callApi).current;
   const { project } = useProject();
@@ -62,7 +64,20 @@ export const MenuLayout = ({ children, ...routeProps }) => {
         StorageSettings,
         WebhookPage,
         DangerZone,
-      ].filter(Boolean)}
+      ].filter(Boolean).map((page) => ({
+        ...page,
+        title: ({
+          "/": t("general"),
+          "/labeling": t("labelingInterface"),
+          "/annotation": t("annotation"),
+          "/members": t("members"),
+          "/ml": t("model"),
+          "/predictions": t("predictions"),
+          "/storage": t("cloudStorage"),
+          "/webhooks": t("webhooks"),
+          "/danger-zone": t("dangerZone"),
+        })[page.path] ?? page.title,
+      }))}
       path={routeProps.match.url}
       children={children}
     />

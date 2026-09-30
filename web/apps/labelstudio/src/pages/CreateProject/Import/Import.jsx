@@ -14,6 +14,7 @@ import { Button, CodeBlock, SimpleCard, Spinner, Tooltip, Typography, Badge } fr
 import truncate from "truncate-middle";
 import samples from "./samples.json";
 import { importFiles } from "./utils";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 const importClass = cn("upload_page");
 const dropzoneClass = cn("dropzone");
@@ -120,21 +121,16 @@ const Upload = ({ children, sendFiles }) => {
 };
 
 const ErrorMessage = ({ error }) => {
+  const { t } = useLocaleTranslation("projects");
   if (!error) return null;
-  let extra = error.validation_errors ?? error.extra;
-  // support all possible responses
-
-  if (extra && typeof extra === "object" && !Array.isArray(extra)) {
-    extra = extra.non_field_errors ?? Object.values(extra);
-  }
-  if (Array.isArray(extra)) extra = extra.join("; ");
 
   return (
-    <div className={importClass.elem("error").toClassName()}>
+    <div className={importClass.elem("error").toClassName()} role="alert">
       <IconErrorAlt width="24" height="24" />
       {error.id && `[${error.id}] `}
-      {error.detail || error.message}
-      {extra && ` (${extra})`}
+      {error.i18nKey === "unsupportedFileType" ? t("unsupportedFileType", error.values)
+        : error.i18nKey === "fileTooBig" ? t("fileTooBig")
+        : t("importFailed")}
     </div>
   );
 };
@@ -153,6 +149,7 @@ export const ImportPage = ({
   addColumns,
   openLabelingConfig,
 }) => {
+  const { t } = useLocaleTranslation("projects");
   const [error, setError] = useState();
   const [newlyUploadedFiles, setNewlyUploadedFiles] = useState(new Set());
   const prevUploadedRef = useRef(new Set());
@@ -218,10 +215,7 @@ export const ImportPage = ({
     console.error(err);
     // @todo workaround for error about input size in a wrong html format
     if (typeof err === "string" && err.includes("RequestDataTooBig")) {
-      const message = "Imported file is too big";
-      const extra = err.match(/"exception_value">(.*)<\/pre>/)?.[1];
-
-      err = { message, extra };
+      err = { i18nKey: "fileTooBig" };
     }
     setError(err);
     onWaiting?.(false);
@@ -302,7 +296,7 @@ export const ImportPage = ({
 
       for (const f of files) {
         if (!allSupportedExtensions.includes(getFileExtension(f.name))) {
-          onError(new Error(`The filetype of file "${f.name}" is not supported.`));
+          onError({ i18nKey: "unsupportedFileType", values: { name: f.name } });
           return;
         }
         fd.append(f.name, f);
@@ -381,21 +375,21 @@ export const ImportPage = ({
           method="POST"
           onSubmit={onLoadURL}
         >
-          <Input placeholder="Dataset URL" name="url" ref={urlRef} rawClassName="h-[40px]" />
-          <Button variant="primary" look="outlined" type="submit" aria-label="Add URL">
-            Add URL
+          <Input placeholder={t("datasetUrl")} name="url" ref={urlRef} rawClassName="h-[40px]" />
+          <Button variant="primary" look="outlined" type="submit" aria-label={t("addUrl")}>
+            {t("addUrl")}
           </Button>
         </form>
-        <span>or</span>
+        <span>{t("or")}</span>
         <Button
           variant="primary"
           look="outlined"
           type="button"
           onClick={() => document.getElementById("file-input").click()}
           leading={<IconUpload />}
-          aria-label="Upload file"
+          aria-label={t("uploadFile")}
         >
-          Upload {files.uploaded.length ? "More " : ""}Files
+          {files.uploaded.length ? t("uploadMoreFiles") : t("uploadFiles")}
         </Button>
         {ff.isActive(ff.FF_SAMPLE_DATASETS) && (
           <SampleDatasetSelect samples={samples} sample={sample} onSampleApplied={onSampleDatasetSelect} />
@@ -406,16 +400,16 @@ export const ImportPage = ({
             .mod({ highlighted: highlightCsvHandling, hidden: !csvHandling })
             .toClassName()}
         >
-          <span>Treat CSV/TSV as</span>
+          <span>{t("treatCsvAs")}</span>
           <label>
-            <input {...csvProps} value="tasks" checked={csvHandling === "tasks"} /> List of tasks
+            <input {...csvProps} value="tasks" checked={csvHandling === "tasks"} /> {t("listOfTasks")}
           </label>
           <label>
-            <input {...csvProps} value="ts" checked={csvHandling === "ts"} /> Time Series or Whole Text File
+            <input {...csvProps} value="ts" checked={csvHandling === "ts"} /> {t("timeSeriesOrText")}
           </label>
         </div>
         <div className={importClass.elem("status").toClassName()}>
-          {files.uploaded.length ? `${files.uploaded.length} files uploaded` : ""}
+          {files.uploaded.length ? t("filesUploaded", { count: files.uploaded.length }) : ""}
         </div>
       </header>
 
@@ -434,26 +428,26 @@ export const ImportPage = ({
                   <div className={`${dropzoneClass.elem("content")} w-full`}>
                     <IconFileUpload height="64" className={dropzoneClass.elem("icon").toClassName()} />
                     <header>
-                      Drag & drop files here
+                      {t("dragFilesHere")}
                       <br />
-                      or click to browse
+                      {t("clickToBrowse")}
                     </header>
 
                     <dl>
-                      <dt>Images</dt>
+                      <dt>{t("images")}</dt>
                       <dd>{supportedExtensions.image.join(", ")}</dd>
-                      <dt>Audio</dt>
+                      <dt>{t("audio")}</dt>
                       <dd>{supportedExtensions.audio.join(", ")}</dd>
                       <dt>
                         <div className="flex items-center gap-1">
-                          Video
-                          <Tooltip title="Video format support depends on your browser. Click to learn more.">
+                          {t("video")}
+                          <Tooltip title={t("videoSupportTooltip")}>
                             <a
                               href="https://labelstud.io/tags/video#Video-format"
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center"
-                              aria-label="Learn more about video format support (opens in a new tab)"
+                              aria-label={t("videoSupportLink")}
                             >
                               <IconInfoOutline className="w-4 h-4 text-primary-content hover:text-primary-content-hover" />
                             </a>
@@ -461,55 +455,55 @@ export const ImportPage = ({
                         </div>
                       </dt>
                       <dd>{supportedExtensions.video.join(", ")}</dd>
-                      <dt>HTML / HyperText</dt>
+                      <dt>{t("htmlHypertext")}</dt>
                       <dd>{supportedExtensions.html.join(", ")}</dd>
-                      <dt>Text</dt>
+                      <dt>{t("text")}</dt>
                       <dd>{supportedExtensions.text.join(", ")}</dd>
-                      <dt>Structured data</dt>
+                      <dt>{t("structuredData")}</dt>
                       <dd>{supportedExtensions.structuredData.join(", ")}</dd>
                       <dt>PDF</dt>
                       <dd>{supportedExtensions.pdf.join(", ")}</dd>
                     </dl>
                     <div className="tips">
-                      <b>Important:</b>
+                      <b>{t("important")}</b>
                       <ul className="mt-2 ml-4 list-disc font-normal">
                         <li>
-                          We recommend{" "}
+                          {t("weRecommend")}{" "}
                           <a
                             href="https://labelstud.io/guide/storage.html"
                             target="_blank"
                             rel="noopener noreferrer"
-                            aria-label="Cloud Storage documentation (opens in a new tab)"
+                            aria-label={t("cloudStorageLink")}
                           >
-                            Cloud Storage
+                            {t("cloudStorage")}
                           </a>{" "}
-                          over direct uploads due to{" "}
+                          {t("overDirectUploads")}{" "}
                           <a
                             href="https://labelstud.io/guide/tasks.html#Import-data-from-the-Label-Studio-UI"
                             target="_blank"
                             rel="noopener noreferrer"
-                            aria-label="Upload limitations documentation (opens in a new tab)"
+                            aria-label={t("uploadLimitationsLink")}
                           >
-                            upload limitations
+                            {t("uploadLimitations")}
                           </a>
                           .
                         </li>
                         <li>
-                          For PDFs, use{" "}
+                          {t("forPdfsUse")}{" "}
                           <a
                             href="https://labelstud.io/templates/multi-page-document-annotation"
                             target="_blank"
                             rel="noopener noreferrer"
-                            aria-label="Multi-image labeling documentation (opens in a new tab)"
+                            aria-label={t("multiImageLink")}
                           >
-                            multi-image labeling
+                            {t("multiImageLabeling")}
                           </a>
-                          . JSONL or Parquet (Enterprise only) files require cloud storage.
+                          {t("jsonlCloudStorage")}
                         </li>
                         <li>
-                          Check the documentation to{" "}
+                          {t("checkDocumentationTo")}{" "}
                           <a target="_blank" href="https://labelstud.io/guide/predictions.html" rel="noreferrer">
-                            import preannotated data
+                            {t("importPreannotated")}
                           </a>
                           .
                         </li>
@@ -523,7 +517,7 @@ export const ImportPage = ({
             {showList && (
               <div className="w-full">
                 <SimpleCard
-                  title="Files"
+                  title={t("files")}
                   className="w-full h-full"
                   contentClassName="overflow-y-auto h-[calc(100%-48px)]"
                 >
@@ -534,7 +528,7 @@ export const ImportPage = ({
                           <td>
                             <div className="flex items-center gap-2">
                               {sample.title}
-                              <Badge>Sample</Badge>
+                              <Badge>{t("sample")}</Badge>
                             </div>
                           </td>
                           <td>{sample.description}</td>
@@ -614,7 +608,7 @@ export const ImportPage = ({
               <div className="w-full h-full flex flex-col min-h-[400px]">
                 {projectConfigured ? (
                   <SimpleCard
-                    title="Expected Input Preview"
+                    title={t("expectedInputPreview")}
                     className="w-full h-full overflow-hidden flex flex-col"
                     contentClassName="h-[calc(100%-48px)]"
                     flushContent
@@ -622,7 +616,7 @@ export const ImportPage = ({
                     {sampleConfig.data ? (
                       <div className={importClass.elem("code-wrapper").toClassName()}>
                         <CodeBlock
-                          title="Expected Input Preview"
+                          title={t("expectedInputPreview")}
                           code={sampleConfig?.data ?? ""}
                           className="w-full h-full"
                         />
@@ -633,7 +627,7 @@ export const ImportPage = ({
                       </div>
                     ) : sampleConfig.isError ? (
                       <div className="w-[calc(100%-24px)] text-lg text-negative-content bg-negative-background border m-3 rounded-md border-negative-border-subtle p-4">
-                        Something went wrong, the sample data could not be loaded.
+                        {t("sampleLoadFailed")}
                       </div>
                     ) : null}
                   </SimpleCard>
@@ -644,18 +638,18 @@ export const ImportPage = ({
                         <IconCode className="w-6 h-6 text-primary-icon" />
                       </div>
                       <div className="flex flex-col items-center gap-tighter">
-                        <div className="text-label-small text-neutral-content font-medium">View JSON input format</div>
+                        <div className="text-label-small text-neutral-content font-medium">{t("viewJsonFormat")}</div>
                         <div className="text-body-small text-neutral-content-subtler text-center">
-                          Setup your{" "}
+                          {t("setUpYour")}{" "}
                           <Button
                             type="button"
                             look="string"
                             onClick={openConfig}
                             className="border-none bg-none p-0 m-0 text-primary-content underline"
                           >
-                            labeling configuration
+                            {t("labelingConfiguration")}
                           </Button>{" "}
-                          first to preview the expected JSON data format
+                          {t("previewJsonAfterSetup")}
                         </div>
                       </div>
                     </div>

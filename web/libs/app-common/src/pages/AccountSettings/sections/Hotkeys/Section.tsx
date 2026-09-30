@@ -9,6 +9,8 @@ import {
   CardFooter,
 } from "@humansignal/shad/components/ui/card";
 import { HotkeyItem } from "./Item";
+import { useLocaleRuntime, useLocaleTranslation } from "@humansignal/i18n";
+import { displayHotkeySection } from "./display";
 
 // Type definitions
 interface Hotkey {
@@ -81,6 +83,9 @@ export const HotkeySection = ({
   onToggleHotkey,
   hasChanges,
 }: HotkeySectionProps) => {
+  const runtime = useLocaleRuntime();
+  const { t } = useLocaleTranslation("app");
+  const displayedSection = displayHotkeySection(section, runtime);
   /**
    * Groups hotkeys by their subgroup property
    * Hotkeys without a subgroup are placed in the 'default' group
@@ -118,8 +123,8 @@ export const HotkeySection = ({
   return (
     <Card className="mb-6">
       <CardHeader className="pb-2">
-        <CardTitle>{section.title}</CardTitle>
-        <CardDescription>{section.description}</CardDescription>
+        <CardTitle>{displayedSection.title}</CardTitle>
+        <CardDescription>{displayedSection.description}</CardDescription>
       </CardHeader>
 
       <CardContent>
@@ -144,14 +149,14 @@ export const HotkeySection = ({
           ))}
 
           {hotkeys.length === 0 && (
-            <div className="py-8 text-center text-muted-foreground italic">No hotkeys in this section</div>
+            <div className="py-8 text-center text-muted-foreground italic">{t("noHotkeysInSection")}</div>
           )}
         </div>
       </CardContent>
 
       <CardFooter className="flex justify-end">
         <Button variant="primary" onClick={handleSaveSection} disabled={!hasChanges}>
-          Save
+          {t("save")}
         </Button>
       </CardFooter>
     </Card>

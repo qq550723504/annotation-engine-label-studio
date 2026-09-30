@@ -7,6 +7,8 @@ export const API_CONFIG = {
     updateUserAvatar: "POST:/users/:pk/avatar",
     deleteUserAvatar: "DELETE:/users/:pk/avatar",
     me: "/current-user/whoami",
+    currentUserLocale: "GET:/current-user/locale/",
+    updateCurrentUserLocale: "PATCH:/current-user/locale/",
     hotkeys: "GET:/current-user/hotkeys/",
     updateHotkeys: "PATCH:/current-user/hotkeys/",
 

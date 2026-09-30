@@ -376,3 +376,28 @@ label {
 .text-wrapper a:hover {
   text-decoration: none;
 }
+
+.locale-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 20px;
+  font-size: .875rem;
+}
+
+.locale-switcher select {
+  max-width: 100%;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-neutral-border);
+  border-radius: 4px;
+  background: var(--color-neutral-surface);
+  color: var(--color-neutral-content);
+}
+
+.locale-switcher [role="alert"] {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--color-negative-content);
+}

@@ -45,3 +45,81 @@ msgstr "邮箱"
 
 msgid "Work Email"
 msgstr "工作邮箱"
+
+msgid "Display language"
+msgstr "界面语言"
+
+msgid "Automatic"
+msgstr "自动"
+
+msgid "Could not save your language. Please try again."
+msgstr "无法保存语言设置，请重试。"
+
+msgid "Please review the form and try again."
+msgstr "请检查表单后重试。"
+
+msgid "Welcome to Label Studio Community Edition %(version)s"
+msgstr "欢迎使用 Label Studio 社区版 %(version)s"
+
+msgid "A full-fledged open source solution for data labeling"
+msgstr "功能完整的开源数据标注解决方案"
+
+msgid "Sign up"
+msgstr "注册"
+
+msgid "Log in"
+msgstr "登录"
+
+msgid "Email Address"
+msgstr "邮箱地址"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Keep me logged in this browser"
+msgstr "在此浏览器保持登录"
+
+msgid "Don't have an account?"
+msgstr "还没有账号？"
+
+msgid "How did you hear about Label Studio?"
+msgstr "您从哪里了解到 Label Studio？"
+
+msgid "Select an option"
+msgstr "请选择"
+
+msgid "Please elaborate"
+msgstr "请补充说明"
+
+msgid "Get the latest news from Heidi"
+msgstr "接收 Heidi 的最新资讯"
+
+msgid "Create Account"
+msgstr "创建账号"
+
+msgid "Already have an account?"
+msgstr "已有账号？"
+
+msgid "Github"
+msgstr "GitHub"
+
+msgid "Email or newsletter"
+msgstr "邮件或简报"
+
+msgid "Search engine"
+msgstr "搜索引擎"
+
+msgid "Friend or coworker"
+msgstr "朋友或同事"
+
+msgid "Ad"
+msgstr "广告"
+
+msgid "Other"
+msgstr "其他"
+
+msgid "Log in | Label Studio"
+msgstr "登录 | Label Studio"
+
+msgid "Sign up | Label Studio"
+msgstr "注册 | Label Studio"

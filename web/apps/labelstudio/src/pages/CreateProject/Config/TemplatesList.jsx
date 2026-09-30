@@ -5,6 +5,7 @@ import { cn } from "../../../utils/bem";
 import "./Config.scss";
 import { IconInfo } from "@humansignal/icons";
 import { Button, EnterpriseBadge } from "@humansignal/ui";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 const listClass = cn("templates-list");
 
@@ -16,6 +17,7 @@ const Arrow = () => (
 );
 
 const TemplatesInGroup = ({ templates, group, onSelectRecipe, isEdition }) => {
+  const { t } = useLocaleTranslation("projects");
   const picked = templates
     .filter((recipe) => recipe.group === group)
     // templates without `order` go to the end of the list
@@ -34,7 +36,7 @@ const TemplatesInGroup = ({ templates, group, onSelectRecipe, isEdition }) => {
             key={recipe.title}
             onClick={() => !isDisabled && onSelectRecipe(recipe)}
             className={listClass.elem("template").mod({ disabled: isDisabled }).toClassName()}
-            title={isDisabled ? "Enterprise feature - Available in Label Studio Enterprise" : ""}
+            title={isDisabled ? t("enterpriseTemplateUnavailable") : ""}
           >
             <img src={recipe.image} alt={""} />
             <div className="flex flex-col items-center w-full">
@@ -49,6 +51,7 @@ const TemplatesInGroup = ({ templates, group, onSelectRecipe, isEdition }) => {
 };
 
 export const TemplatesList = ({ selectedGroup, selectedRecipe, onCustomTemplate, onSelectGroup, onSelectRecipe }) => {
+  const { t } = useLocaleTranslation("projects");
   const [groups, setGroups] = React.useState([]);
   const [templates, setTemplates] = React.useState();
   const api = useAPI();
@@ -97,9 +100,9 @@ export const TemplatesList = ({ selectedGroup, selectedRecipe, onCustomTemplate,
           size="small"
           onClick={onCustomTemplate}
           className="w-full"
-          aria-label="Create custom template"
+          aria-label={t("createCustomTemplate")}
         >
-          Custom template
+          {t("customTemplate")}
         </Button>
       </aside>
       <main>

@@ -18,7 +18,7 @@ Cypress.Commands.add('loginAs', (email: string, password: string, nextPath = '/'
     cy.location('pathname', { timeout: 30000 }).should('eq', '/user/login/');
     cy.get('#email', { timeout: 30000 }).should('be.visible').clear().type(email);
     cy.get('#password', { timeout: 30000 }).should('be.visible').clear().type(password, { log: false });
-    cy.get('button[aria-label="Log In"]').click();
+    cy.get('form button[type="submit"]').click();
     cy.location('pathname', { timeout: 20000 }).should('not.eq', '/user/login/');
   }, {
     validate() {

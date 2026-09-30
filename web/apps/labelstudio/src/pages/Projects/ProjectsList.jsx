@@ -1,5 +1,4 @@
 import chr from "chroma-js";
-import { format } from "date-fns";
 import { useMemo } from "react";
 import { NavLink } from "react-router-dom";
 import { IconCheck, IconEllipsis, IconMinus, IconSparks } from "@humansignal/icons";
@@ -8,10 +7,12 @@ import { Menu, Pagination } from "../../components";
 import { cn } from "../../utils/bem";
 import { absoluteURL } from "../../utils/helpers";
 import { ProjectStateChip } from "@humansignal/app-common";
+import { formatDisplayDate, formatDisplayNumber, useLocaleTranslation } from "@humansignal/i18n";
 
 const DEFAULT_CARD_COLORS = ["#FFFFFF", "#FDFDFC"];
 
 export const ProjectsList = ({ projects, currentPage, totalItems, loadNextPage, pageSize }) => {
+  const { t } = useLocaleTranslation("projects");
   return (
     <>
       <div className={cn("projects-page").elem("list").toClassName()}>
@@ -22,7 +23,7 @@ export const ProjectsList = ({ projects, currentPage, totalItems, loadNextPage, 
       <div className={cn("projects-page").elem("pages").toClassName()}>
         <Pagination
           name="projects-list"
-          label="Projects"
+          label={t("projects")}
           page={currentPage}
           totalItems={totalItems}
           urlParamName="page"
@@ -36,23 +37,25 @@ export const ProjectsList = ({ projects, currentPage, totalItems, loadNextPage, 
 };
 
 export const EmptyProjectsList = ({ openModal }) => {
+  const { t } = useLocaleTranslation("projects");
   return (
     <div className={cn("empty-projects-page").toClassName()}>
       <img
-        alt="Heidi looking for projects"
+        alt={t("emptyImageAlt")}
         className={cn("empty-projects-page").elem("heidi").toClassName()}
         src={absoluteURL("/static/images/opossum_looking.png")}
       />
-      <h1 className={cn("empty-projects-page").elem("header").toClassName()}>Heidi doesn't see any projects here!</h1>
-      <p>Create one and start labeling your data.</p>
-      <Button onClick={openModal} className="my-8" aria-label="Create new project">
-        Create Project
+      <h1 data-testid="empty-projects-header" className={cn("empty-projects-page").elem("header").toClassName()}>{t("emptyTitle")}</h1>
+      <p>{t("emptyDescription")}</p>
+      <Button onClick={openModal} className="my-8" aria-label={t("createNewProject")} data-testid="create-project-empty">
+        {t("createProject")}
       </Button>
     </div>
   );
 };
 
 const ProjectCard = ({ project }) => {
+  const { locale, t } = useLocaleTranslation("projects");
   const color = useMemo(() => {
     return DEFAULT_CARD_COLORS.includes(project.color) ? null : project.color;
   }, [project]);
@@ -82,9 +85,9 @@ const ProjectCard = ({ project }) => {
         <div className={cn("project-card").elem("header").toClassName()}>
           <div className={cn("project-card").elem("title").toClassName()}>
             <div className={cn("project-card").elem("title-text-wrapper").toClassName()}>
-              <Tooltip title={project.title ?? "New project"}>
+              <Tooltip title={project.title ?? t("newProject")}>
                 <div className={cn("project-card").elem("title-text").toClassName()}>
-                  {project.title ?? "New project"}
+                  {project.title ?? t("newProject")}
                 </div>
               </Tooltip>
             </div>
@@ -99,12 +102,12 @@ const ProjectCard = ({ project }) => {
               <Dropdown.Trigger
                 content={
                   <Menu contextual>
-                    <Menu.Item href={`/projects/${project.id}/settings`}>Settings</Menu.Item>
-                    <Menu.Item href={`/projects/${project.id}/data?labeling=1`}>Label</Menu.Item>
+                    <Menu.Item href={`/projects/${project.id}/settings`}>{t("settings")}</Menu.Item>
+                    <Menu.Item href={`/projects/${project.id}/data?labeling=1`}>{t("label")}</Menu.Item>
                   </Menu>
                 }
               >
-                <Button size="smaller" look="string" aria-label="Project options">
+                <Button size="smaller" look="string" aria-label={t("projectOptions")}>
                   <IconEllipsis />
                 </Button>
               </Dropdown.Trigger>
@@ -119,20 +122,20 @@ const ProjectCard = ({ project }) => {
           <div className={cn("project-card").elem("summary").toClassName()}>
             <div className={cn("project-card").elem("annotation").toClassName()}>
               <div className={cn("project-card").elem("total").toClassName()}>
-                {project.finished_task_number} / {project.task_number}
+                {project.finished_task_number == null ? "" : formatDisplayNumber(project.finished_task_number, locale)} / {project.task_number == null ? "" : formatDisplayNumber(project.task_number, locale)}
               </div>
               <div className={cn("project-card").elem("detail").toClassName()}>
                 <div className={cn("project-card").elem("detail-item").mod({ type: "completed" }).toClassName()}>
                   <IconCheck className={cn("project-card").elem("icon").toClassName()} />
-                  {project.total_annotations_number}
+                  {project.total_annotations_number == null ? "" : formatDisplayNumber(project.total_annotations_number, locale)}
                 </div>
                 <div className={cn("project-card").elem("detail-item").mod({ type: "rejected" }).toClassName()}>
                   <IconMinus className={cn("project-card").elem("icon").toClassName()} />
-                  {project.skipped_annotations_number}
+                  {project.skipped_annotations_number == null ? "" : formatDisplayNumber(project.skipped_annotations_number, locale)}
                 </div>
                 <div className={cn("project-card").elem("detail-item").mod({ type: "predictions" }).toClassName()}>
                   <IconSparks className={cn("project-card").elem("icon").toClassName()} />
-                  {project.total_predictions_number}
+                  {project.total_predictions_number == null ? "" : formatDisplayNumber(project.total_predictions_number, locale)}
                 </div>
               </div>
             </div>
@@ -141,7 +144,7 @@ const ProjectCard = ({ project }) => {
         <div className={cn("project-card").elem("description").toClassName()}>{project.description}</div>
         <div className={cn("project-card").elem("info").toClassName()}>
           <div className={cn("project-card").elem("created-date").toClassName()}>
-            {format(new Date(project.created_at), "dd MMM yyyy, HH:mm")}
+            {formatDisplayDate(project.created_at, locale, { dateStyle: "medium", timeStyle: "short" })}
           </div>
           <div className={cn("project-card").elem("created-by").toClassName()}>
             <Userpic src="#" user={project.created_by} showUsernameTooltip />

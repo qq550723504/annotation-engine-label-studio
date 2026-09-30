@@ -89,12 +89,20 @@
 
   &__user {
     display: flex;
+    padding: 0;
+    border: 0;
+    background: transparent;
     margin: 0 var(--spacing-base);
     align-self: center;
     cursor: pointer;
     position: relative;
     align-items: center;
     justify-content: center;
+
+    &:focus-visible {
+      outline: 2px solid var(--color-primary-emphasis);
+      outline-offset: 2px;
+    }
   }
 
   &__userpic-badge {

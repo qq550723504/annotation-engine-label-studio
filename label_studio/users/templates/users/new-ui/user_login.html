@@ -1,4 +1,5 @@
 {% extends 'users/new-ui/user_base.html' %}
+{% load i18n %}
 
 {% block content %}
   {{ block.super }}
@@ -14,35 +15,46 @@
 
 {% block user_content %}
   <div class="form-wrapper">
-    <h2>Log in</h2>
+    <h2 data-locale-en="{% language 'en-us' %}{% trans 'Log in' %}{% endlanguage %}"
+        data-locale-zh="{% language 'zh-hans' %}{% trans 'Log in' %}{% endlanguage %}">{% trans "Log in" %}</h2>
     <form id="login-form" action="{% url 'user-login' %}?next={{ next }}" method="post">
       {% csrf_token %}
       <div class="input-wrapper">
-        <label>Email Address</label>
+        <label for="email" data-locale-en="{% language 'en-us' %}{% trans 'Email Address' %}{% endlanguage %}"
+               data-locale-zh="{% language 'zh-hans' %}{% trans 'Email Address' %}{% endlanguage %}">{% trans "Email Address" %}</label>
         <input type="text" class="lsf-input-ls" name="email" id="email" value="{{ form.data.email }}">
       </div>
       <div class="input-wrapper">
-        <label>Password</label>
+        <label for="password" data-locale-en="{% language 'en-us' %}{% trans 'Password' %}{% endlanguage %}"
+               data-locale-zh="{% language 'zh-hans' %}{% trans 'Password' %}{% endlanguage %}">{% trans "Password" %}</label>
         <input type="password" class="lsf-input-ls" name="password" id="password">
       </div>
       {% if form.non_field_errors %}
         {% for error in form.non_field_errors %}
-          <p class="error">
+          <p class="error" data-locale-validation-error>
             {{ error }}
           </p>
         {% endfor %}
       {% endif %}
       <div class="form-group">
         <input type="checkbox" id="persist_session" name="persist_session" class="lsf-checkbox-ls" checked="checked" style="width: auto;" />
-        <label for="persist_session">Keep me logged in this browser</label>
+        <label for="persist_session" data-locale-en="{% language 'en-us' %}{% trans 'Keep me logged in this browser' %}{% endlanguage %}"
+               data-locale-zh="{% language 'zh-hans' %}{% trans 'Keep me logged in this browser' %}{% endlanguage %}">{% trans "Keep me logged in this browser" %}</label>
       </div>
-      <button type="submit" aria-label="Log In" class="login-button">Log in</button>
+      <button type="submit" aria-label="{% trans 'Log in' %}" class="login-button"
+              data-locale-en="{% language 'en-us' %}{% trans 'Log in' %}{% endlanguage %}"
+              data-locale-zh="{% language 'zh-hans' %}{% trans 'Log in' %}{% endlanguage %}"
+              data-locale-aria-en="{% language 'en-us' %}{% trans 'Log in' %}{% endlanguage %}"
+              data-locale-aria-zh="{% language 'zh-hans' %}{% trans 'Log in' %}{% endlanguage %}">{% trans "Log in" %}</button>
     </form>
   </div>
   {% if not settings.DISABLE_SIGNUP_WITHOUT_LINK %}
   <div class="text-wrapper">
-    <p class="">Don't have an account?</p>
-    <a href="{% url 'user-signup' %}{% querystring %}">Sign up</a>
+    <p data-locale-en="{% language 'en-us' %}{% trans "Don't have an account?" %}{% endlanguage %}"
+       data-locale-zh="{% language 'zh-hans' %}{% trans "Don't have an account?" %}{% endlanguage %}">{% trans "Don't have an account?" %}</p>
+    <a href="{% url 'user-signup' %}{% querystring %}"
+       data-locale-en="{% language 'en-us' %}{% trans 'Sign up' %}{% endlanguage %}"
+       data-locale-zh="{% language 'zh-hans' %}{% trans 'Sign up' %}{% endlanguage %}">{% trans "Sign up" %}</a>
   </div>
   {% endif %}
 {% endblock %}

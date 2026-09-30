@@ -1,0 +1,171 @@
+/// <reference types="cypress" />
+
+type Fixture = {
+  password: string;
+  users: {
+    manager: { email: string };
+    manager_b: { email: string };
+  };
+};
+
+describe('main application display locale', () => {
+  let fixture: Fixture;
+
+  before(() => {
+    cy.readFile('.enterprise-e2e.json').then((data) => { fixture = data as Fixture; });
+  });
+
+  const chooseAccountLocale = (value: 'auto' | 'en-US' | 'zh-CN') => {
+    cy.get('[data-testid="language-preference-select"]').select(value);
+  };
+
+  const ensureAccountLocale = (value: 'auto' | 'en-US' | 'zh-CN') => {
+    cy.get('[data-testid="language-preference-select"]').then(($select) => {
+      if ($select.val() !== value) chooseAccountLocale(value);
+    });
+    cy.get('[data-testid="language-preference-select"]').should('have.value', value);
+  };
+
+  it('switches anonymous login copy without clearing entered credentials', () => {
+    cy.visit('/user/login/');
+    cy.get('[data-testid="anonymous-language-select"]').should('be.visible');
+    cy.get('#email').type('typed@example.com');
+    cy.get('[data-testid="anonymous-language-select"]').select('zh-CN');
+    cy.get('html').should('have.attr', 'lang', 'zh-CN');
+    cy.get('form button[type="submit"]').should('have.attr', 'aria-label', '登录');
+    cy.get('#email').should('have.value', 'typed@example.com');
+    cy.reload();
+    cy.get('html').should('have.attr', 'lang', 'zh-CN');
+    cy.get('[data-testid="anonymous-language-select"]').should('have.value', 'zh-CN');
+    cy.get('[data-testid="anonymous-language-select"]').select('auto');
+    cy.get('[data-testid="anonymous-language-select"]').should('have.value', 'auto');
+  });
+
+  it('submits the Chinese login form and reaches the project list', () => {
+    cy.visit('/user/login/?next=%2Fprojects');
+    cy.get('[data-testid="anonymous-language-select"]').select('zh-CN');
+    cy.get('form button[type="submit"]').should('have.attr', 'aria-label', '登录');
+    cy.get('#email').type(fixture.users.manager_b.email);
+    cy.get('#password').type(fixture.password, { log: false });
+    cy.get('form button[type="submit"]').click();
+    cy.location('pathname').should('eq', '/projects');
+    cy.get('html').should('have.attr', 'lang', 'zh-CN');
+    cy.get('[data-testid="create-project-context"]').should('contain.text', '创建');
+  });
+
+  it('saves a confirmed account preference and preserves unsaved profile values', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    ensureAccountLocale('auto');
+    cy.get('input[name="first_name"]').should('be.visible').clear().type('Unsubmitted name');
+    let profileWrites = 0;
+    cy.intercept({ method: /POST|PATCH|PUT/, url: '**/api/users/**' }, () => { profileWrites += 1; });
+    cy.intercept('PATCH', '**/api/current-user/locale*').as('saveLocale');
+    chooseAccountLocale('zh-CN');
+    cy.wait('@saveLocale').its('request.body').should('deep.equal', { preference: 'zh-CN' });
+    cy.get('html').should('have.attr', 'lang', 'zh-CN');
+    cy.get('input[name="first_name"]').should('have.value', 'Unsubmitted name');
+    cy.get('[data-testid="language-preference-select"]').should('have.value', 'zh-CN');
+    cy.then(() => expect(profileWrites, 'locale switch must not save profile').to.eq(0));
+
+    cy.reload();
+    cy.get('html').should('have.attr', 'lang', 'zh-CN');
+    cy.get('[data-testid="language-preference-select"]').should('have.value', 'zh-CN');
+    cy.visit('/projects');
+    cy.get('[data-testid="create-project-context"]').should('contain.text', '创建');
+    cy.get('body').should('contain.text', 'Enterprise Browser E2E');
+  });
+
+  it('keeps the confirmed locale on save failure, supports Automatic, and isolates another user', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    ensureAccountLocale('zh-CN');
+    cy.get('html').should('have.attr', 'lang', 'zh-CN');
+    cy.intercept({ method: 'PATCH', url: '**/api/current-user/locale*', times: 1 }, { statusCode: 503, body: { detail: 'synthetic failure' } }).as('failedLocale');
+    chooseAccountLocale('en-US');
+    cy.wait('@failedLocale');
+    cy.get('[data-testid="account-language-preference"] [role="alert"]').should('contain.text', '无法保存语言设置');
+    cy.get('html').should('have.attr', 'lang', 'zh-CN');
+    cy.get('[data-testid="language-preference-select"]').should('have.value', 'zh-CN');
+
+    cy.intercept('PATCH', '**/api/current-user/locale*').as('clearPreference');
+    chooseAccountLocale('auto');
+    cy.wait('@clearPreference').its('request.body').should('deep.equal', { preference: null });
+    cy.get('[data-testid="language-preference-select"]').should('have.value', 'auto');
+    cy.loginAs(fixture.users.manager_b.email, fixture.password, '/user/account/personal-info');
+    cy.get('[data-testid="language-preference-select"]').should('have.value', 'auto');
+  });
+
+  for (const [locale, copy] of [
+    ['en-US', { create: 'Create', projectName: 'Project Name', general: 'General Settings', save: 'Save', import: 'Upload file', unsupported: 'The file type of raw_日本語.exe is not supported.' }],
+    ['zh-CN', { create: '创建', projectName: '项目名称', general: '通用设置', save: '保存', import: '上传文件', unsupported: '不支持文件 raw_日本語.exe 的类型。' }],
+  ] as const) {
+    it(`completes the project creation and settings path in ${locale} without saving draft fields on language switch`, () => {
+      cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+      ensureAccountLocale(locale);
+      cy.visit('/projects');
+      cy.get('html').should('have.attr', 'lang', locale);
+      cy.get('[data-testid="create-project-context"]').should('contain.text', copy.create).click();
+      cy.get('label[for="project_name"]').should('contain.text', copy.projectName);
+      const title = `Locale browser ${locale} ${Date.now()}`;
+      cy.get('#project_name').should('not.have.value', '');
+      cy.get('#project_name').clear().type(title);
+      cy.get('#project_description').type('Raw description 日本語 123');
+      cy.get('[data-testid="toggle-import"]').click();
+      cy.get('button[aria-label]').filter(`[aria-label="${copy.import}"]`).should('be.visible');
+      cy.get('#file-input').selectFile({ contents: Cypress.Buffer.from('x'), fileName: 'raw_日本語.exe', mimeType: 'application/octet-stream' }, { force: true });
+      cy.get('[role="alert"]').should('contain.text', copy.unsupported);
+      cy.get('[data-testid="toggle-name"]').click();
+      cy.get('#project_name').should('have.value', title);
+      cy.get('#project_description').should('have.value', 'Raw description 日本語 123');
+      cy.get('button').contains(copy.save).click();
+      cy.location('pathname').should('match', /^\/projects\/\d+\/data$/).then((pathname) => {
+        const projectId = pathname.match(/\/projects\/(\d+)\//)?.[1];
+        cy.visit(`/projects/${projectId}/settings`);
+      });
+      cy.get('h1').should('contain.text', copy.general);
+      cy.get('input[name="title"]').should('have.value', title);
+      cy.get('textarea[name="description"]').should('have.value', 'Raw description 日本語 123');
+      cy.get('textarea[name="description"]').clear().type('Unsaved draft 日本語 456');
+      let projectWrites = 0;
+      cy.intercept({ method: /PATCH|PUT|POST/, url: '**/api/projects/**' }, () => { projectWrites += 1; });
+      cy.get('[data-testid="user-menu-trigger"]').click();
+      cy.get('[data-testid="menu-language-select"]').select(locale === 'en-US' ? 'zh-CN' : 'en-US');
+      cy.get('html').should('have.attr', 'lang', locale === 'en-US' ? 'zh-CN' : 'en-US');
+      cy.get('textarea[name="description"]').should('have.value', 'Unsaved draft 日本語 456');
+      cy.then(() => expect(projectWrites, 'language switch must not submit project').to.eq(0));
+    });
+  }
+
+  for (const [locale, emptyTitle] of [
+    ['en-US', "Heidi doesn't see any projects here!"],
+    ['zh-CN', '这里还没有项目！'],
+  ] as const) {
+    it(`shows the translated empty project state in ${locale}`, () => {
+      cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+      ensureAccountLocale(locale);
+      cy.intercept('GET', '**/api/projects*', { statusCode: 200, body: { count: 0, results: [] } }).as('emptyProjects');
+      cy.visit('/projects');
+      cy.wait('@emptyProjects');
+      cy.get('[data-testid="empty-projects-header"]').should('have.text', emptyTitle);
+      cy.get('[data-testid="create-project-empty"]').should('be.visible');
+    });
+  }
+
+  it('uses a controlled Chinese fallback for a server error without a language header', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    ensureAccountLocale('zh-CN');
+    cy.intercept('GET', '**/api/projects*', { statusCode: 503, body: { detail: 'untrusted English detail' } }).as('failedProjects');
+    cy.visit('/projects');
+    cy.wait('@failedProjects');
+    cy.get('body').should('contain.text', '请求未能完成，请重试。');
+    cy.get('body').should('not.contain.text', 'untrusted English detail');
+  });
+
+  it('keeps the language controls reachable by keyboard and at 200% scale', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    cy.viewport(1280, 720);
+    cy.document().then((document) => { document.documentElement.style.zoom = '200%'; });
+    cy.get('[data-testid="language-preference-select"]').scrollIntoView().should('be.visible').focus().should('have.focus');
+    cy.get('[data-testid="user-menu-trigger"]').scrollIntoView().focus().type('{enter}');
+    cy.get('[data-testid="menu-language-select"]').should('be.visible').focus().should('have.focus');
+  });
+});

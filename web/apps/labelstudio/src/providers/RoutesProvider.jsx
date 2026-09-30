@@ -5,6 +5,7 @@ import { setBreadcrumbs, useBreadcrumbControls } from "../services/breadrumbs";
 import { pageSetToRoutes } from "../utils/routeHelpers";
 import { useAppStore } from "./AppStoreProvider";
 import { useConfig } from "./ConfigProvider";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 export const RoutesContext = createContext();
 
@@ -38,6 +39,7 @@ const findMacthingComponents = (path, routesMap, parentPath = "") => {
 };
 
 export const RoutesProvider = ({ children }) => {
+  const { locale, t } = useLocaleTranslation("app");
   const history = useHistory();
   const location = useFixedLocation();
   const config = useConfig();
@@ -87,7 +89,12 @@ export const RoutesProvider = ({ children }) => {
         .map((route) => {
           const params = matchPath(location.pathname, { path: route.path });
           const path = generatePath(route.path, params.params);
-          const title = route.title instanceof Function ? route.title() : route.title;
+          const rawTitle = route.title instanceof Function ? route.title() : route.title;
+          // Only localize known route metadata. A project title is user data.
+          const title = route.path === "/projects" ? t("projects")
+            : route.path.endsWith("/settings") && rawTitle === "Settings" ? t("settings")
+            : route.path.startsWith("/user/account") && rawTitle === "My Account" ? t("myAccount")
+            : rawTitle;
           const key = route.component?.displayName ?? route.key ?? path;
 
           return { path, title, key };
@@ -98,7 +105,7 @@ export const RoutesProvider = ({ children }) => {
     } catch (err) {
       console.log(err);
     }
-  }, [location, routesMap, currentContextProps, routesChain, lastRoute]);
+  }, [location, routesMap, currentContextProps, routesChain, lastRoute, locale]);
 
   return <RoutesContext.Provider value={contextValue}>{children}</RoutesContext.Provider>;
 };

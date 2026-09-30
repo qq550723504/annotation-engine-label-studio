@@ -9,6 +9,7 @@ import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { settingsAtom } from "./atoms";
 import { useAuth } from "@humansignal/core/providers/AuthProvider";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 /**
  * FIXME: This is legacy imports. We're not supposed to use such statements
@@ -17,6 +18,7 @@ import { useAuth } from "@humansignal/core/providers/AuthProvider";
 import { SidebarMenu } from "apps/labelstudio/src/components/SidebarMenu/SidebarMenu";
 
 const AccountSettingsSection = () => {
+  const { locale, t } = useLocaleTranslation("app");
   const { user, permissions } = useAuth();
   const { sectionId } = useParams<{ sectionId: string }>();
   const settings = useAtomValue(settingsAtom);
@@ -25,8 +27,8 @@ const AccountSettingsSection = () => {
   });
 
   const resolvedSections = useMemo(() => {
-    return settings.data && !("error" in settings.data) ? accountSettingsSections(settings.data, permissions) : [];
-  }, [settings.data, user]);
+    return settings.data && !("error" in settings.data) ? accountSettingsSections(settings.data, permissions, t) : [];
+  }, [settings.data, user, locale]);
 
   const currentSection = useMemo(
     () => resolvedSections.find((section) => section.id === sectionId),
@@ -35,21 +37,18 @@ const AccountSettingsSection = () => {
 
   // Update page title to reflect the current section
   const pageTitleText = useMemo(() => {
-    if (!currentSection) return "My Account";
+    if (!currentSection) return t("myAccount");
 
     // If title is a string, use it directly
     if (typeof currentSection.title === "string") {
-      return createTitleFromSegments([currentSection.title, "My Account"]);
+      return createTitleFromSegments([currentSection.title, t("myAccount")]);
     }
 
     // For non-string titles (like JSX elements), derive from the section ID
-    const titleFromId = currentSection.id
-      .split("-")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
+    const titleFromId = currentSection.id === "hotkeys" ? t("accountHotkeys") : currentSection.id;
 
-    return createTitleFromSegments([titleFromId, "My Account"]);
-  }, [currentSection]);
+    return createTitleFromSegments([titleFromId, t("myAccount")]);
+  }, [currentSection, locale]);
 
   useUpdatePageTitle(pageTitleText);
 
@@ -90,13 +89,14 @@ const AccountSettingsSection = () => {
 };
 
 const AccountSettingsPage = () => {
+  const { locale, t } = useLocaleTranslation("app");
   const settings = useAtomValue(settingsAtom);
   const match = useRouteMatch();
   const { sectionId } = useParams<{ sectionId: string }>();
   const { user, permissions } = useAuth();
   const resolvedSections = useMemo(() => {
-    return settings.data && !("error" in settings.data) ? accountSettingsSections(settings.data, permissions) : [];
-  }, [settings.data, user]);
+    return settings.data && !("error" in settings.data) ? accountSettingsSections(settings.data, permissions, t) : [];
+  }, [settings.data, user, locale]);
 
   const menuItems = useMemo(
     () =>
