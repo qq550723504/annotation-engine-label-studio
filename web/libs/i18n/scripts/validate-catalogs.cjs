@@ -7,7 +7,7 @@ const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
 const INTERPOLATION = /{{\s*([a-zA-Z][\w.]*)\s*}}/g;
 
 function placeholders(value) {
-  return [...value.matchAll(INTERPOLATION)].map((match) => match[1]).sort();
+  return [...new Set([...value.matchAll(INTERPOLATION)].map((match) => match[1]))].sort();
 }
 
 function assertSameList(actual, expected, label, errors) {

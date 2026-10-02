@@ -30,6 +30,10 @@ describe("catalog validator", () => {
     edit("zh-CN", "common", (data) => { data.greeting = "你好，{{person}}"; });
     expect(validateCatalogs(copy).join("\n")).toContain("common:greeting placeholders");
   });
+  it("allows languages to repeat the same interpolation parameter a different number of times", () => {
+    edit("en-US", "common", (data) => { data.greeting = "Hello {{name}}; goodbye {{name}}"; });
+    expect(validateCatalogs(copy)).toEqual([]);
+  });
   it("fails on broken JSON", () => {
     writeFileSync(join(copy, "zh-CN", "app.json"), "{broken");
     expect(validateCatalogs(copy).join("\n")).toContain("app.json");
