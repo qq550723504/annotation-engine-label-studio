@@ -95,7 +95,10 @@ function validateCatalogs(rootDir = path.resolve(__dirname, "../src/catalogs")) 
   if (!Array.isArray(dynamic)) errors.push("dynamic-keys.json: expected an array of explicitly allowed keys");
   else {
     for (const key of dynamic) {
-      if (typeof key !== "string" || !key.includes(":")) { errors.push(`Invalid dynamic key: ${key}`); continue; }
+      if (typeof key !== "string" || !/^[a-zA-Z][\w.-]*:[a-zA-Z][\w.-]*$/.test(key)) {
+        errors.push(`Invalid dynamic key: ${key}`);
+        continue;
+      }
       const [namespace, name] = key.split(":");
       if (!NAMESPACES.includes(namespace) || !LOCALES.every((locale) => semanticGroups[namespace]?.[locale]?.has(name))) {
         errors.push(`Untranslated dynamic key: ${key}`);

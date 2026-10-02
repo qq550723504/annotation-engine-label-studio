@@ -55,4 +55,8 @@ describe("catalog validator", () => {
     writeFileSync(join(copy, "dynamic-keys.json"), JSON.stringify(["common:selectedCount_one"]));
     expect(validateCatalogs(copy).join("\n")).toContain("Untranslated dynamic key: common:selectedCount_one");
   });
+  it("rejects a dynamic key with an extra namespace delimiter", () => {
+    writeFileSync(join(copy, "dynamic-keys.json"), JSON.stringify(["common:language:typo"]));
+    expect(validateCatalogs(copy).join("\n")).toContain("Invalid dynamic key: common:language:typo");
+  });
 });
