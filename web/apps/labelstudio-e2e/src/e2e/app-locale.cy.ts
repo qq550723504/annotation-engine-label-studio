@@ -160,6 +160,28 @@ describe('main application display locale', () => {
     cy.get('body').should('not.contain.text', 'untrusted English detail');
   });
 
+  for (const [locale, copy] of [
+    ['en-US', { title: 'Home', welcome: 'Welcome', resources: 'Resources', invite: 'Invite Members', inviteCopy: 'Copy invite link' }],
+    ['zh-CN', { title: '首页', welcome: '欢迎', resources: '资源', invite: '邀请成员', inviteCopy: '复制邀请链接' }],
+  ] as const) {
+    it(`localizes the feature-flagged Home entry and invitation dialog in ${locale}`, () => {
+      cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+      ensureAccountLocale(locale);
+      // The Home dialog requests an instance invite link on mount. Keep this test synthetic.
+      cy.intercept('POST', '**/invite/reset-token', { statusCode: 200, body: { invite_url: '/synthetic-invite' } });
+      cy.visit('/');
+      cy.get('html').should('have.attr', 'lang', locale);
+      cy.title().should('contain', copy.title);
+      cy.get('main').should('contain.text', copy.welcome);
+      cy.get('[data-testid="resources-card"]').should('contain.text', copy.resources);
+      cy.viewport(1280, 720);
+      cy.document().then((document) => { document.documentElement.style.zoom = '200%'; });
+      cy.get('[data-testid="home-action-createProject"]').scrollIntoView().should('be.visible');
+      cy.get('[data-testid="home-action-inviteMembers"]').scrollIntoView().should('contain.text', copy.invite).click();
+      cy.get(`button[aria-label="${copy.inviteCopy}"]`).scrollIntoView().should('be.visible');
+    });
+  }
+
   it('keeps the language controls reachable by keyboard and at 200% scale', () => {
     cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
     cy.viewport(1280, 720);

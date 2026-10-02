@@ -91,7 +91,8 @@ export const RoutesProvider = ({ children }) => {
           const path = generatePath(route.path, params.params);
           const rawTitle = route.title instanceof Function ? route.title() : route.title;
           // Only localize known route metadata. A project title is user data.
-          const title = route.path === "/projects" ? t("projects")
+          const title = route.path === "/" && rawTitle === "Home" ? t("home")
+            : route.path === "/projects" ? t("projects")
             : route.path.endsWith("/settings") && rawTitle === "Settings" ? t("settings")
             : route.path.startsWith("/user/account") && rawTitle === "My Account" ? t("myAccount")
             : rawTitle;
