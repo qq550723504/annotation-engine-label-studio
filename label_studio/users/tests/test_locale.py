@@ -12,6 +12,10 @@ from django.utils import translation
 from organizations.tests.factories import OrganizationFactory
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
+from core.utils.common import custom_exception_handler
+from label_studio_sdk._extensions.label_studio_tools.core.utils.exceptions import (
+    LabelStudioXMLSyntaxErrorSentryIgnored,
+)
 from users.locale import COOKIE_NAME, RequestLocaleMiddleware, accept_language_locale
 from users.forms import UserSignupForm
 from users.models import UserLocalePreference, UserSessionVersion
@@ -246,6 +250,12 @@ class LocaleAPITests(TestCase):
         self.assertEqual(unknown.json()['detail'], '未知错误')
         self.assertIsNone(unknown.json()['exc_info'])
         self.assertTrue(unknown.json()['id'])
+
+        with self.settings(DEBUG=False, DEBUG_MODAL_EXCEPTIONS=True), translation.override('zh-hans'):
+            invalid_xml = custom_exception_handler(LabelStudioXMLSyntaxErrorSentryIgnored('Invalid XML at line 3'), {})
+        self.assertEqual(invalid_xml.status_code, 400)
+        self.assertEqual(invalid_xml.data['detail'], 'Invalid XML at line 3')
+        self.assertIsNone(invalid_xml.data['exc_info'])
 
     def test_authenticated_media_keeps_its_cache_and_etag_policy(self):
         request = RequestFactory().get('/api/storage/media', HTTP_ACCEPT_LANGUAGE='zh-CN')

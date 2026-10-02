@@ -148,6 +148,8 @@ def custom_exception_handler(exc, context):
         # Thrown by sdk when label config is invalid
         if isinstance(exc, LabelStudioXMLSyntaxErrorSentryIgnored):
             response_data['status_code'] = status.HTTP_400_BAD_REQUEST
+            # This known user-input error needs the parser diagnostic to be actionable.
+            response_data['detail'] = str(exc)
             response = Response(status=status.HTTP_400_BAD_REQUEST, data=response_data)
         else:
             response = Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR, data=response_data)
