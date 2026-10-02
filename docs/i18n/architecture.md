@@ -172,6 +172,15 @@ in-flight promise so another caller cannot expose or repeat a partial load.
 This readiness rule also protects an annotation started just after opening a
 task, independently of a language switch.
 
+The Data Manager export route keeps using `label_studio_sdk.converter` for
+available formats and capabilities. `ExportPage` maps known converter format
+names to bundled display titles, descriptions and tags, with each dynamic key
+registered in `dynamic-keys.json`. Unknown formats retain the converter's
+metadata. The selected raw `format.name`, export request, CLI command,
+download filename and bytes never depend on translated text. The import modal
+uses the existing sample-task preview endpoint; its POST generates display
+data without persisting a task.
+
 ## Human messages, machine fields and test handoff
 
 Keep HTTP status, JSON keys/envelope, DRF machine codes, route/event/hotkey
