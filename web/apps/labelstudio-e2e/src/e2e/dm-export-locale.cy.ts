@@ -69,6 +69,31 @@ describe("Data Manager export locale", () => {
     });
   }
 
+  for (const [locale, copy] of [
+    ["en-US", { heading: "Import Data", cancel: "Cancel import", finish: "Finish import" }],
+    ["zh-CN", { heading: "导入数据", cancel: "取消导入", finish: "完成导入" }],
+  ] as const) {
+    it(`opens the Data Manager import modal in ${locale} without writing project data`, () => {
+      chooseLocale(locale);
+      const projectWrites: string[] = [];
+      let previewRequests = 0;
+      cy.intercept({ method: /POST|PUT|PATCH|DELETE/, url: `**/api/projects/${fixture.project_id}/**` }, (request) => {
+        const pathname = new URL(request.url).pathname;
+        // The existing sample-task POST computes a preview and does not persist a task.
+        if (pathname.endsWith("/sample-task")) previewRequests += 1;
+        else projectWrites.push(`${request.method} ${pathname}`);
+      });
+      cy.visit(`/projects/${fixture.project_id}/data/import`);
+      cy.get("body").should("contain.text", copy.heading);
+      cy.get(`[aria-label="${copy.cancel}"]`).should("be.visible");
+      cy.get(`[aria-label="${copy.finish}"]`).should("exist");
+      cy.then(() => {
+        expect(previewRequests, "sample preview loaded").to.be.greaterThan(0);
+        expect(projectWrites, "opening import must not persist project data").to.deep.equal([]);
+      });
+    });
+  }
+
   it("shows Chinese timeout guidance without changing the CLI command", () => {
     chooseLocale("zh-CN");
     cy.intercept({ method: "GET", pathname: `/api/projects/${fixture.project_id}/export/formats` }, [
