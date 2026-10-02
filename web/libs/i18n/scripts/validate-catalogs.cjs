@@ -41,6 +41,7 @@ function validateCatalogs(rootDir = path.resolve(__dirname, "../src/catalogs")) 
     }
   }
 
+  const semanticGroups = {};
   for (const namespace of NAMESPACES) {
     const english = catalogs["en-US"][namespace];
     const chinese = catalogs["zh-CN"][namespace];
@@ -57,6 +58,7 @@ function validateCatalogs(rootDir = path.resolve(__dirname, "../src/catalogs")) 
         groups[locale].set(base, group);
       }
     }
+    semanticGroups[namespace] = groups;
     assertSameList([...groups["zh-CN"].keys()].sort(), [...groups["en-US"].keys()].sort(), `${namespace} semantic keys`, errors);
     for (const [base, enGroup] of groups["en-US"]) {
       const zhGroup = groups["zh-CN"].get(base);
@@ -95,7 +97,9 @@ function validateCatalogs(rootDir = path.resolve(__dirname, "../src/catalogs")) 
     for (const key of dynamic) {
       if (typeof key !== "string" || !key.includes(":")) { errors.push(`Invalid dynamic key: ${key}`); continue; }
       const [namespace, name] = key.split(":");
-      if (!NAMESPACES.includes(namespace) || !catalogs["en-US"][namespace]?.[name] || !catalogs["zh-CN"][namespace]?.[name]) errors.push(`Untranslated dynamic key: ${key}`);
+      if (!NAMESPACES.includes(namespace) || !LOCALES.every((locale) => semanticGroups[namespace]?.[locale]?.has(name))) {
+        errors.push(`Untranslated dynamic key: ${key}`);
+      }
     }
     if (new Set(dynamic).size !== dynamic.length) errors.push("dynamic-keys.json: duplicate key");
   }

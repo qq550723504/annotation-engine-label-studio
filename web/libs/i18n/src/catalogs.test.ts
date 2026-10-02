@@ -44,4 +44,11 @@ describe("catalog validator", () => {
     writeFileSync(join(copy, "dynamic-keys.json"), JSON.stringify(["errors:missing"]));
     expect(validateCatalogs(copy).join("\n")).toContain("Untranslated dynamic key");
   });
+  it("accepts a plural semantic key but rejects a plural suffix as a dynamic key", () => {
+    writeFileSync(join(copy, "dynamic-keys.json"), JSON.stringify(["common:selectedCount"]));
+    expect(validateCatalogs(copy)).toEqual([]);
+
+    writeFileSync(join(copy, "dynamic-keys.json"), JSON.stringify(["common:selectedCount_one"]));
+    expect(validateCatalogs(copy).join("\n")).toContain("Untranslated dynamic key: common:selectedCount_one");
+  });
 });
