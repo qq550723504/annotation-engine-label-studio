@@ -2,6 +2,7 @@
 
 import json
 
+from django.conf import settings
 from django.http import JsonResponse
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
@@ -94,7 +95,7 @@ def select_anonymous_locale(request):
             max_age=365 * 24 * 60 * 60,
             path='/',
             samesite='Lax',
-            secure=request.is_secure(),
+            secure=settings.SESSION_COOKIE_SECURE or request.is_secure(),
             httponly=True,
         )
     return response

@@ -160,6 +160,15 @@ class LocaleAPITests(TestCase):
         )
         self.assertEqual(secure_response.status_code, 200)
         self.assertTrue(secure_response.cookies[COOKIE_NAME]['secure'])
+        with self.settings(SESSION_COOKIE_SECURE=True):
+            proxied_response = client.post(
+                '/api/ui-locale/',
+                {'preference': 'zh-CN'},
+                format='json',
+                HTTP_X_CSRFTOKEN=token,
+            )
+        self.assertEqual(proxied_response.status_code, 200)
+        self.assertTrue(proxied_response.cookies[COOKIE_NAME]['secure'])
         self.assertFalse(Session.objects.exists())
         self.assertFalse(UserLocalePreference.objects.exists())
         self.assertEqual(client.get('/user/login/', HTTP_ACCEPT_LANGUAGE='en-US')['Content-Language'], 'zh-CN')
