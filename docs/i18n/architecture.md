@@ -61,7 +61,7 @@ to override the preference in V1. No organization default-language manager.
 
 ## Actual request and render path
 
-At baseline, [`SessionMiddleware → LocaleMiddleware → AuthenticationMiddleware → JWTAuthenticationMiddleware`](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/core/settings/base.py#L249-L266) is the relevant middleware order and `USE_I18N=False` ([settings](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/core/settings/base.py#L442-L448)). Thus the existing LocaleMiddleware cannot see the session user preference. #53 must replace/reposition the locale resolver after `AuthenticationMiddleware`, with request-scoped activation and response cleanup. Place the resolver so its `finally` and response handling also wrap JWT and DRF views. The existing [JWT middleware](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/jwt_auth/middleware.py) can set `request.user` later. The [legacy token authenticator](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/jwt_auth/auth.py) is invoked by DRF in the view, also later than middleware. After either token succeeds, a display-only late-resolution hook must re-activate the now-known user's preference **before view code and exception handling produce human messages**. Failed token authentication keeps the initial request locale; it must not grant token identity. Session CSRF and token permission logic remain unchanged. On all paths, including exceptions, restore/deactivate translation context and set `Content-Language` from the final resolution.
+At baseline, [`SessionMiddleware → LocaleMiddleware → AuthenticationMiddleware → JWTAuthenticationMiddleware`](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/core/settings/base.py#L249-L266) is the relevant middleware order and `USE_I18N=False` ([settings](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/core/settings/base.py#L442-L448)). #53 must set `USE_I18N=True` so Django uses the compiled catalogs, and test an actual Chinese form/validation message on a `zh-CN` request; activating a locale or merely packaging `.mo` files is insufficient. The existing LocaleMiddleware cannot see the session user preference. #53 must replace/reposition the locale resolver after `AuthenticationMiddleware`, with request-scoped activation and response cleanup. Place the resolver so its `finally` and response handling also wrap JWT and DRF views. The existing [JWT middleware](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/jwt_auth/middleware.py) can set `request.user` later. The [legacy token authenticator](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/jwt_auth/auth.py) is invoked by DRF in the view, also later than middleware. After either token succeeds, a display-only late-resolution hook must re-activate the now-known user's preference **before view code and exception handling produce human messages**. Failed token authentication keeps the initial request locale; it must not grant token identity. Session CSRF and token permission logic remain unchanged. On all paths, including exceptions, restore/deactivate translation context and set `Content-Language` from the final resolution.
 
 ```text
 HTTP → SessionMiddleware → AuthenticationMiddleware → request locale (session/anonymous)
@@ -118,9 +118,12 @@ security counters, session-auth hash or user-wide update route. The existing
   `userPreference` is `null` for anonymous requests; anonymous cookie is
   represented by `source`, not as a user preference. Serialize into HTML
   safely as JSON. Login templates receive the same resolved locale and source
-  as separate template context; set `document.lang`, title and initial text
-  before React hydration/render. The frontend never recomputes a different
-  browser language at startup.
+  as separate template context; render the resolved value into `<html lang>`
+  in both base and login templates before React hydration/render. After each
+  successful runtime locale switch, #54 updates `document.documentElement.lang`,
+  title and visible text without remounting the page. `document.lang` is not
+  the root element's language attribute. The frontend never recomputes a
+  different browser language at startup.
 * Shared #52 API: `createLocaleRuntime(initialLocale)` returns an isolated
   `{ locale, t, subscribe, updateLocale, destroy, provider }`-equivalent
   instance; `updateLocale` accepts only canonical display codes and reports
