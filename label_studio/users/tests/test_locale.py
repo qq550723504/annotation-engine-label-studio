@@ -238,6 +238,24 @@ class LocaleAPITests(TestCase):
         self.assertIsNone(unknown.json()['exc_info'])
         self.assertTrue(unknown.json()['id'])
 
+    def test_authenticated_media_keeps_its_cache_and_etag_policy(self):
+        request = RequestFactory().get('/api/storage/media', HTTP_ACCEPT_LANGUAGE='zh-CN')
+        request.user = self.user
+
+        def media_response(_request):
+            response = HttpResponse(b'media', content_type='image/png')
+            response['Cache-Control'] = 'private, max-age=3600, must-revalidate'
+            response['ETag'] = '"user-access-specific"'
+            return response
+
+        response = RequestLocaleMiddleware(media_response)(request)
+        self.assertEqual(response['Cache-Control'], 'private, max-age=3600, must-revalidate')
+        self.assertEqual(response['ETag'], '"user-access-specific"')
+        self.assertEqual(response['Content-Language'], 'zh-CN')
+
+        api_response = RequestLocaleMiddleware(lambda _: HttpResponse(b'{}', content_type='application/json'))(request)
+        self.assertEqual(api_response['Cache-Control'], 'private, no-store')
+
     def test_login_and_logout_clear_display_cookie_without_session_replay(self):
         client = APIClient()
         client.cookies[COOKIE_NAME] = 'zh-CN'

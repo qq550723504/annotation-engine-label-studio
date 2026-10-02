@@ -127,7 +127,9 @@ class RequestLocaleMiddleware:
                 request.user.is_authenticated
                 or state['source'] == 'cookie'
                 or response.get('Content-Type', '').startswith('text/html')
-            ):
+            ) and not response.has_header('Cache-Control'):
+                # Keep endpoint-specific directives (for example private media
+                # caching with an access-specific ETag); default only when absent.
                 response['Cache-Control'] = 'private, no-store'
             if getattr(request, '_locale_clear_cookie', False):
                 response.delete_cookie(COOKIE_NAME, path='/', samesite='Lax')
