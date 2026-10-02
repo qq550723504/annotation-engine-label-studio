@@ -2,6 +2,7 @@ import { act, render } from "@testing-library/react";
 import { useTranslation } from "react-i18next";
 import { createLocaleRuntime, normalizeDisplayLocale, useLocaleTranslation } from "./runtime";
 import { formatDisplayDate, formatDisplayNumber } from "./format";
+import { resources } from "./catalogs";
 
 function Demo() {
   const { locale, t } = useLocaleTranslation("app");
@@ -40,6 +41,34 @@ describe("isolated locale runtime", () => {
     expect(runtime.t("common:selectedCount", { count: 1 })).toBe("已选择 1 项");
     expect(runtime.t("common:selectedCount", { count: 3 })).toBe("已选择 3 项");
     runtime.destroy();
+  });
+
+  it("requires interpolation only from the selected plain or plural variant", () => {
+    const english = resources["en-US"].common as Record<string, string>;
+    const chinese = resources["zh-CN"].common as Record<string, string>;
+    english.variantDemo = "Hello {{name}}";
+    english.variantDemo_one = "{{count}} item";
+    english.variantDemo_other = "{{count}} items";
+    chinese.variantDemo = "你好 {{name}}";
+    chinese.variantDemo_other = "{{count}} 项";
+    const runtime = createLocaleRuntime("en-US");
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      expect(runtime.t("common:variantDemo", { name: "Ada" })).toBe("Hello Ada");
+      expect(runtime.t("common:variantDemo", { count: 1 })).toBe("1 item");
+      expect(runtime.t("common:variantDemo", { count: 2 })).toBe("2 items");
+      expect(runtime.t("common:variantDemo")).toBe("Translation unavailable.");
+      runtime.updateLocale("zh-CN");
+      expect(runtime.t("common:variantDemo", { name: "Ada" })).toBe("你好 Ada");
+      expect(runtime.t("common:variantDemo", { count: 2 })).toBe("2 项");
+    } finally {
+      warn.mockRestore();
+      runtime.destroy();
+      for (const key of ["variantDemo", "variantDemo_one", "variantDemo_other"]) {
+        delete english[key];
+        delete chinese[key];
+      }
+    }
   });
 
   it("shows interpolated user text correctly in React without creating HTML", () => {

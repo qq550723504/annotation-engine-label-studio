@@ -69,10 +69,10 @@ function validateCatalogs(rootDir = path.resolve(__dirname, "../src/catalogs")) 
         errors.push(`${namespace}:${base}: plural/plain shape differs`);
         continue;
       }
-      if (!enPlural) {
+      if (enGroup.plain) {
         assertSameList(placeholders(zhGroup.plain || ""), placeholders(enGroup.plain || ""), `${namespace}:${base} placeholders`, errors);
-        continue;
       }
+      if (!enPlural) continue;
       for (const locale of LOCALES) {
         const group = groups[locale].get(base);
         const allowed = new Set([...new Intl.PluralRules(locale).resolvedOptions().pluralCategories, "zero"]);

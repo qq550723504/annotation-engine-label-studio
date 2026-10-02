@@ -78,14 +78,6 @@ export function createLocaleRuntime(initialLocale: unknown): LocaleRuntime {
         if (process.env.NODE_ENV !== "production") console.warn("Missing locale namespace/key", key);
         return SAFE_FALLBACK;
       }
-      const english = resources[DEFAULT_LOCALE][namespace] as Record<string, string>;
-      const variants = [resourceKey, ...["zero", "one", "two", "few", "many", "other"].map((suffix) => `${resourceKey}_${suffix}`)];
-      const required = new Set(variants.flatMap((variant) =>
-        [...(english[variant] || "").matchAll(/{{\s*([a-zA-Z][\w.]*)\s*}}/g)].map((match) => match[1])));
-      if ([...required].some((name) => values[name] === undefined || values[name] === null)) {
-        if (process.env.NODE_ENV !== "production") console.warn("Missing translation interpolation", key, [...required]);
-        return SAFE_FALLBACK;
-      }
       const count = typeof values.count === "number" ? values.count : undefined;
       const options = { ns: namespace, count, replace: values };
       if (!instance.exists(resourceKey, options)) {
@@ -93,8 +85,16 @@ export function createLocaleRuntime(initialLocale: unknown): LocaleRuntime {
         return SAFE_FALLBACK;
       }
       try {
-        const result = instance.t(resourceKey, options);
-        return typeof result === "string" && result.length ? result : SAFE_FALLBACK;
+        const result = instance.t(resourceKey, { ...options, returnDetails: true });
+        const catalog = resources[result.usedLng as DisplayLocale]?.[namespace] as Record<string, string> | undefined;
+        const template = catalog?.[result.exactUsedKey];
+        if (typeof template !== "string") return SAFE_FALLBACK;
+        const required = new Set([...template.matchAll(/{{\s*([a-zA-Z][\w.]*)\s*}}/g)].map((match) => match[1]));
+        if ([...required].some((name) => values[name] === undefined || values[name] === null)) {
+          if (process.env.NODE_ENV !== "production") console.warn("Missing translation interpolation", key, [...required]);
+          return SAFE_FALLBACK;
+        }
+        return typeof result.res === "string" && result.res.length ? result.res : SAFE_FALLBACK;
       } catch (error) {
         if (process.env.NODE_ENV !== "production") console.error("Translation failed", key, error);
         return SAFE_FALLBACK;

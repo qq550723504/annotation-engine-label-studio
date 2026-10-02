@@ -34,6 +34,11 @@ describe("catalog validator", () => {
     edit("en-US", "common", (data) => { data.greeting = "Hello {{name}}; goodbye {{name}}"; });
     expect(validateCatalogs(copy)).toEqual([]);
   });
+  it("checks a plain message even when the same key has plural variants", () => {
+    edit("en-US", "common", (data) => { data.selectedCount = "Hello {{name}}"; });
+    edit("zh-CN", "common", (data) => { data.selectedCount = "你好 {{person}}"; });
+    expect(validateCatalogs(copy).join("\n")).toContain("common:selectedCount placeholders");
+  });
   it("fails on broken JSON", () => {
     writeFileSync(join(copy, "zh-CN", "app.json"), "{broken");
     expect(validateCatalogs(copy).join("\n")).toContain("app.json");
