@@ -81,7 +81,7 @@ RUN apk add --no-cache \
     git \
     linux-headers \
     python3-dev \
-    pcre2-dev
+    pcre2-dev \
     gettext
 
 ADD https://install.python-poetry.org /tmp/install-poetry.py
