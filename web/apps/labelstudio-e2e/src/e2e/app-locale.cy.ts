@@ -2,6 +2,7 @@
 
 type Fixture = {
   password: string;
+  project_id: number;
   users: {
     manager: { email: string };
     manager_b: { email: string };
@@ -158,6 +159,41 @@ describe('main application display locale', () => {
     cy.wait('@failedProjects');
     cy.get('body').should('contain.text', '请求未能完成，请重试。');
     cy.get('body').should('not.contain.text', 'untrusted English detail');
+  });
+
+  for (const [locale, detail, fieldError] of [
+    ['en-US', 'The CSV header is invalid.', 'Column text is required.'],
+    ['zh-CN', 'CSV 表头无效。', '缺少 text 列。'],
+  ] as const) {
+    it(`shows actionable import validation in ${locale} without exposing internal error data`, () => {
+      cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+      ensureAccountLocale(locale);
+      cy.intercept({ method: 'POST', pathname: `/api/projects/${fixture.project_id}/import` }, {
+        statusCode: 400,
+        headers: { 'content-language': locale },
+        body: { detail, validation_errors: { data: [fieldError] }, exc_info: 'internal traceback' },
+      }).as('importRejected');
+      cy.visit(`/projects/${fixture.project_id}/data/import`);
+      cy.get('#file-input').selectFile({ contents: Cypress.Buffer.from('text\n'), fileName: 'broken.csv', mimeType: 'text/csv' }, { force: true });
+      cy.wait('@importRejected');
+      cy.get('[role="alert"]').should('contain.text', detail).and('contain.text', fieldError)
+        .and('not.contain.text', 'internal traceback');
+    });
+  }
+
+  it('keeps a mismatched-language import error behind the controlled fallback', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    ensureAccountLocale('zh-CN');
+    cy.intercept({ method: 'POST', pathname: `/api/projects/${fixture.project_id}/import` }, {
+      statusCode: 400,
+      headers: { 'content-language': 'en-US' },
+      body: { detail: 'The CSV header is invalid.' },
+    }).as('importRejected');
+    cy.visit(`/projects/${fixture.project_id}/data/import`);
+    cy.get('#file-input').selectFile({ contents: Cypress.Buffer.from('text\n'), fileName: 'broken.csv', mimeType: 'text/csv' }, { force: true });
+    cy.wait('@importRejected');
+    cy.get('[role="alert"]').should('contain.text', '无法导入数据，请重试。')
+      .and('not.contain.text', 'The CSV header is invalid.');
   });
 
   for (const [locale, copy] of [
