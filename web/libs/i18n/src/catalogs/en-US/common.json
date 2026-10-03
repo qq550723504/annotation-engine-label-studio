@@ -1,0 +1,7 @@
+{
+  "language": "Language",
+  "translationUnavailable": "Translation unavailable.",
+  "selectedCount_one": "{{count}} item selected",
+  "selectedCount_other": "{{count}} items selected",
+  "greeting": "Hello, {{name}}"
+}
