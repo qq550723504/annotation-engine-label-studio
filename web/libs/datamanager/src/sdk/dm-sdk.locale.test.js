@@ -111,3 +111,38 @@ it("loads the latest selected task after an earlier selection finishes", async (
   expect(manager.taskSelectionPromise).toBeNull();
   manager.destroy();
 });
+
+it("does not reuse an old editor selection after reload", async () => {
+  const oldStore = {
+    taskStore: { selected: { id: 41, lastAnnotation: null } },
+    annotationStore: { selected: null },
+  };
+  const newStore = {
+    taskStore: { selected: { id: 42, lastAnnotation: null } },
+    annotationStore: { selected: null },
+  };
+  createApp.mockResolvedValueOnce(oldStore).mockResolvedValueOnce(newStore);
+  const manager = makeManager();
+  await nextTick();
+  let finishOldSelection;
+  const oldSelection = new Promise((resolve) => { finishOldSelection = resolve; });
+  const oldEditor = { task: null, selectTask: jest.fn(() => oldSelection), destroy: jest.fn() };
+  manager.lsf = oldEditor;
+
+  const pendingOld = manager.startLabeling();
+  await Promise.resolve();
+  expect(oldEditor.selectTask).toHaveBeenCalledTimes(1);
+
+  manager.reload();
+  await nextTick();
+  const newEditor = { task: null, selectTask: jest.fn().mockResolvedValue(), destroy: jest.fn() };
+  manager.lsf = newEditor;
+  await manager.startLabeling();
+  expect(newEditor.selectTask).toHaveBeenCalledWith(newStore.taskStore.selected, undefined);
+  expect(oldEditor.destroy).toHaveBeenCalledTimes(1);
+
+  finishOldSelection();
+  await pendingOld;
+  expect(manager.taskSelectionPromise).toBeNull();
+  manager.destroy();
+});

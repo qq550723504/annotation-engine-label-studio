@@ -477,6 +477,9 @@ export class DataManager {
   }
 
   destroyLSF() {
+    // A selection in the old editor must not block taskSelected in a new editor
+    // created by reload(). Its completion only belongs to that old instance.
+    this.taskSelectionPromise = null;
     this.invoke("beforeLsfDestroy", this, this.lsf?.lsfInstance);
     this.lsf?.destroy();
     this.lsf = undefined;
