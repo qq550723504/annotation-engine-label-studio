@@ -1,6 +1,6 @@
 const asText = (value) => typeof value === "string" && value.trim() ? value.trim() : null;
 
-export const localizedImportErrorDetails = (error, locale) => {
+export const localizedResponseErrorDetails = (error, locale) => {
   const meta = error?.$meta;
   if (typeof meta?.status !== "number" || meta.status < 400 || meta.status >= 500
     || meta.headers?.get?.("content-language") !== locale) {
@@ -11,7 +11,7 @@ export const localizedImportErrorDetails = (error, locale) => {
   if (!response || typeof response !== "object" || Array.isArray(response)) return null;
 
   const details = [asText(response.detail), asText(response.message)].filter(Boolean);
-  const validation = response.validation_errors ?? response.extra;
+  const validation = response.validation_errors;
   if (Array.isArray(validation)) {
     details.push(...validation.map(asText).filter(Boolean));
   } else if (validation && typeof validation === "object") {

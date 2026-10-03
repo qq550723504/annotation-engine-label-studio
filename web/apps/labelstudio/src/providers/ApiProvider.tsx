@@ -84,8 +84,7 @@ export const ApiProvider = forwardRef<ApiContextType, PropsWithChildren<Record<s
   const handleError = useCallback(
     (errorDetails: FormattedError, result: ApiResponse) => {
       const responseLocale = (result as { $meta?: { headers?: Map<string, string> } }).$meta?.headers?.get("content-language");
-      // An older request must not display text in a language the user has since left.
-      if (responseLocale && responseLocale !== localeRuntime.locale) return;
+      // An older or cross-tab response may use another language; show the local fallback.
       const genericError = localeRuntime.t("app:genericError");
       const message = responseLocale === localeRuntime.locale ? errorDetails.message : genericError;
       const safeDetails = { ...errorDetails, title: localeRuntime.t("app:serverError"), message };
