@@ -65,10 +65,84 @@ it("shares an in-flight task selection so a second caller cannot reset the edito
 
   const first = manager.startLabeling();
   const second = manager.startLabeling();
+  await Promise.resolve();
   expect(manager.lsf.selectTask).toHaveBeenCalledTimes(1);
-  expect(manager.taskSelectionPromise).toBe(selection);
+  expect(manager.taskSelectionPromise).toBeTruthy();
   finishSelection();
   await Promise.all([first, second]);
+  expect(manager.taskSelectionPromise).toBeNull();
+  manager.destroy();
+});
+
+it("loads the latest selected task after an earlier selection finishes", async () => {
+  createApp.mockResolvedValue({});
+  const manager = makeManager();
+  await nextTick();
+  const pending = [];
+  manager.store = {
+    taskStore: { selected: { id: 41, lastAnnotation: null } },
+    annotationStore: { selected: null },
+  };
+  manager.lsf = {
+    task: null,
+    selectTask: jest.fn((task) => {
+      manager.lsf.task = task;
+      return new Promise((resolve) => pending.push(resolve));
+    }),
+    destroy: jest.fn(),
+  };
+
+  const first = manager.startLabeling();
+  await Promise.resolve();
+  manager.store.taskStore.selected = { id: 42, lastAnnotation: null };
+  const second = manager.startLabeling();
+  manager.store.taskStore.selected = { id: 43, lastAnnotation: null };
+  const third = manager.startLabeling();
+  await Promise.resolve();
+  expect(manager.lsf.selectTask).toHaveBeenCalledTimes(1);
+  pending.shift()();
+  await nextTick();
+  expect(manager.lsf.selectTask).toHaveBeenCalledTimes(2);
+  expect(manager.lsf.selectTask.mock.calls[1][0].id).toBe(43);
+  expect(manager.taskSelectionPromise).toBeTruthy();
+  pending.shift()();
+  await Promise.all([first, second, third]);
+  expect(manager.lsf.task.id).toBe(43);
+  expect(manager.taskSelectionPromise).toBeNull();
+  manager.destroy();
+});
+
+it("does not reuse an old editor selection after reload", async () => {
+  const oldStore = {
+    taskStore: { selected: { id: 41, lastAnnotation: null } },
+    annotationStore: { selected: null },
+  };
+  const newStore = {
+    taskStore: { selected: { id: 42, lastAnnotation: null } },
+    annotationStore: { selected: null },
+  };
+  createApp.mockResolvedValueOnce(oldStore).mockResolvedValueOnce(newStore);
+  const manager = makeManager();
+  await nextTick();
+  let finishOldSelection;
+  const oldSelection = new Promise((resolve) => { finishOldSelection = resolve; });
+  const oldEditor = { task: null, selectTask: jest.fn(() => oldSelection), destroy: jest.fn() };
+  manager.lsf = oldEditor;
+
+  const pendingOld = manager.startLabeling();
+  await Promise.resolve();
+  expect(oldEditor.selectTask).toHaveBeenCalledTimes(1);
+
+  manager.reload();
+  await nextTick();
+  const newEditor = { task: null, selectTask: jest.fn().mockResolvedValue(), destroy: jest.fn() };
+  manager.lsf = newEditor;
+  await manager.startLabeling();
+  expect(newEditor.selectTask).toHaveBeenCalledWith(newStore.taskStore.selected, undefined);
+  expect(oldEditor.destroy).toHaveBeenCalledTimes(1);
+
+  finishOldSelection();
+  await pendingOld;
   expect(manager.taskSelectionPromise).toBeNull();
   manager.destroy();
 });

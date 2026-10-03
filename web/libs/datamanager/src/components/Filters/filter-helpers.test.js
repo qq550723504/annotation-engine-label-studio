@@ -1,4 +1,5 @@
 import { filterFieldSearchHandler, findSelectedOption } from "./filter-helpers";
+import { displayColumnTitle } from "../displayColumn";
 
 // ─── filterFieldSearchHandler ─────────────────────────────────────────────────
 
@@ -39,6 +40,16 @@ describe("filterFieldSearchHandler", () => {
 
   it("matches regular option by parent title", () => {
     expect(filterFieldSearchHandler(regularOption, "data")).toBe(true);
+  });
+
+  it("matches the localized platform column title and retains the raw title", () => {
+    const option = { original: { field: { target: "tasks", alias: "created_at", title: "Created at" } } };
+    const displayTitle = (column) => displayColumnTitle(column, (key) =>
+      key === "columnCreatedAt" ? "创建时间" : key,
+    );
+    expect(filterFieldSearchHandler(option, "创建时间", displayTitle)).toBe(true);
+    expect(filterFieldSearchHandler(option, "created", displayTitle)).toBe(true);
+    expect(filterFieldSearchHandler(regularOption, "创建时间", displayTitle)).toBe(false);
   });
 
   it("returns false for non-matching query", () => {
