@@ -86,8 +86,15 @@ export const ApiProvider = forwardRef<ApiContextType, PropsWithChildren<Record<s
       const responseLocale = (result as { $meta?: { headers?: Map<string, string> } }).$meta?.headers?.get("content-language");
       // An older or cross-tab response may use another language; show the local fallback.
       const genericError = localeRuntime.t("app:genericError");
-      const message = responseLocale === localeRuntime.locale ? errorDetails.message : genericError;
-      const safeDetails = { ...errorDetails, title: localeRuntime.t("app:serverError"), message };
+      const trustedResponse = responseLocale === localeRuntime.locale;
+      const message = trustedResponse ? errorDetails.message : genericError;
+      const safeDetails = {
+        ...errorDetails,
+        title: localeRuntime.t("app:serverError"),
+        message,
+        stacktrace: trustedResponse ? errorDetails.stacktrace : undefined,
+        validation: trustedResponse ? errorDetails.validation : [],
+      };
       const status = result.$meta?.status;
       const is4xx = status?.toString().startsWith("4");
       const containsValidationErrors =
