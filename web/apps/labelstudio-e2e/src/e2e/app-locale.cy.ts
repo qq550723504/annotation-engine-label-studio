@@ -215,8 +215,8 @@ describe('main application display locale', () => {
     cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
     ensureAccountLocale('zh-CN');
     cy.visit(`/projects/${fixture.project_id}/settings/danger-zone`);
-    cy.get('.ls-breadcrumbs').should('contain.text', '危险操作').and('not.contain.text', 'Danger Zone');
-    cy.get('.ls-breadcrumbs').should('contain.text', 'Enterprise Browser E2E');
+    cy.get('.lsf-breadcrumbs').should('contain.text', '危险操作').and('not.contain.text', 'Danger Zone');
+    cy.get('.lsf-breadcrumbs').should('contain.text', 'Enterprise Browser E2E');
   });
 
   for (const [locale, titleError] of [
