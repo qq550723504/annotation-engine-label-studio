@@ -156,6 +156,7 @@
   "templateNeedsMoreData": "This template requires more data than is currently available.",
   "uploadDataToChooseFields": "Upload data to select fields to label. You can also provide fields in Code mode.",
   "parserError": "Parser error",
+  "configurationFailed": "Could not validate the labeling configuration. Check it and try again.",
   "configureWithTags": "Configure the labeling interface with tags.",
   "seeAllTags": "See all tags",
   "browseTemplates": "Browse Templates",

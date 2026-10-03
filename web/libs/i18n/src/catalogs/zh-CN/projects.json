@@ -155,6 +155,7 @@
   "templateNeedsMoreData": "此模板所需的数据比当前可用数据更多。",
   "uploadDataToChooseFields": "请先上传数据以选择要标注的字段，也可以在代码模式中指定字段。",
   "parserError": "解析错误",
+  "configurationFailed": "无法验证标注配置，请检查后重试。",
   "configureWithTags": "使用标签配置标注界面。",
   "seeAllTags": "查看所有标签",
   "browseTemplates": "浏览模板",
