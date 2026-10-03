@@ -595,8 +595,8 @@ export const AnnotationButton = observer(
     const resolvedUser =
       entityIsAlive && entity.user && isUserComplete(entity.user)
         ? entity.user
-        : { firstName: entityIsAlive ? entity.createdBy || "Admin" : "Unknown" };
-    const username = entityIsAlive ? userDisplayName(resolvedUser) : "Unknown";
+        : { firstName: entityIsAlive ? entity.createdBy || t("annotationAdmin") : t("annotationUnknown") };
+    const username = entityIsAlive ? userDisplayName(resolvedUser) : t("annotationUnknown");
     const [isGroundTruth, setIsGroundTruth] = useState<boolean>();
     const isDraft = entityIsAlive && !isPrediction && !isDefined(entity.pk);
     const isDraftSaved = entityIsAlive && !isPrediction && entity.draftId > 0;
@@ -629,7 +629,7 @@ export const AnnotationButton = observer(
       // this data can be missing in tests, but we don't have `infoIsHidden` there, so hiding logic like this
       const currentUser = annotationStore.store.user;
       const isCurrentUser = entity.user?.id === currentUser.id || entity.createdBy === currentUser.email;
-      hiddenUser = { email: isCurrentUser ? "Me" : "User" };
+      hiddenUser = { email: t(isCurrentUser ? "annotationMe" : "annotationUser") };
     }
 
     const displayUsername = hiddenUser ? hiddenUser.email : username;

@@ -237,6 +237,35 @@ describe("AnnotationButton", () => {
     expect(screen.getByText("Me")).toBeInTheDocument();
   });
 
+  it("localizes incomplete identity and privacy labels on a live locale switch", () => {
+    const runtime = createLocaleRuntime("en-US");
+    const LocaleProvider = runtime.provider;
+    const store = {
+      ...defaultStore,
+      hasInterface: jest.fn((key: string) => key === "annotations:hide-info"),
+    };
+    const annotationStore = { ...defaultAnnotationStore, store } as any;
+    const view = render(
+      <LocaleProvider>
+        <>
+          <AnnotationButton entity={createEntity({ id: 3, createdBy: "" })} capabilities={defaultCapabilities} annotationStore={defaultAnnotationStore} />
+          <AnnotationButton entity={createEntity({ id: 4, createdBy: "current@test.com", user: { id: 1 } })} capabilities={defaultCapabilities} annotationStore={annotationStore} />
+          <AnnotationButton entity={createEntity({ id: 5, createdBy: "other@test.com", user: { id: 2 } })} capabilities={defaultCapabilities} annotationStore={annotationStore} />
+        </>
+      </LocaleProvider>,
+    );
+    expect(screen.getByText("Admin")).toBeInTheDocument();
+    expect(screen.getByText("Me")).toBeInTheDocument();
+    expect(screen.getByText("User")).toBeInTheDocument();
+
+    act(() => runtime.updateLocale("zh-CN"));
+    expect(screen.getAllByText("管理员").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("我").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("用户").length).toBeGreaterThan(0);
+    view.unmount();
+    runtime.destroy();
+  });
+
   it("shows skipped state", () => {
     const entity = createEntity({ skipped: true });
     render(

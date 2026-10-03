@@ -32,6 +32,11 @@ test("finds human-facing destructuring defaults but not machine defaults", () =>
   assert.deepEqual(found.map(({ text }) => text), ["Saved!"]);
 });
 
+test("follows a variable initializer rendered as JSX text", () => {
+  const found = scanSource('const Example = () => { const identity = ready ? "Admin" : "Unknown"; return <span>{identity}</span>; };');
+  assert.deepEqual(found.map(({ text }) => text), ["Admin", "Unknown"]);
+});
+
 test("finds human text passed through component labels and tooltips", () => {
   const found = scanSource('const Example = () => <Control label="Review task" tooltip="View Task Source" />;');
   assert.deepEqual(found.map(({ text }) => text), ["Review task", "View Task Source"]);

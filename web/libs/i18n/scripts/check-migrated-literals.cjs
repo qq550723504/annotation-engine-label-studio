@@ -19,6 +19,10 @@ const allowed = {
   "apps/labelstudio/src/pages/Settings/MembersSettings.jsx": [
     { text: "Members", reason: "Static route metadata; settings menu and breadcrumb translate by fixed child path." },
   ],
+  "apps/labelstudio/src/pages/ExportPage/ExportPage.jsx": [
+    { text: "label-studio export", reason: "Executable CLI syntax shown verbatim in timeout guidance." },
+    { text: "--export-path=<output-path>", reason: "Executable CLI argument syntax shown verbatim in timeout guidance." },
+  ],
   "apps/labelstudio/src/pages/Settings/index.jsx": [
     { text: "Settings", reason: "Static route metadata; RoutesProvider translates the settings breadcrumb by route path." },
   ],
@@ -52,6 +56,9 @@ const allowed = {
   "libs/app-common/src/pages/AccountSettings/AccountSettings.tsx": [
     { text: "My Account", reason: "Static route metadata; RoutesProvider translates account breadcrumbs by path." },
   ],
+  "libs/app-common/src/pages/AccountSettings/sections/Hotkeys/Help.tsx": [
+    { text: "default", reason: "Stable hotkey subgroup identifier; display labels are resolved separately." },
+  ],
   "libs/datamanager/src/components/Filters/types/Number.jsx": [
     { text: "is between", reason: "Operator metadata is translated by key in FilterOperation before rendering." },
     { text: "not between", reason: "Operator metadata is translated by key in FilterOperation before rendering." },
@@ -70,6 +77,22 @@ const humanText = (text) => /[A-Za-z\u4e00-\u9fff]{2,}/u.test(text);
 function scanSource(source) {
   const ast = parse(source, { sourceType: "unambiguous", plugins: ["jsx", "typescript"] });
   const literals = [];
+  const bindings = new Map();
+  const collectBindings = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (node.type === "VariableDeclarator" && node.id?.type === "Identifier" && node.init) {
+      const definitions = bindings.get(node.id.name) ?? [];
+      definitions.push(node);
+      bindings.set(node.id.name, definitions);
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (["loc", "start", "end", "extra", "tokens", "comments"].includes(key)) continue;
+      if (Array.isArray(value)) value.forEach(collectBindings);
+      else if (value && typeof value === "object") collectBindings(value);
+    }
+  };
+  collectBindings(ast);
+  const resolving = new Set();
   const addLiteral = (value, line) => {
     const text = normalized(value);
     if (humanText(text)) literals.push({ text, line });
@@ -77,6 +100,17 @@ function scanSource(source) {
   const visitDisplayExpression = (expression) => {
     if (!expression) return;
     switch (expression.type) {
+      case "Identifier": {
+        // Follow the closest initialized binding used directly as display text.
+        const definition = (bindings.get(expression.name) ?? [])
+          .filter((candidate) => candidate.start < expression.start).at(-1);
+        if (definition && !resolving.has(definition)) {
+          resolving.add(definition);
+          visitDisplayExpression(definition.init);
+          resolving.delete(definition);
+        }
+        break;
+      }
       case "StringLiteral":
         addLiteral(expression.value, expression.loc.start.line);
         break;
