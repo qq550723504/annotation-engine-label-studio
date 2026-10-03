@@ -8,64 +8,68 @@ const scopedFiles = require("./migrated-files.json");
 
 const allowed = {
   "apps/labelstudio/src/pages/Home/HomePage.tsx": [
-    { text: "Home", reason: "Static route metadata; RoutesProvider translates the root breadcrumb." },
+    { text: "Home", line: 220, reason: "Static route metadata; RoutesProvider translates the root breadcrumb." },
   ],
   "apps/labelstudio/src/pages/Projects/Projects.jsx": [
-    { text: "Projects", reason: "Static route metadata; RoutesProvider translates the projects breadcrumb." },
+    { text: "Projects", line: 157, reason: "Static route metadata; RoutesProvider translates the projects breadcrumb." },
   ],
   "apps/labelstudio/src/pages/Settings/DangerZone.jsx": [
-    { text: "Danger Zone", reason: "Static route metadata; settings menu and breadcrumb translate by fixed child path." },
+    { text: "Danger Zone", line: 245, reason: "Static route metadata; settings menu and breadcrumb translate by fixed child path." },
   ],
   "apps/labelstudio/src/pages/Settings/MembersSettings.jsx": [
-    { text: "Members", reason: "Static route metadata; settings menu and breadcrumb translate by fixed child path." },
+    { text: "Members", line: 503, reason: "Static route metadata; settings menu and breadcrumb translate by fixed child path." },
   ],
   "apps/labelstudio/src/pages/ExportPage/ExportPage.jsx": [
-    { text: "label-studio export", reason: "Executable CLI syntax shown verbatim in timeout guidance." },
-    { text: "--export-path=<output-path>", reason: "Executable CLI argument syntax shown verbatim in timeout guidance." },
+    { text: "label-studio export", line: 322, reason: "Executable CLI syntax shown verbatim in timeout guidance." },
+    { text: "--export-path=<output-path>", line: 322, reason: "Executable CLI argument syntax shown verbatim in timeout guidance." },
   ],
   "apps/labelstudio/src/pages/Settings/index.jsx": [
-    { text: "Settings", reason: "Static route metadata; RoutesProvider translates the settings breadcrumb by route path." },
+    { text: "Settings", line: 90, reason: "Static route metadata; RoutesProvider translates the settings breadcrumb by route path." },
   ],
   "apps/labelstudio/src/components/Menubar/Menubar.jsx": [
-    { text: "API", reason: "Public documentation product name and link label." },
-    { text: "GitHub", reason: "External service brand name." },
+    { text: "API", line: 242, reason: "Public documentation product name and link label." },
+    { text: "GitHub", line: 249, reason: "External service brand name." },
   ],
   "apps/labelstudio/src/pages/CreateProject/Import/Import.jsx": [
-    { text: "PDF", reason: "The PDF file-format acronym is identical in both locales." },
+    { text: "PDF", line: 466, reason: "The PDF file-format acronym is identical in both locales." },
   ],
   "apps/labelstudio/src/pages/DataManager/DataManager.jsx": [
-    { text: "English", reason: "Language names are self-identifying choices." },
-    { text: "简体中文", reason: "Language names are self-identifying choices." },
+    { text: "English", line: 100, reason: "Language names are self-identifying choices." },
+    { text: "简体中文", line: 101, reason: "Language names are self-identifying choices." },
   ],
   "libs/app-common/src/pages/AccountSettings/sections/Hotkeys/Import.tsx": [
-    { text: '[{"id": 1, "section": "annotation-actions", "element": "button", "label": "Save", "key": "Ctrl+S"}]', reason: "Example serialized hotkey payload; values must remain importable." },
+    { text: '[{"id": 1, "section": "annotation-actions", "element": "button", "label": "Save", "key": "Ctrl+S"}]', line: 191, reason: "Example serialized hotkey payload; values must remain importable." },
   ],
   "libs/editor/src/components/App/App.jsx": [
-    { text: "Task #", reason: "Stable task-identity prefix required by the existing editor contract." },
+    { text: "Task #", line: 191, reason: "Stable task-identity prefix required by the existing editor contract." },
   ],
   "libs/datamanager/src/components/MainView/DataView/empty-state/EmptyState.tsx": [
-    { text: "Amazon S3", reason: "External storage provider name." },
-    { text: "Google Cloud Storage", reason: "External storage provider name." },
-    { text: "Azure Blob Storage", reason: "External storage provider name." },
-    { text: "Redis Storage", reason: "External storage provider name." },
+    { text: "Amazon S3", line: 141, reason: "External storage provider name." },
+    { text: "Amazon S3", line: 142, reason: "External storage provider name." },
+    { text: "Google Cloud Storage", line: 146, reason: "External storage provider name." },
+    { text: "Google Cloud Storage", line: 147, reason: "External storage provider name." },
+    { text: "Azure Blob Storage", line: 151, reason: "External storage provider name." },
+    { text: "Azure Blob Storage", line: 152, reason: "External storage provider name." },
+    { text: "Redis Storage", line: 156, reason: "External storage provider name." },
+    { text: "Redis Storage", line: 157, reason: "External storage provider name." },
   ],
   "libs/app-common/src/pages/AccountSettings/sections/LanguagePreferences.tsx": [
-    { text: "English", reason: "Language names are self-identifying choices." },
-    { text: "简体中文", reason: "Language names are self-identifying choices." },
+    { text: "English", line: 26, reason: "Language names are self-identifying choices." },
+    { text: "简体中文", line: 27, reason: "Language names are self-identifying choices." },
   ],
   "libs/app-common/src/pages/AccountSettings/AccountSettings.tsx": [
-    { text: "My Account", reason: "Static route metadata; RoutesProvider translates account breadcrumbs by path." },
+    { text: "My Account", line: 126, reason: "Static route metadata; RoutesProvider translates account breadcrumbs by path." },
   ],
   "libs/app-common/src/pages/AccountSettings/sections/Hotkeys/Help.tsx": [
-    { text: "default", reason: "Stable hotkey subgroup identifier; display labels are resolved separately." },
+    { text: "default", line: 91, reason: "Stable hotkey subgroup identifier; display labels are resolved separately." },
   ],
   "libs/datamanager/src/components/Filters/types/Number.jsx": [
-    { text: "is between", reason: "Operator metadata is translated by key in FilterOperation before rendering." },
-    { text: "not between", reason: "Operator metadata is translated by key in FilterOperation before rendering." },
+    { text: "is between", line: 90, reason: "Operator metadata is translated by key in FilterOperation before rendering." },
+    { text: "not between", line: 96, reason: "Operator metadata is translated by key in FilterOperation before rendering." },
   ],
   "libs/editor/src/components/BottomBar/buttons.tsx": [
-    { text: "Reject", reason: "The built-in Reject control translates its title at render time in ControlButton." },
-    { text: "Reject annotation: [ Ctrl+Space ]", reason: "The built-in Reject control translates its tooltip at render time in ControlButton." },
+    { text: "Reject", line: 87, reason: "The built-in Reject control translates its title at render time in ControlButton." },
+    { text: "Reject annotation: [ Ctrl+Space ]", line: 91, reason: "The built-in Reject control translates its tooltip at render time in ControlButton." },
   ],
 };
 
@@ -202,18 +206,8 @@ function check() {
   const failures = [];
   for (const file of scopedFiles) {
     const exceptions = allowed[file] ?? [];
-    const used = new Set();
     const literals = scanSource(readFileSync(resolve(root, file), "utf8"));
-    for (const { text, line } of literals) {
-      const exception = exceptions.find((item) => item.text === text);
-      if (exception) used.add(exception.text);
-      else failures.push(`${file}:${line}: unregistered UI literal ${JSON.stringify(text)}`);
-    }
-    for (const exception of exceptions) {
-      if (!exception.reason || !used.has(exception.text)) {
-        failures.push(`${file}: stale or unexplained literal exception ${JSON.stringify(exception.text)}`);
-      }
-    }
+    failures.push(...validateOccurrences(file, literals, exceptions));
   }
   if (failures.length) {
     process.stderr.write(`${failures.join("\n")}\n`);
@@ -223,5 +217,21 @@ function check() {
   }
 }
 
+function validateOccurrences(file, literals, exceptions) {
+  const failures = [];
+  const used = new Set();
+  for (const { text, line } of literals) {
+    const exception = exceptions.find((item) => item.text === text && item.line === line && !used.has(item));
+    if (exception) used.add(exception);
+    else failures.push(`${file}:${line}: unregistered UI literal ${JSON.stringify(text)}`);
+  }
+  for (const exception of exceptions) {
+    if (!exception.reason || !Number.isInteger(exception.line) || !used.has(exception)) {
+      failures.push(`${file}:${exception.line ?? "?"}: stale or unexplained literal exception ${JSON.stringify(exception.text)}`);
+    }
+  }
+  return failures;
+}
+
 if (require.main === module) check();
-module.exports = { scanSource };
+module.exports = { scanSource, validateOccurrences, allowed };

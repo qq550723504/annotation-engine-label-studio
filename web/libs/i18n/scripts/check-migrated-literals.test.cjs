@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { scanSource } = require("./check-migrated-literals.cjs");
+const { scanSource, validateOccurrences } = require("./check-migrated-literals.cjs");
 
 test("finds a new visible literal and accessible name", () => {
   const found = scanSource('const Example = () => <button aria-label="Save item">Save</button>;');
@@ -62,4 +62,20 @@ test("finds conditional, logical, and template text inside human-facing attribut
 test("ignores translated expressions and stable machine attributes", () => {
   const found = scanSource('const Example = () => <button data-testid="save-item" onClick={() => save("approved")}>{t("save")}</button>;');
   assert.deepEqual(found, []);
+});
+
+test("binds an exception to one source occurrence and rejects a new matching label", () => {
+  const exception = { text: "Members", line: 1, reason: "Route metadata translated at render." };
+  const file = "MembersSettings.jsx";
+  const original = scanSource('Page.title = "Members";');
+  assert.deepEqual(validateOccurrences(file, original, [exception]), []);
+
+  const duplicate = scanSource('Page.title = "Members";\nconst View = () => <span>Members</span>;');
+  assert.deepEqual(validateOccurrences(file, duplicate, [exception]), [
+    'MembersSettings.jsx:2: unregistered UI literal "Members"',
+  ]);
+  assert.deepEqual(validateOccurrences(file, duplicate.slice(1), [exception]), [
+    'MembersSettings.jsx:2: unregistered UI literal "Members"',
+    'MembersSettings.jsx:1: stale or unexplained literal exception "Members"',
+  ]);
 });
