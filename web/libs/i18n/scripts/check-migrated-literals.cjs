@@ -43,15 +43,58 @@ const humanText = (text) => /[A-Za-z\u4e00-\u9fff]{2,}/u.test(text);
 function scanSource(source) {
   const ast = parse(source, { sourceType: "unambiguous", plugins: ["jsx", "typescript"] });
   const literals = [];
+  const addLiteral = (value, line) => {
+    const text = normalized(value);
+    if (humanText(text)) literals.push({ text, line });
+  };
+  const visitDisplayExpression = (expression) => {
+    if (!expression) return;
+    switch (expression.type) {
+      case "StringLiteral":
+        addLiteral(expression.value, expression.loc.start.line);
+        break;
+      case "TemplateLiteral":
+        expression.quasis.forEach((quasi) => addLiteral(quasi.value.cooked ?? quasi.value.raw, quasi.loc.start.line));
+        break;
+      case "ConditionalExpression":
+        visitDisplayExpression(expression.consequent);
+        visitDisplayExpression(expression.alternate);
+        break;
+      case "LogicalExpression":
+        visitDisplayExpression(expression.left);
+        visitDisplayExpression(expression.right);
+        break;
+      case "BinaryExpression":
+        if (expression.operator === "+") {
+          visitDisplayExpression(expression.left);
+          visitDisplayExpression(expression.right);
+        }
+        break;
+      case "SequenceExpression":
+        visitDisplayExpression(expression.expressions.at(-1));
+        break;
+      case "ParenthesizedExpression":
+      case "TSAsExpression":
+      case "TSSatisfiesExpression":
+      case "TSNonNullExpression":
+      case "TSTypeAssertion":
+        visitDisplayExpression(expression.expression);
+        break;
+      default:
+        // Calls such as t("key") are already translated. Their string arguments
+        // and conditional tests are not display literals.
+        break;
+    }
+  };
   const visit = (node, parent) => {
     if (!node || typeof node !== "object") return;
     if (node.type === "JSXText") {
       const text = normalized(node.value);
       if (humanText(text)) literals.push({ text, line: node.loc.start.line });
     }
-    if (node.type === "JSXAttribute" && humanAttribute.has(node.name?.name) && node.value?.type === "StringLiteral") {
-      const text = normalized(node.value.value);
-      if (humanText(text)) literals.push({ text, line: node.loc.start.line });
+    if (node.type === "JSXAttribute" && humanAttribute.has(node.name?.name)) {
+      if (node.value?.type === "StringLiteral") addLiteral(node.value.value, node.loc.start.line);
+      else if (node.value?.type === "JSXExpressionContainer") visitDisplayExpression(node.value.expression);
     }
     if (node.type === "JSXExpressionContainer" &&
         ["JSXElement", "JSXFragment"].includes(parent?.type) &&

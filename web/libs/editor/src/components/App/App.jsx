@@ -43,7 +43,7 @@ import defaultMessages from "../../utils/messages";
 import { Annotation } from "./Annotation";
 import { BottomBar } from "../BottomBar/BottomBar";
 import Debug from "../Debug";
-import { InstructionsModal } from "../InstructionsModal/InstructionsModal";
+import { InstructionsModal, InstructionsTitle } from "../InstructionsModal/InstructionsModal";
 import { RelationsOverlay } from "../InteractiveOverlays/RelationsOverlay";
 import Settings from "../Settings/Settings";
 import { SideTabsPanels } from "../SidePanels/TabPanels/SideTabsPanels";
@@ -274,7 +274,7 @@ class App extends Component {
               <InstructionsModal
                 visible={store.showingDescription}
                 onCancel={() => store.toggleDescription()}
-                title={store.hasInterface("review") ? "Review Instructions" : "Labeling Instructions"}
+                title={<InstructionsTitle review={store.hasInterface("review")} />}
               >
                 {store.description}
               </InstructionsModal>

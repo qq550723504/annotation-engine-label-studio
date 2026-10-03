@@ -144,6 +144,8 @@
   "noNextTask": "No next task available",
   "taskCount": "{{current}} of {{total}}",
   "instructions": "Instructions",
+  "reviewInstructions": "Review Instructions",
+  "labelingInstructions": "Labeling Instructions",
   "showInstructions": "Show instructions",
   "settings": "Settings",
   "validationRequired": "Attribute {{field}} is required for {{modelName}}",

@@ -143,6 +143,8 @@
   "noNextTask": "没有下一个任务",
   "taskCount": "{{current}} / {{total}}",
   "instructions": "说明",
+  "reviewInstructions": "复核说明",
+  "labelingInstructions": "标注说明",
   "showInstructions": "查看说明",
   "settings": "设置",
   "validationRequired": "{{modelName}} 缺少必需属性 {{field}}",

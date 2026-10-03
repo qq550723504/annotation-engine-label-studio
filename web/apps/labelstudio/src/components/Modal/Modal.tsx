@@ -40,9 +40,7 @@ const AppModalCloseButton = () => {
  * Get the default LS providers for modals
  */
 const getDefaultProviders = (): ReactElement[] => {
-  const AppLocaleProvider = appLocaleRuntime.provider;
   return [
-    <AppLocaleProvider key="locale" />,
     <ModalLocaleAdapter key="antd-locale" />,
     <ConfigProvider key="config" />,
     <ToastProvider key="toast" />,
@@ -61,11 +59,12 @@ const modalTypes = {
 const createModal = (type: keyof typeof modalTypes) => {
   return <T,>(props: ModalProps<T> & ExtraProps): ModalUpdateProps<T> => {
     const AppLocaleProvider = appLocaleRuntime.provider;
-    // A simple modal deliberately omits the App's API and toast providers.
-    // It still needs the locale runtime for its close control and live switch.
-    const providers = props.simple
-      ? [<AppLocaleProvider key="locale" />]
-      : (props.providers ?? getDefaultProviders());
+    // Every app modal needs locale context for its close control, including
+    // simple modals and callers that replace the default provider list.
+    const providers = [
+      <AppLocaleProvider key="locale" />,
+      ...(props.simple ? [] : (props.providers ?? getDefaultProviders())),
+    ];
     return modalTypes[type]({
       closeButton: <AppModalCloseButton />,
       ...props,
