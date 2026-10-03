@@ -85,9 +85,14 @@ time with a guessed version. Django's normal password-hash invalidation,
 
 One user's revocation is a constant number of indexed queries and does not scan,
 decode, or enumerate `django_session`. Bulk account administration processes the
-selected user IDs, not their session records. Audit logging occurs after commit
-and includes numeric actor/target IDs, a fixed reason code, and user scope; the
-existing logging formatter supplies timestamp and request ID when available.
+selected user IDs, not their session records.
+
+The normative audit model is a durable audit-event row or transactional outbox
+committed in the same database transaction as the security transition. Delivery
+to application logs/SIEM may happen asynchronously after commit, but retries use a
+stable event ID/idempotency key. Do not rely on `transaction.on_commit()` as the
+only durable record of a security event.
+
 API-token authentication, JWT authentication, and project authorization are
 separate controls and remain unchanged.
 
@@ -108,11 +113,18 @@ separate controls and remain unchanged.
 5. Enable the scheduled cleanup service below and verify logout/replay and
    user-wide revocation against more than one deployed worker.
 
-Rollback must preserve a server-revocable backend. Rolling back to signed cookies
-or restoring an older security-counter snapshot is an explicit security downgrade
-that can restore revoked sessions; an operator must coordinate invalidation and
-reauthentication. Production rollout is an operator action, not a consequence of
-local tests or merging the patch.
+Rollback must preserve the invariant that an invalidated browser credential never
+becomes valid again. Restoring an older backup can reintroduce both stale security
+versions and `django_session` rows deleted by logout after the backup was taken.
+
+Therefore, after any restore that can reintroduce historical browser-auth state,
+keep application traffic drained and force global browser reauthentication before
+service resumes: clear restored browser sessions and rotate the session-cookie
+boundary when needed. Rolling back to signed cookies is never an acceptable
+production rollback.
+
+Production rollout/rollback is an operator action, not a consequence of local
+tests or merging the patch.
 
 ## Scheduled cleanup
 
@@ -143,6 +155,10 @@ Record local tests, exact-head PR CI, merge/main checks, and deployed behavior
 separately. Deployment, production replica validation, and the actual enabled
 cleanup schedule remain operator acceptance requirements; a merged PR alone does
 not prove them.
+
+The root security model for #46-#48 is documented in
+[session security invariants](session-security-invariants.md); child issue
+documents define delivery-specific mechanics without overriding those invariants.
 
 References: [Django session backends and replay semantics](https://docs.djangoproject.com/en/5.1/topics/http/sessions/),
 [Django auth-session hash and password changes](https://docs.djangoproject.com/en/5.1/topics/auth/default/#session-invalidation-on-password-change),
