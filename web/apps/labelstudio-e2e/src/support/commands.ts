@@ -14,11 +14,14 @@ Cypress.Commands.add('loginAs', (email: string, password: string, nextPath = '/'
   // restore its signed session cookie while the next actor is logging in.
   cy.session(['ui-login', email, nextPath], () => {
     const loginPath = `/user/login/?next=${encodeURIComponent(nextPath)}`;
+    // A second actor can log in during the same test, while the first actor's
+    // page is still mounted. Clear its cookie before opening the login route.
+    cy.clearCookies();
     cy.visit(loginPath);
     cy.location('pathname', { timeout: 30000 }).should('eq', '/user/login/');
     cy.get('#email', { timeout: 30000 }).should('be.visible').clear().type(email);
     cy.get('#password', { timeout: 30000 }).should('be.visible').clear().type(password, { log: false });
-    cy.get('button[aria-label="Log In"]').click();
+    cy.get('form button[type="submit"]').click();
     cy.location('pathname', { timeout: 20000 }).should('not.eq', '/user/login/');
   }, {
     validate() {

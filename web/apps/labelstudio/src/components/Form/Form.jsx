@@ -546,14 +546,14 @@ Form.Actions = ({ children, valid, extra, size }) => {
   );
 };
 
-Form.Indicator = () => {
+Form.Indicator = ({ successLabel = "Saved!" }) => {
   const state = React.useContext(FormStateContext);
 
   return (
     <div className={cn("form-indicator").toClassName()}>
       <Oneof value={state}>
         <span className={cn("form-indicator").elem("item").mod({ type: state }).toClassName()} case="success">
-          Saved!
+          {successLabel}
         </span>
       </Oneof>
     </div>

@@ -1,22 +1,32 @@
 {% extends 'users/user_base.html' %}
+{% load i18n %}
 
 {% block user_content %}
   <form id="login-form" action="{% url 'user-login' %}?next={{ next }}" method="post">
     {% csrf_token %}
-    <p><input type="text" class="lsf-input-ls" name="email" id="email" placeholder="Email" value="{{ form.data.email }}"></p>
-    <p><input type="password" class="lsf-input-ls" name="password" id="password" placeholder="Password"></p>
+    <p><input type="text" class="lsf-input-ls" name="email" id="email" placeholder="{% trans 'Email' %}" value="{{ form.data.email }}"
+              data-locale-placeholder-en="{% language 'en-us' %}{% trans 'Email' %}{% endlanguage %}"
+              data-locale-placeholder-zh="{% language 'zh-hans' %}{% trans 'Email' %}{% endlanguage %}"></p>
+    <p><input type="password" class="lsf-input-ls" name="password" id="password" placeholder="{% trans 'Password' %}"
+              data-locale-placeholder-en="{% language 'en-us' %}{% trans 'Password' %}{% endlanguage %}"
+              data-locale-placeholder-zh="{% language 'zh-hans' %}{% trans 'Password' %}{% endlanguage %}"></p>
     {% if form.non_field_errors %}
       {% for error in form.non_field_errors %}
-        <p class="error">
+        <p class="error" data-locale-validation-error>
           {{ error }}
         </p>
       {% endfor %}
     {% endif %}
     <p>
       <input type="checkbox" id="persist_session" name="persist_session" class="lsf-checkbox-ls" checked="checked" style="width: auto;" />
-      <label for="persist_session">Keep me logged in this browser</label>
+      <label for="persist_session" data-locale-en="{% language 'en-us' %}{% trans 'Keep me logged in this browser' %}{% endlanguage %}"
+             data-locale-zh="{% language 'zh-hans' %}{% trans 'Keep me logged in this browser' %}{% endlanguage %}">{% trans "Keep me logged in this browser" %}</label>
     </p>
-    <p><button type="submit" aria-label="Log In" class="lsf-button-ls lsf-button-ls_look_primary">Log in</button></p>
+    <p><button type="submit" aria-label="{% trans 'Log in' %}" class="lsf-button-ls lsf-button-ls_look_primary"
+               data-locale-en="{% language 'en-us' %}{% trans 'Log in' %}{% endlanguage %}"
+               data-locale-zh="{% language 'zh-hans' %}{% trans 'Log in' %}{% endlanguage %}"
+               data-locale-aria-en="{% language 'en-us' %}{% trans 'Log in' %}{% endlanguage %}"
+               data-locale-aria-zh="{% language 'zh-hans' %}{% trans 'Log in' %}{% endlanguage %}">{% trans "Log in" %}</button></p>
   </form>
 
 {% endblock %}

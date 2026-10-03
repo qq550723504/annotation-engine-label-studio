@@ -12,6 +12,7 @@ import { DataManagerPage } from "../DataManager/DataManager";
 import { SettingsPage } from "../Settings";
 import { EmptyProjectsList, ProjectsList } from "./ProjectsList";
 import { useAbortController, useUpdatePageTitle } from "@humansignal/core";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import "./Projects.scss";
 
 const getCurrentPage = () => {
@@ -21,6 +22,7 @@ const getCurrentPage = () => {
 };
 
 export const ProjectsPage = () => {
+  const { t } = useLocaleTranslation("projects");
   const api = React.useContext(ApiContext);
   const abortController = useAbortController();
   const [projectsList, setProjectsList] = React.useState([]);
@@ -29,7 +31,7 @@ export const ProjectsPage = () => {
   const [totalItems, setTotalItems] = useState(1);
   const setContextProps = useContextProps();
 
-  useUpdatePageTitle("Projects");
+  useUpdatePageTitle(t("projects"));
   const defaultPageSize = Number.parseInt(localStorage.getItem("pages:projects-list") ?? 30);
 
   const [modal, setModal] = React.useState(false);
@@ -60,6 +62,13 @@ export const ProjectsPage = () => {
       signal: abortController.controller.current.signal,
       errorFilter: (e) => e.error.includes("aborted"),
     });
+
+    if (!data || data.error || data.$meta?.ok === false) {
+      setProjectsList([]);
+      setTotalItems(0);
+      setNetworkState("error");
+      return;
+    }
 
     setTotalItems(data?.count ?? 1);
     setProjectsList(data.results ?? []);
@@ -122,6 +131,10 @@ export const ProjectsPage = () => {
         <div className={cn("projects-page").elem("loading").toClassName()} case="loading">
           <Spinner size={64} />
         </div>
+        <div case="error" role="alert" data-testid="projects-load-error" className="flex flex-col items-center gap-4 p-8">
+          <p>{t("projectsLoadFailed")}</p>
+          <Button onClick={() => fetchProjects()}>{t("retry")}</Button>
+        </div>
         <div className={cn("projects-page").elem("content").toClassName()} case="loaded">
           {projectsList.length ? (
             <ProjectsList
@@ -161,10 +174,11 @@ ProjectsPage.routes = ({ store }) => [
   },
 ];
 ProjectsPage.context = ({ openModal, showButton }) => {
+  const { t } = useLocaleTranslation("projects");
   if (!showButton) return null;
   return (
-    <Button onClick={openModal} size="small" aria-label="Create new project">
-      Create
+    <Button onClick={openModal} size="small" aria-label={t("createNewProject")} data-testid="create-project-context">
+      {t("create")}
     </Button>
   );
 };

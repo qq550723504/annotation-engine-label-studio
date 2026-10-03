@@ -45,3 +45,81 @@ msgstr "Email"
 
 msgid "Work Email"
 msgstr "Work Email"
+
+msgid "Display language"
+msgstr "Display language"
+
+msgid "Automatic"
+msgstr "Automatic"
+
+msgid "Could not save your language. Please try again."
+msgstr "Could not save your language. Please try again."
+
+msgid "Please review the form and try again."
+msgstr "Please review the form and try again."
+
+msgid "Welcome to Label Studio Community Edition %(version)s"
+msgstr "Welcome to Label Studio Community Edition %(version)s"
+
+msgid "A full-fledged open source solution for data labeling"
+msgstr "A full-fledged open source solution for data labeling"
+
+msgid "Sign up"
+msgstr "Sign up"
+
+msgid "Log in"
+msgstr "Log in"
+
+msgid "Email Address"
+msgstr "Email Address"
+
+msgid "Password"
+msgstr "Password"
+
+msgid "Keep me logged in this browser"
+msgstr "Keep me logged in this browser"
+
+msgid "Don't have an account?"
+msgstr "Don't have an account?"
+
+msgid "How did you hear about Label Studio?"
+msgstr "How did you hear about Label Studio?"
+
+msgid "Select an option"
+msgstr "Select an option"
+
+msgid "Please elaborate"
+msgstr "Please elaborate"
+
+msgid "Get the latest news from Heidi"
+msgstr "Get the latest news from Heidi"
+
+msgid "Create Account"
+msgstr "Create Account"
+
+msgid "Already have an account?"
+msgstr "Already have an account?"
+
+msgid "Github"
+msgstr "Github"
+
+msgid "Email or newsletter"
+msgstr "Email or newsletter"
+
+msgid "Search engine"
+msgstr "Search engine"
+
+msgid "Friend or coworker"
+msgstr "Friend or coworker"
+
+msgid "Ad"
+msgstr "Ad"
+
+msgid "Other"
+msgstr "Other"
+
+msgid "Log in | Label Studio"
+msgstr "Log in | Label Studio"
+
+msgid "Sign up | Label Studio"
+msgstr "Sign up | Label Studio"

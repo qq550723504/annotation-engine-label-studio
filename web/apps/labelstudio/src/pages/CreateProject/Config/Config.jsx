@@ -11,7 +11,7 @@ import { FF_UNSAVED_CHANGES, isFF } from "../../../utils/feature-flags";
 import { colorNames } from "./colors";
 import "./Config.scss";
 import { Preview } from "./Preview";
-import { ff, LARGE_CONFIG_MESSAGE, LARGE_CONFIG_TAG_THRESHOLD, countConfigTags } from "@humansignal/core";
+import { ff, LARGE_CONFIG_TAG_THRESHOLD, countConfigTags } from "@humansignal/core";
 import { DEFAULT_COLUMN, EMPTY_CONFIG, isEmptyConfig, Template } from "./Template";
 import { TemplatesList } from "./TemplatesList";
 
@@ -21,6 +21,7 @@ import { Checkbox, CodeEditor, Select } from "@humansignal/ui";
 import { snakeCase } from "@humansignal/core";
 import { useConfigResizer } from "./useConfigResizer";
 import { EditorResizer } from "./EditorResizer";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 const wizardClass = cn("wizard");
 const configClass = cn("configure");
@@ -37,6 +38,7 @@ const configClass = cn("configure");
  * Wrapped in React.memo to prevent unnecessary re-renders when parent re-renders.
  */
 const AdaptivePreview = React.memo(({ config, hasPendingUpdate, onUpdatePreview, isUpdating, ...previewProps }) => {
+  const { t } = useLocaleTranslation("projects");
   const isFeatureEnabled = ff.isActive(ff.FF_PREVIEW_PERFORMANCE);
 
   // Memoize tag count calculation to avoid re-computing on every render
@@ -51,9 +53,9 @@ const AdaptivePreview = React.memo(({ config, hasPendingUpdate, onUpdatePreview,
       <div className={configClass.elem("preview-container").toClassName()}>
         <div className={configClass.elem("preview-info-banner").toClassName()}>
           <IconInfoOutline width={16} height={16} />
-          <span>{LARGE_CONFIG_MESSAGE}</span>
+          <span>{t("largeConfigMessage")}</span>
           <Button size="small" onClick={onUpdatePreview} waiting={isUpdating} disabled={isUpdating}>
-            {isUpdating ? "Updating..." : "Update Preview"}
+            {isUpdating ? t("updating") : t("updatePreview")}
           </Button>
         </div>
         <Preview config={config} {...previewProps} />
@@ -64,21 +66,24 @@ const AdaptivePreview = React.memo(({ config, hasPendingUpdate, onUpdatePreview,
   return <Preview config={config} {...previewProps} />;
 });
 
-const EmptyConfigPlaceholder = () => (
+const EmptyConfigPlaceholder = () => {
+  const { t } = useLocaleTranslation("projects");
+  return (
   <div className={configClass.elem("empty-config").toClassName()}>
-    <p>Your labeling configuration is empty. It is required to label your data.</p>
+    <p>{t("emptyLabelConfig")}</p>
     <p>
-      Start from one of our predefined templates or create your own config on the Code panel. The labeling config is
-      XML-based and you can{" "}
+      {t("startFromTemplate")}{" "}
       <a href="https://labelstud.io/tags/" target="_blank" rel="noreferrer">
-        read about the available tags in our documentation
+        {t("readTagDocs")}
       </a>
       .
     </p>
   </div>
-);
+  );
+};
 
 const Label = ({ label, template, color }) => {
+  const { t } = useLocaleTranslation("projects");
   const value = label.getAttribute("value");
 
   return (
@@ -108,7 +113,7 @@ const Label = ({ label, template, color }) => {
         size="smaller"
         variant="negative"
         onClick={() => template.removeLabel(label)}
-        aria-label="delete label"
+        aria-label={t("deleteLabel")}
         className="hidden !p-0 z-10 absolute right-0 [&_span]:!p-0 group-hover:inline-flex"
         leading={<IconTrash className="w-4 h-4 fill-[currentColor]" />}
       />
@@ -117,6 +122,7 @@ const Label = ({ label, template, color }) => {
 };
 
 const ConfigureControl = ({ control, template }) => {
+  const { t } = useLocaleTranslation("projects");
   const refLabels = React.useRef();
   const tagname = control.tagName;
 
@@ -138,8 +144,8 @@ const ConfigureControl = ({ control, template }) => {
   return (
     <div className={configClass.elem("labels").toClassName()}>
       <form className={configClass.elem("add-labels").toClassName()} action="">
-        <h4>{tagname === "Choices" ? "Add choices" : "Add label names"}</h4>
-        <span>Use new line as a separator to add multiple labels</span>
+        <h4>{tagname === "Choices" ? t("addChoices") : t("addLabelNames")}</h4>
+        <span>{t("newLineSeparatesLabels")}</span>
         <textarea
           name="labels"
           id=""
@@ -149,13 +155,13 @@ const ConfigureControl = ({ control, template }) => {
           onKeyPress={onKeyPress}
           className="lsf-textarea-ls p-2 px-3"
         />
-        <Button type="button" size="small" look="outlined" onClick={onAddLabels} aria-label="Add labels">
-          Add
+        <Button type="button" size="small" look="outlined" onClick={onAddLabels} aria-label={t("addLabels")}>
+          {t("add")}
         </Button>
       </form>
       <div className={configClass.elem("current-labels").toClassName()}>
         <h3>
-          {tagname === "Choices" ? "Choices" : "Labels"} ({control.children.length})
+          {tagname === "Choices" ? t("choices") : t("labels")} ({control.children.length})
         </h3>
         <ul>
           {Array.from(control.children).map((label) => (
@@ -173,6 +179,7 @@ const ConfigureControl = ({ control, template }) => {
 };
 
 const ConfigureSettings = ({ template }) => {
+  const { t } = useLocaleTranslation("projects");
   const { settings } = template;
 
   if (!settings) return null;
@@ -261,7 +268,7 @@ const ConfigureSettings = ({ template }) => {
   return (
     <ul className={configClass.elem("settings").toClassName()}>
       <li>
-        <h4>Configure settings</h4>
+        <h4>{t("configureSettings")}</h4>
         <ul className={configClass.elem("object-settings").toClassName()}>{items}</ul>
       </li>
     </ul>
@@ -270,6 +277,7 @@ const ConfigureSettings = ({ template }) => {
 
 // configure value source for `obj` object tag
 const ConfigureColumn = ({ template, obj, columns }) => {
+  const { locale, t } = useLocaleTranslation("projects");
   const valueAttr = obj.hasAttribute("valueList") ? "valueList" : "value";
   const value = obj.getAttribute(valueAttr)?.replace(/^\$/, "");
   // if there is a value set already and it's not in the columns
@@ -324,21 +332,21 @@ const ConfigureColumn = ({ template, obj, columns }) => {
     const columnOptions =
       columns?.map((column) => ({
         value: column,
-        label: column === DEFAULT_COLUMN ? "<imported file>" : `$${column}`,
+        label: column === DEFAULT_COLUMN ? t("importedFile") : `$${column}`,
       })) ?? [];
     if (!columns?.length) {
-      columnOptions.push({ value, label: "<imported file>" });
+      columnOptions.push({ value, label: t("importedFile") });
     }
-    columnOptions.push({ value: "-", label: "<set manually>" });
+    columnOptions.push({ value: "-", label: t("setManually") });
     return columnOptions;
-  }, [columns, value]);
+  }, [columns, value, locale]);
 
   return (
     <p>
-      Use {obj.tagName.toLowerCase()}
-      {template.objects > 1 && ` for ${obj.getAttribute("name")}`}
-      {" from "}
-      {columns?.length > 0 && columns[0] !== DEFAULT_COLUMN && "field "}
+      {t("useObject")} {obj.tagName.toLowerCase()}
+      {template.objects > 1 && <>{" "}{t("forObject")} {obj.getAttribute("name")}</>}
+      {" "}{t("fromSource")}{" "}
+      {columns?.length > 0 && columns[0] !== DEFAULT_COLUMN && <>{t("field")} </>}
       <Select
         triggerClassName="border"
         onChange={selectValue}
@@ -353,20 +361,20 @@ const ConfigureColumn = ({ template, obj, columns }) => {
 };
 
 const ConfigureColumns = ({ columns, template }) => {
+  const { t } = useLocaleTranslation("projects");
   if (!template.objects.length) return null;
 
   return (
     <div className={configClass.elem("object").toClassName()}>
-      <h4>Configure data</h4>
+      <h4>{t("configureData")}</h4>
       {template.objects.length > 1 && columns?.length > 0 && columns.length < template.objects.length && (
         <p className={configClass.elem("object-error").toClassName()}>
-          This template requires more data then you have for now
+          {t("templateNeedsMoreData")}
         </p>
       )}
       {columns?.length === 0 && (
         <p className={configClass.elem("object-error").toClassName()}>
-          To select which field(s) to label you need to upload the data. Alternatively, you can provide it using Code
-          mode.
+          {t("uploadDataToChooseFields")}
         </p>
       )}
       {template.objects.map((obj) => (
@@ -389,6 +397,7 @@ const Configurator = ({
   warning,
   hasChanges,
 }) => {
+  const { t } = useLocaleTranslation("projects");
   const [configure, setConfigure] = React.useState(isEmptyConfig(config) ? "code" : "visual");
   const [visualLoaded, loadVisual] = React.useState(configure === "visual");
   const [waiting, setWaiting] = React.useState(false);
@@ -514,7 +523,7 @@ const Configurator = ({
       });
 
       if (validation?.error) {
-        setError(validation.response);
+        setError(validation);
         setLoading(false);
         return;
       }
@@ -537,7 +546,7 @@ const Configurator = ({
       } else {
         // @todo validation can be done in this place,
         // @todo but for now it's extremely slow in /sample-task endpoint
-        setError(sample?.response);
+        setError(sample ?? { error: true });
       }
     };
     validate();
@@ -558,7 +567,7 @@ const Configurator = ({
         setTemplate(config);
       } catch (e) {
         setParserError({
-          detail: "Parser error",
+          localErrorKey: "parserError",
           validation_errors: [e.message],
         });
       }
@@ -611,9 +620,9 @@ const Configurator = ({
 
   const extra = (
     <p className={configClass.elem("tags-link").toClassName()}>
-      Configure the labeling interface with tags.&nbsp;
+      {t("configureWithTags")}&nbsp;
       <a href="https://labelstud.io/tags/" target="_blank" rel="noreferrer">
-        See all tags
+        {t("seeAllTags")}
       </a>
       .
     </p>
@@ -629,7 +638,7 @@ const Configurator = ({
         }}
       >
         <div className="flex flex-col">
-          <h1>Labeling Interface{hasChanges ? " *" : ""}</h1>
+          <h1>{t("labelingInterface")}{hasChanges ? " *" : ""}</h1>
           <header>
             <Button
               type="button"
@@ -637,11 +646,11 @@ const Configurator = ({
               onClick={onBrowse}
               size="small"
               look="outlined"
-              aria-label="Browse templates"
+              aria-label={t("browseTemplates")}
             >
-              Browse Templates
+              {t("browseTemplates")}
             </Button>
-            <ToggleItems items={{ code: "Code", visual: "Visual" }} active={configure} onSelect={onSelect} />
+            <ToggleItems items={{ code: t("code"), visual: t("visual") }} active={configure} onSelect={onSelect} />
           </header>
           <div className={configClass.elem("editor").toClassName()}>
             {configure === "code" && (
@@ -694,12 +703,12 @@ const Configurator = ({
               {saved && (
                 <div className={cn("form-indicator").toClassName()}>
                   <span className={cn("form-indicator").elem("item").mod({ type: "success" }).toClassName()}>
-                    Saved!
+                    {t("saved")}
                   </span>
                 </div>
               )}
-              <Button className="w-[120px]" onClick={onSave} waiting={waiting} aria-label="Save configuration">
-                {waiting ? "Saving..." : "Save"}
+              <Button className="w-[120px]" onClick={onSave} waiting={waiting} aria-label={t("saveConfiguration")}>
+                {waiting ? t("saving") : t("save")}
               </Button>
               {isFF(FF_UNSAVED_CHANGES) && <UnsavedChanges hasChanges={hasChanges} onSave={onSave} />}
             </Form.Actions>

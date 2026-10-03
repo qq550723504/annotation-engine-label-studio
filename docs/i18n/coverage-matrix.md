@@ -1,8 +1,8 @@
 # V1 UI coverage and evidence matrix
 
-Inventory from [`main@796abf5a98f42f141e2b303a228932d1e6b6628a`](https://github.com/qq550723504/annotation-engine-label-studio/tree/796abf5a98f42f141e2b303a228932d1e6b6628a), not from pending PRs. `Required` means the named Issue owns en-US and zh-CN product strings and its own tests. Every row is currently **NOT RUN** for bilingual acceptance; existing English tests are pointers, not bilingual proof. `GAP` is deliberately deferred. `User data` means the rendered surface can contain user or business content that must remain verbatim. The `Evidence target` column is a path/test to add or run in the owner Issue, not a PASS claim.
+Inventory from [`main@796abf5a98f42f141e2b303a228932d1e6b6628a`](https://github.com/qq550723504/annotation-engine-label-studio/tree/796abf5a98f42f141e2b303a228932d1e6b6628a), not from pending PRs. `Required` means the named Issue owns en-US and zh-CN product strings and its own tests. The inventory table is the #51 baseline; its `NOT RUN` cells describe the state when the contract was written. The executed evidence ledger below is the current status for candidate branches. `GAP` is deliberately deferred. `User data` means the rendered surface can contain user or business content that must remain verbatim.
 
-| Entry / baseline code | String owner | User data | Namespace | V1 | Issue | Evidence target / current status |
+| Entry / baseline code | String owner | User data | Namespace | V1 | Issue | Evidence target at #51 |
 | --- | --- | --- | --- | --- | --- | --- |
 | [Django `base.html` bootstrap, title and `html lang`](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/templates/base.html) | Django template/server | Yes: current user metadata | `app` + Django gettext | Required: initial locale matches server | #53 bootstrap, #54 display | `label_studio/users/tests/test_locale*`, main HTML integration; NOT RUN |
 | [`Session`/`Locale`/auth middleware and settings](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/label_studio/core/settings/base.py#L249-L278) | Django | No | `errors` + Django gettext | Required: request activation and headers | #53 | `label_studio/users/tests/test_locale*`, `test_session_revocation.py`; NOT RUN |
@@ -51,10 +51,25 @@ Inventory from [`main@796abf5a98f42f141e2b303a228932d1e6b6628a`](https://github.
 | [Full enterprise browser flow](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/web/apps/labelstudio-e2e/src/e2e/full-enterprise-workflow.cy.ts) and [required CI](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/.github/workflows/enterprise-browser-e2e.yml) | Combined acceptance | Synthetic users/tasks | All | Required: parameterize whole journey for each locale after owner tests | #57 | Cypress real backend en-US/zh-CN + build artifact check; NOT RUN |
 | Upstream docs, marketing, example templates and user-authored `label_config` | Upstream/content owners | Yes | None in V1 | GAP: not core product UI and may encode user content | Later | Not tested; NOT RUN |
 
+## Executed candidate evidence (2026-09-30 to 2026-10-03)
+
+| Scope / candidate commit | Verified path and command | Result | Remaining path |
+| --- | --- | --- | --- |
+| #52 shared runtime, catalogs, adapters `8ca326c8358` | `i18n:catalogs` including 15 runtime/catalog tests; `ls:unit` 8; `dm:unit` 639; `lsf:unit` 3310 pass / 5 skip; `ls:build` | PASS for the listed frontend module tests and build | `lsf:integration`, live multi-root browser workflow NOT RUN; #55 owns SDK mounting |
+| #53 request locale, self API, anonymous endpoint, compiled Django catalogs `6e3138f300e` | 47 Python locale/API/CSRF tests, migration check, Django system check, GNU gettext compile and wheel catalog packaging | PASS on the #53 branch | Browser locale flow NOT RUN there; integrated #54 paths below |
+| #54 bootstrap, login/account, profile preference `613caafea` | `pytest -q label_studio/users/tests/test_locale.py label_studio/users/tests/test_locale_templates.py` (12 pass); `app-locale.cy.ts` on Edge 153 against isolated localhost synthetic backend (10 pass): anonymous switch, real Chinese login, save/fail/auto/refresh/user switch, account draft preservation | PASS for those paths on integrated #54 candidate | Legacy flag browser route, token no-change browser path NOT RUN; Django legacy/new template rendering PASS in Python |
+| #54 main shell, projects/create/import/settings `613caafea` | Same Edge run covers both locale project flows, untranslated project name/description/file name, unsupported-file feedback, empty list, 503 fallback, no project write or form reset on live switch, keyboard menu focus and 200% scale control reachability; `ls:unit` 10, `app-common:unit` 10, `i18n:catalogs`, `ls:build` | PASS for the listed browser/module/build paths | Regular imperative modal after-switch test, broader token/hotkey browser path and product acceptance NOT RUN |
+| #54 feature-flagged Home and instance invite dialog `bd10ba521` | Rebased on merged #51 plus local #52/#53. `i18n:catalogs` PASS; direct Jest App 10/10 PASS; production App build PASS; Edge 153 `app-locale.cy.ts` 12/12 PASS against isolated localhost SQLite, including en-US and zh-CN Home, title, resources, invite dialog and scroll reachability at 200% zoom | PASS for the flag-on Home path in this synthetic environment; project names, action IDs and invite URL API remain unchanged | Flag-off route, independent product acceptance, PR CI and merged-main checks NOT RUN |
+| #54 static type check `613caafea` | `tsc --noEmit -p apps/labelstudio/tsconfig.app.json` | FAIL: pre-existing project-wide TypeScript errors; no diagnostics in new locale preference, runtime or toggle files after repair | Type debt needs separate scope; build and targeted tests above passed |
+| #55–#57 | Implementation and combined candidate acceptance | NOT RUN | Each owner must record its own tests before #57 combination |
+
+The #54 browser run uses a synthetic SQLite container and a local build at `http://localhost:18080`. It is a candidate browser test, not CI, merged-main verification, deployment or product acceptance. The synthetic credential fixture is untracked and excluded from commits.
+The Home `Invite Members` dialog is an organization-level invite link, not project-member management. Opening it calls the existing `POST /api/invite/reset-token` endpoint and rotates the organization token. The #54 browser case stubs that call to avoid changing even the synthetic organization's link during the display test. This inherited behavior and its fit with platform-owned identity need a separate product/security decision; localization does not alter the endpoint or its permission check.
+
 ## Exit rule
 
-For each required row, the owning Issue updates the precise paths, adds both
-language resources and tests, records command/commit/result, and marks `PASS`
+For each required row, the owning Issue records its precise executed paths in
+the evidence ledger, adds both language resources and tests, records command/commit/result, and marks `PASS`
 only after execution on that candidate. `FAIL`, `SKIP`, `NOT RUN`, and `GAP`
 stay distinct. #57 checks the combined route on the final integrated SHA;
 it cannot substitute for missing #52–#56 module tests. This matrix does not

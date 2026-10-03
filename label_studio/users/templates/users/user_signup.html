@@ -1,4 +1,5 @@
 {% extends 'users/user_base.html' %}
+{% load i18n %}
 {% load static %}
 
 {% block user_content %}
@@ -9,21 +10,25 @@
   >
     {% csrf_token %}
     <div>
-      <input type="text" class="lsf-input-ls" name="email" id="email" placeholder="Email" value="{{ form.data.email }}">
+      <input type="text" class="lsf-input-ls" name="email" id="email" placeholder="{% trans 'Email' %}" value="{{ form.data.email }}"
+             data-locale-placeholder-en="{% language 'en-us' %}{% trans 'Email' %}{% endlanguage %}"
+             data-locale-placeholder-zh="{% language 'zh-hans' %}{% trans 'Email' %}{% endlanguage %}">
       {% if user_form.errors.email %}
         <ul class="field_errors">
           {% for error in user_form.errors.email %}
-            <li>{{ error }}</li>
+            <li data-locale-validation-error>{{ error }}</li>
           {% endfor %}
         </ul>
       {% endif %}
       </div>
     <div>
-      <input type="password" class="lsf-input-ls" name="password" id="password" placeholder="Password">
+      <input type="password" class="lsf-input-ls" name="password" id="password" placeholder="{% trans 'Password' %}"
+             data-locale-placeholder-en="{% language 'en-us' %}{% trans 'Password' %}{% endlanguage %}"
+             data-locale-placeholder-zh="{% language 'zh-hans' %}{% trans 'Password' %}{% endlanguage %}">
       {% if user_form.errors.password %}
         <ul class="field_errors">
           {% for error in user_form.errors.password %}
-            <li>{{ error }}</li>
+            <li data-locale-validation-error>{{ error }}</li>
           {% endfor %}
         </ul>
       {% endif %}
@@ -36,7 +41,8 @@
         <input name="allow_newsletters_visual" id="allow_newsletters_visual"
                type="checkbox" style="width: auto" checked="true"
                onchange="document.getElementById('allow_newsletters').value=document.getElementById('allow_newsletters_visual').checked">
-        Get the latest news from Heidi
+        <span data-locale-en="{% language 'en-us' %}{% trans 'Get the latest news from Heidi' %}{% endlanguage %}"
+              data-locale-zh="{% language 'zh-hans' %}{% trans 'Get the latest news from Heidi' %}{% endlanguage %}">{% trans "Get the latest news from Heidi" %}</span>
         <img src="{{ settings.HOSTNAME }}{% static 'images/heidi.png' %}" alt="Heidi"
              width="25" style="display: inline; margin: 0; position: relative; top: 5px; left: 0px">
 
@@ -45,12 +51,16 @@
 
     {% if form.non_field_errors %}
       {% for error in form.non_field_errors %}
-        <p class="error">
+        <p class="error" data-locale-validation-error>
           {{ error }}
         </p>
       {% endfor %}
     {% endif %}
-    <p><button type="submit" aria-label="Create Account" class="lsf-button-ls lsf-button-ls_look_primary">Create Account</button></p>
+    <p><button type="submit" aria-label="{% trans 'Create Account' %}" class="lsf-button-ls lsf-button-ls_look_primary"
+               data-locale-en="{% language 'en-us' %}{% trans 'Create Account' %}{% endlanguage %}"
+               data-locale-zh="{% language 'zh-hans' %}{% trans 'Create Account' %}{% endlanguage %}"
+               data-locale-aria-en="{% language 'en-us' %}{% trans 'Create Account' %}{% endlanguage %}"
+               data-locale-aria-zh="{% language 'zh-hans' %}{% trans 'Create Account' %}{% endlanguage %}">{% trans "Create Account" %}</button></p>
   </form>
 
 {% endblock %}

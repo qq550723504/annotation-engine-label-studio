@@ -101,7 +101,8 @@ gtag('config', 'UA-129877673-1');
       </defs>
     </svg>
       
-    <h3>A full-fledged open source solution for data labeling</h3>
+    <h3 data-locale-en="{% language 'en-us' %}{% trans 'A full-fledged open source solution for data labeling' %}{% endlanguage %}"
+        data-locale-zh="{% language 'zh-hans' %}{% trans 'A full-fledged open source solution for data labeling' %}{% endlanguage %}">{% trans "A full-fledged open source solution for data labeling" %}</h3>
 
     {% include 'users/new-ui/user_tips.html' %}
 
@@ -128,6 +129,7 @@ gtag('config', 'UA-129877673-1');
     </div>
   </div>
   <div class="right">
+    {% include 'users/_language_selector.html' %}
     {% block user_content %}
   </div>
 </div>

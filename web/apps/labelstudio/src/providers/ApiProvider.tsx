@@ -13,6 +13,7 @@ import { absoluteURL, isDefined } from "../utils/helpers";
 import { FF_IMPROVE_GLOBAL_ERROR_MESSAGES, isFF } from "../utils/feature-flags";
 import { ToastType, useToast } from "@humansignal/ui";
 import { captureException } from "../config/Sentry";
+import { useLocaleRuntime } from "@humansignal/i18n";
 
 export const IMPROVE_GLOBAL_ERROR_MESSAGES = isFF(FF_IMPROVE_GLOBAL_ERROR_MESSAGES);
 // Duration for toast errors
@@ -41,7 +42,7 @@ let apiLocked = false;
 /**
  * Displays an error modal with the error details.
  */
-const displayErrorModal = (errorDetails: FormattedError) => {
+const displayErrorModal = (errorDetails: FormattedError, fallbackTitle: string, fallbackMessage: string) => {
   const { isShutdown, title, message, stacktrace, ...formattedError } = errorDetails;
 
   modal({
@@ -50,8 +51,8 @@ const displayErrorModal = (errorDetails: FormattedError) => {
     body: isShutdown ? (
       <ErrorWrapper
         possum={false}
-        title={"Connection refused"}
-        message={"Server not responding. Is it still running?"}
+        title={fallbackTitle}
+        message={fallbackMessage}
       />
     ) : (
       <ErrorWrapper
@@ -72,6 +73,7 @@ const displayErrorModal = (errorDetails: FormattedError) => {
  */
 export const ApiProvider = forwardRef<ApiContextType, PropsWithChildren<Record<string, never>>>(({ children }, ref) => {
   const toast = useToast();
+  const localeRuntime = useLocaleRuntime();
 
   /**
    * Handles errors with Label Studio-specific logic including:
@@ -81,6 +83,18 @@ export const ApiProvider = forwardRef<ApiContextType, PropsWithChildren<Record<s
    */
   const handleError = useCallback(
     (errorDetails: FormattedError, result: ApiResponse) => {
+      const responseLocale = (result as { $meta?: { headers?: Map<string, string> } }).$meta?.headers?.get("content-language");
+      // An older or cross-tab response may use another language; show the local fallback.
+      const genericError = localeRuntime.t("app:genericError");
+      const trustedResponse = responseLocale === localeRuntime.locale;
+      const message = trustedResponse ? errorDetails.message : genericError;
+      const safeDetails = {
+        ...errorDetails,
+        title: localeRuntime.t("app:serverError"),
+        message,
+        stacktrace: trustedResponse ? errorDetails.stacktrace : undefined,
+        validation: trustedResponse ? errorDetails.validation : [],
+      };
       const status = result.$meta?.status;
       const is4xx = status?.toString().startsWith("4");
       const containsValidationErrors =
@@ -100,16 +114,16 @@ export const ApiProvider = forwardRef<ApiContextType, PropsWithChildren<Record<s
       // Show toast for 4xx without validation errors
       if (IMPROVE_GLOBAL_ERROR_MESSAGES && is4xx && !containsValidationErrors) {
         toast?.show({
-          message: `${errorDetails.title}: ${errorDetails.message}`,
+          message: `${safeDetails.title}: ${safeDetails.message}`,
           type: ToastType.error,
           duration: API_ERROR_TOAST_DURATION,
         });
       } else {
         // Show modal for validation errors or non-4xx
-        displayErrorModal(errorDetails);
+        displayErrorModal(safeDetails, localeRuntime.t("app:connectionRefused"), localeRuntime.t("app:serverNotResponding"));
       }
     },
-    [toast],
+    [toast, localeRuntime],
   );
 
   /**
@@ -136,10 +150,10 @@ export const ApiProvider = forwardRef<ApiContextType, PropsWithChildren<Record<s
         redirectUrl = absoluteURL("/projects");
       }
 
-      sessionStorage.setItem("redirectMessage", "The page or resource you were looking for does not exist.");
+      sessionStorage.setItem("redirectMessage", localeRuntime.t("app:resourceMissing"));
       location.href = redirectUrl;
     }
-  }, []);
+  }, [localeRuntime]);
 
   // Check for redirect messages on mount
   useEffect(() => {
