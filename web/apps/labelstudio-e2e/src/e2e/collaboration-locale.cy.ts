@@ -28,8 +28,8 @@ describe("collaboration language and immutable workflow", () => {
   const loginAndVisit = (email: string, path: string) => {
     activeEmail = email;
     cy.loginAs(email, fixture.password, path);
-    cy.request("GET", "/api/current-user/locale/").its("body.preference").then((preference) => {
-      originalPreference = preference ?? "auto";
+    cy.request("GET", "/api/current-user/locale/").its("body").then((body) => {
+      originalPreference = body.preference ?? "auto";
     });
     cy.visit(path);
     cy.location("pathname", { timeout: 30000 }).should("eq", path.split("?")[0]);
