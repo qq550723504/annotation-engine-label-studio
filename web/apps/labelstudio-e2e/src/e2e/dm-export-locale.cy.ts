@@ -58,10 +58,12 @@ describe("Data Manager export locale", () => {
         });
         cy.stub(win.HTMLAnchorElement.prototype, "click").callsFake(function (this: HTMLAnchorElement) {
           downloadedName = this.download;
-        });
+        }).as("downloadClick");
       });
       cy.get(`[aria-label="${copy.heading}"]`).click();
       cy.wait("@download");
+      // The intercepted response completes before the page reads its blob and clicks the link.
+      cy.get("@downloadClick").should("have.been.calledOnce");
       cy.then(async () => {
         expect(downloadedName).to.eq("synthetic-export.json");
         expect(await downloadedBlob?.text()).to.eq("synthetic-export-bytes");
