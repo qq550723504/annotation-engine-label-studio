@@ -158,7 +158,9 @@ export const FilterLine = observer(
               defaultValue={filter.filter.id}
               items={availableFilters}
               dropdownClassName={dropdownClassName}
-              searchFilter={filterFieldSearchHandler}
+              searchFilter={(option, query) =>
+                filterFieldSearchHandler(option, query, (column) => displayColumnTitle(column, t))
+              }
               onChange={(selectedValue) =>
                 handleColumnChange(filter, availableFilters, selectedValue, onSaveOnSwitch, onSaveInPlace)
               }
@@ -259,7 +261,9 @@ export const FilterLine = observer(
             width={80}
             dropdownWidth={170}
             dropdownClassName={dropdownClassName}
-            searchFilter={filterFieldSearchHandler}
+            searchFilter={(option, query) =>
+              filterFieldSearchHandler(option, query, (column) => displayColumnTitle(column, t))
+            }
             onChange={(selectedValue) =>
               handleColumnChange(filter, availableFilters, selectedValue, onSaveOnSwitch, onSaveInPlace)
             }
