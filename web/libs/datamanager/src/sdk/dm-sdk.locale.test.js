@@ -65,10 +65,49 @@ it("shares an in-flight task selection so a second caller cannot reset the edito
 
   const first = manager.startLabeling();
   const second = manager.startLabeling();
+  await Promise.resolve();
   expect(manager.lsf.selectTask).toHaveBeenCalledTimes(1);
-  expect(manager.taskSelectionPromise).toBe(selection);
+  expect(manager.taskSelectionPromise).toBeTruthy();
   finishSelection();
   await Promise.all([first, second]);
+  expect(manager.taskSelectionPromise).toBeNull();
+  manager.destroy();
+});
+
+it("loads the latest selected task after an earlier selection finishes", async () => {
+  createApp.mockResolvedValue({});
+  const manager = makeManager();
+  await nextTick();
+  const pending = [];
+  manager.store = {
+    taskStore: { selected: { id: 41, lastAnnotation: null } },
+    annotationStore: { selected: null },
+  };
+  manager.lsf = {
+    task: null,
+    selectTask: jest.fn((task) => {
+      manager.lsf.task = task;
+      return new Promise((resolve) => pending.push(resolve));
+    }),
+    destroy: jest.fn(),
+  };
+
+  const first = manager.startLabeling();
+  await Promise.resolve();
+  manager.store.taskStore.selected = { id: 42, lastAnnotation: null };
+  const second = manager.startLabeling();
+  manager.store.taskStore.selected = { id: 43, lastAnnotation: null };
+  const third = manager.startLabeling();
+  await Promise.resolve();
+  expect(manager.lsf.selectTask).toHaveBeenCalledTimes(1);
+  pending.shift()();
+  await nextTick();
+  expect(manager.lsf.selectTask).toHaveBeenCalledTimes(2);
+  expect(manager.lsf.selectTask.mock.calls[1][0].id).toBe(43);
+  expect(manager.taskSelectionPromise).toBeTruthy();
+  pending.shift()();
+  await Promise.all([first, second, third]);
+  expect(manager.lsf.task.id).toBe(43);
   expect(manager.taskSelectionPromise).toBeNull();
   manager.destroy();
 });

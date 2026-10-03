@@ -738,8 +738,15 @@ export class LSFWrapper {
 
     if (this.destroyed) return;
 
-    if (this.canPreloadTask && isFF(FF_DEV_1752)) {
-      await this.preloadTask();
+    const preloading = this.canPreloadTask && isFF(FF_DEV_1752);
+    if (preloading) {
+      try {
+        await this.preloadTask();
+      } finally {
+        // A missing notification target (or failed request) has no explorer
+        // selection to release the initial loading state later.
+        if (!this.destroyed && !this.datamanager.taskSelectionPromise) this.setLoading(false);
+      }
     } else if (this.labelStream) {
       await this.loadTask();
     } else if (this.datamanager.store.taskStore.selected) {

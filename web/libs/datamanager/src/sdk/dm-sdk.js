@@ -446,34 +446,33 @@ export class DataManager {
    * @param {import("../stores/Tasks").TaskModel} task
    */
   async startLabeling() {
-    // The editor may already be visible while its first task selection is
-    // still awaiting a paint. Let all callers observe that same selection.
+    // A later taskSelected event can arrive while the editor is still loading
+    // the previous task. The active selection must catch up to the latest one.
     if (this.taskSelectionPromise) return this.taskSelectionPromise;
-    if (!this.lsf) return;
+    const lsf = this.lsf;
+    if (!lsf || this.mode === "labelstream") return;
 
-    const [task, annotation] = [this.store.taskStore.selected, this.store.annotationStore.selected];
-    if (!task) return;
+    const selectLatestTask = async () => {
+      while (!this.isDestroyed && this.lsf === lsf) {
+        const task = this.store?.taskStore.selected;
+        if (!task || lsf.task?.id === task.id) return;
 
-    const isLabelStream = this.mode === "labelstream";
-    const taskExists = isDefined(this.lsf.task) && isDefined(task);
-    const taskSelected = this.lsf.task?.id === task?.id;
-
-    // do nothing if the task is already selected
-    if (taskExists && taskSelected) {
-      return;
-    }
-
-    if (!isLabelStream && (!taskSelected || isDefined(annotation))) {
-      const annotationID = annotation?.id ?? task.lastAnnotation?.id;
-
-      // this.lsf.loadTask(task.id, annotationID);
-      const selection = this.lsf.selectTask(task, annotationID);
-      this.taskSelectionPromise = selection;
-      try {
-        await selection;
-      } finally {
-        if (this.taskSelectionPromise === selection) this.taskSelectionPromise = null;
+        const annotation = this.store.annotationStore.selected;
+        const annotationID = annotation?.id ?? task.lastAnnotation?.id;
+        await lsf.selectTask(task, annotationID);
+        // The selection is settled unless the store moved to another task
+        // while it was in flight. Avoid retrying a failed/no-op selection.
+        if (this.store?.taskStore.selected?.id === task.id) return;
       }
+    };
+
+    // Publish the shared promise before selectTask can invoke another callback.
+    const selection = Promise.resolve().then(selectLatestTask);
+    this.taskSelectionPromise = selection;
+    try {
+      await selection;
+    } finally {
+      if (this.taskSelectionPromise === selection) this.taskSelectionPromise = null;
     }
   }
 
