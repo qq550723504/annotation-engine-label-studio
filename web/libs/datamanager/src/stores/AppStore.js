@@ -566,6 +566,10 @@ export const AppStore = types
         },
       });
 
+      // apiCall reports HTTP failures through the SDK and returns an error
+      // object. A request can finish with 401 while this page is logging out.
+      if (list?.error) return;
+      if (!Array.isArray(list)) throw new TypeError("Users API must return an array");
       self.users.push(...list);
     }),
 
