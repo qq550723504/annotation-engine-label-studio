@@ -7,6 +7,10 @@ const { parse } = require("@babel/parser");
 const scopedFiles = require("./migrated-files.json");
 
 const allowed = {
+  "apps/labelstudio/src/components/Menubar/Menubar.jsx": [
+    { text: "API", reason: "Public documentation product name and link label." },
+    { text: "GitHub", reason: "External service brand name." },
+  ],
   "apps/labelstudio/src/pages/CreateProject/Import/Import.jsx": [
     { text: "PDF", reason: "The PDF file-format acronym is identical in both locales." },
   ],
@@ -32,7 +36,7 @@ const allowed = {
   ],
 };
 
-const humanAttribute = new Set(["aria-label", "title", "placeholder", "alt"]);
+const humanAttribute = new Set(["aria-label", "title", "placeholder", "alt", "tooltip", "label"]);
 const normalized = (text) => text.replace(/\s+/g, " ").trim();
 const humanText = (text) => /[A-Za-z\u4e00-\u9fff]{2,}/u.test(text);
 

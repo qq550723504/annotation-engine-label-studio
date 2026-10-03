@@ -188,7 +188,7 @@ export const Table = observer(
             className="w-6 h-6 p-0 text-primary-content hover:text-primary-content-hover"
             onClick={() => {
               const modalInstance = modal({
-                title: `Source for task ${out?.id}`,
+                title: t("sourceForTask", { taskId: out?.id }),
                 style: { width: 900 },
                 header: null, // Will be set by renderToggle
                 body: (
@@ -206,7 +206,7 @@ export const Table = observer(
               });
             }}
             leading={<Icon icon={IconBraces} />}
-            tooltip="View Task Source"
+            tooltip={t("viewTaskSource")}
           />
         );
       },
