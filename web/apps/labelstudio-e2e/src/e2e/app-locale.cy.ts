@@ -233,6 +233,19 @@ describe('main application display locale', () => {
     });
   }
 
+  it('shows a controlled error when saving a project name loses its response', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    ensureAccountLocale('en-US');
+    cy.visit('/projects');
+    cy.get('[data-testid="create-project-context"]').click();
+    cy.intercept('PATCH', '**/api/projects/*', { forceNetworkError: true }).as('nameNetworkError');
+    cy.get('#project_name').clear().type('Unsaved project name');
+    cy.get('#project_description').click();
+    cy.wait('@nameNetworkError');
+    cy.get('#project_name').closest('form').find('[role="alert"]')
+      .should('contain.text', 'Could not save the project name');
+  });
+
   for (const [locale, detail, fieldError] of [
     ['en-US', 'The CSV header is invalid.', 'Column text is required.'],
     ['zh-CN', 'CSV 表头无效。', '缺少 text 列。'],

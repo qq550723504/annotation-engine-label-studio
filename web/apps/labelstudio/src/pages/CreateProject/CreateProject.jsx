@@ -181,6 +181,13 @@ export const CreateProject = ({ onClose }) => {
       },
     });
 
+    // The API client returns null when the request is interrupted (for
+    // example, when the dialog closes during a save). Treat it as a failed
+    // save instead of rejecting from the input's blur handler.
+    if (!res) {
+      setError({});
+      return;
+    }
     if (res.ok) return;
     let response;
     try {
