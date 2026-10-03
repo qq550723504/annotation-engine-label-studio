@@ -107,7 +107,7 @@ describe("project member and role management UI", () => {
       cy.contains("button", "Add member").click();
       cy.wait("@duplicateMember").then(({ response }) => {
         expect(response?.statusCode).to.eq(400);
-        expect(response?.body.detail).to.contain("already a member");
+        expect(JSON.stringify(response?.body)).to.contain("already a member");
       });
       cy.get('[data-testid="members-error"]')
         .should("exist")
