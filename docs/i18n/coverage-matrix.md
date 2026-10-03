@@ -72,6 +72,8 @@ The #54 and #55 app browser runs use isolated synthetic SQLite containers and lo
 The Home `Invite Members` dialog is an organization-level invite link, not project-member management. Opening it calls the existing `POST /api/invite/reset-token` endpoint and rotates the organization token. The #54 browser case stubs that call to avoid changing even the synthetic organization's link during the display test. This inherited behavior and its fit with platform-owned identity need a separate product/security decision; localization does not alter the endpoint or its permission check.
 Opening the import modal calls the existing `POST /api/projects/{id}/sample-task` preview endpoint. That endpoint generates a sample response without persisting a task; the #55 browser test counts it separately from project writes. The export page previously requested an unused export-history list and crashed when it returned `null`; the #55 patch removes that unused request and handles an unavailable format list without changing the export API.
 
+The #55 review found two editor state hazards: an in-flight task selection could leave the editor on an older task after the Data Manager selected a newer one, and a missing notification preload could leave the loading flag set forever. The review repair serializes selection until the latest task is loaded and releases loading after failed preloads. Focused SDK regressions passed 6/6, the Data Manager suite passed 650/650, and the App production build passed with 44 existing Sass/Browserslist warnings. Exact-head PR CI and merged-main validation remain pending.
+
 ## Exit rule
 
 For each required row, the owning Issue records its precise executed paths in
