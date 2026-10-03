@@ -78,12 +78,18 @@ function scanSource(source) {
   const ast = parse(source, { sourceType: "unambiguous", plugins: ["jsx", "typescript"] });
   const literals = [];
   const bindings = new Map();
+  const assignments = new Map();
   const collectBindings = (node) => {
     if (!node || typeof node !== "object") return;
     if (node.type === "VariableDeclarator" && node.id?.type === "Identifier" && node.init) {
       const definitions = bindings.get(node.id.name) ?? [];
       definitions.push(node);
       bindings.set(node.id.name, definitions);
+    }
+    if (node.type === "AssignmentExpression" && node.left?.type === "Identifier") {
+      const updates = assignments.get(node.left.name) ?? [];
+      updates.push(node);
+      assignments.set(node.left.name, updates);
     }
     for (const [key, value] of Object.entries(node)) {
       if (["loc", "start", "end", "extra", "tokens", "comments"].includes(key)) continue;
@@ -108,6 +114,14 @@ function scanSource(source) {
           resolving.add(definition);
           visitDisplayExpression(definition.init);
           resolving.delete(definition);
+        }
+        for (const update of assignments.get(expression.name) ?? []) {
+          if (update.start <= (definition?.start ?? -1) || update.start >= expression.start || resolving.has(update)) {
+            continue;
+          }
+          resolving.add(update);
+          visitDisplayExpression(update.right);
+          resolving.delete(update);
         }
         break;
       }

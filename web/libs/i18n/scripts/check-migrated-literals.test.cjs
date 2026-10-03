@@ -37,6 +37,12 @@ test("follows a variable initializer rendered as JSX text", () => {
   assert.deepEqual(found.map(({ text }) => text), ["Admin", "Unknown"]);
 });
 
+test("finds reassigned display copy without scanning machine-only updates", () => {
+  const source = 'const Example = () => { let dialogTitle = title; let actionId = "delete_raw"; if (destructive) { dialogTitle = `Delete selected ${objectType}?`; actionId = "delete_items"; } return Modal({ title: dialogTitle, id: actionId }); };';
+  const found = scanSource(source);
+  assert.deepEqual(found.map(({ text }) => text), ["Delete selected"]);
+});
+
 test("finds human text passed through component labels and tooltips", () => {
   const found = scanSource('const Example = () => <Control label="Review task" tooltip="View Task Source" />;');
   assert.deepEqual(found.map(({ text }) => text), ["Review task", "View Task Source"]);
