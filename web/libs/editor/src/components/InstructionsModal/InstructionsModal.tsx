@@ -1,6 +1,12 @@
 import type React from "react";
 import { Modal } from "antd";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import { sanitizeHtml } from "../../utils/html";
+
+export const InstructionsTitle = ({ review }: { review: boolean }) => {
+  const { t } = useLocaleTranslation("editor");
+  return <>{t(review ? "reviewInstructions" : "labelingInstructions")}</>;
+};
 
 export const InstructionsModal = ({
   title,
@@ -8,7 +14,7 @@ export const InstructionsModal = ({
   visible,
   onCancel,
 }: {
-  title: string;
+  title: React.ReactNode;
   children: React.ReactNode;
   visible: boolean;
   onCancel: () => void;

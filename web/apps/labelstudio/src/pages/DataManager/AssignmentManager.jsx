@@ -173,7 +173,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
           <option value="">{t("selectAssignee")}</option>
           {availableUsers.map((user) => (
             <option key={user.id} value={user.id}>
-              {user.email || [user.first_name, user.last_name].filter(Boolean).join(" ") || `User ${user.id}`}
+              {user.email || [user.first_name, user.last_name].filter(Boolean).join(" ") || t("userNumber", { id: user.id })}
             </option>
           ))}
         </select>
@@ -226,7 +226,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
             const identity =
               user?.email ||
               [user?.first_name, user?.last_name].filter(Boolean).join(" ") ||
-              `User ${assignment.assignee}`;
+              t("userNumber", { id: assignment.assignee });
 
             return (
               <div

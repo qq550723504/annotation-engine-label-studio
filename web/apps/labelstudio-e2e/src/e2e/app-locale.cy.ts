@@ -211,6 +211,14 @@ describe('main application display locale', () => {
       .and('not.contain.text', 'untrusted English validation');
   });
 
+  it('localizes fixed project settings breadcrumbs without changing the project title', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    ensureAccountLocale('zh-CN');
+    cy.visit(`/projects/${fixture.project_id}/settings/danger-zone`);
+    cy.get('.lsf-breadcrumbs').should('contain.text', '危险操作').and('not.contain.text', 'Danger Zone');
+    cy.get('.lsf-breadcrumbs').should('contain.text', 'Enterprise Browser E2E');
+  });
+
   for (const [locale, titleError] of [
     ['en-US', 'The project name is too long.'],
     ['zh-CN', '项目名称过长。'],
@@ -225,6 +233,7 @@ describe('main application display locale', () => {
         headers: { 'content-language': locale },
         body: { validation_errors: { title: [titleError] }, exc_info: 'internal traceback' },
       }).as('nameRejected');
+      cy.get('#project_name').should('be.enabled').and('not.have.value', '');
       cy.get('#project_name').clear().type('Invalid project name');
       cy.get('#project_description').click();
       cy.wait('@nameRejected');
@@ -239,6 +248,7 @@ describe('main application display locale', () => {
     cy.visit('/projects');
     cy.get('[data-testid="create-project-context"]').click();
     cy.intercept('PATCH', '**/api/projects/*', { forceNetworkError: true }).as('nameNetworkError');
+    cy.get('#project_name').should('be.enabled').and('not.have.value', '');
     cy.get('#project_name').clear().type('Unsaved project name');
     cy.get('#project_description').click();
     cy.wait('@nameNetworkError');

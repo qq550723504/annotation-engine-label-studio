@@ -11,6 +11,7 @@ import { Menu } from "../../Common/Menu/Menu";
 import { Modal } from "../../Common/Modal/ModalPopup";
 import "./ActionsButton.scss";
 import { useLocaleTranslation } from "@humansignal/i18n";
+import { destructiveActionCopy } from "./destructiveActionCopy";
 
 const actionTitleKeys = {
   retrieve_tasks_predictions: "retrievePredictions",
@@ -179,35 +180,14 @@ const invokeAction = (action, destructive, store, formRef, t) => {
     // Generate dynamic content for destructive actions
     let dialogTitle = title;
     let dialogText = text;
-    let okButtonText = "OK";
+    let okButtonText = t("delete");
 
     if (destructive && !title) {
-      // Extract object type from action ID and title
-      const objectMap = {
-        delete_tasks: "tasks",
-        delete_annotations: "annotations",
-        delete_predictions: "predictions",
-        delete_reviews: "reviews",
-        delete_reviewers: "review assignments",
-        delete_annotators: "annotator assignments",
-        delete_ground_truths: "ground truths",
-      };
-
-      const objectType = objectMap[action.id] || action.title.toLowerCase().replace("delete ", "");
-      dialogTitle = `Delete selected ${objectType}?`;
-
-      // Convert to title case for button text
-      const titleCaseObject = objectType
-        .split(" ")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
-      okButtonText = `Delete ${titleCaseObject}`;
+      dialogTitle = destructiveActionCopy(action.id, t).title;
     }
 
     if (destructive && !form) {
-      // Use standardized warning message for simple delete actions
-      const objectType = dialogTitle ? dialogTitle.replace("Delete selected ", "").replace("?", "") : "items";
-      dialogText = `You are about to delete the selected ${objectType}.\n\nThis can't be undone.`;
+      dialogText = destructiveActionCopy(action.id, t).text;
     }
 
     const localizedDialog = actionDialogKeys[action.id];
@@ -222,6 +202,7 @@ const invokeAction = (action, destructive, store, formRef, t) => {
       body: <DialogContent text={dialogText} form={form} formRef={formRef} store={store} action={action} />,
       buttonLook: destructive ? "negative" : "primary",
       okText: destructive ? okButtonText : undefined,
+      cancelText: t("cancel"),
       onOk() {
         const body = formRef.current?.assembleFormData({ asJSON: true });
 

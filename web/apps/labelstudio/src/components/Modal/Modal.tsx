@@ -4,8 +4,9 @@
  * This file provides backward compatibility by wrapping @humansignal/ui Modal
  * with LS-specific providers automatically injected.
  */
-import type { ReactElement, ReactNode } from "react";
+import { forwardRef, type ReactElement, type ReactNode } from "react";
 import {
+  Modal as CoreModal,
   modal as coreModal,
   confirm as coreConfirm,
   info as coreInfo,
@@ -22,6 +23,7 @@ import { queryClient } from "../../utils/query-client";
 import { appLocaleRuntime } from "../../providers/AppLocaleRuntime";
 import { getAntdLocale, useLocaleTranslation } from "@humansignal/i18n";
 import { ConfigProvider as AntdConfigProvider } from "antd";
+import { ModalCloseButton } from "@humansignal/ui/lib/modal/ModalCloseButton";
 
 export type { ButtonProps as ButtonVariant } from "@humansignal/ui/lib/button/button";
 
@@ -30,13 +32,16 @@ const ModalLocaleAdapter = ({ children }: { children?: ReactNode }) => {
   return <AntdConfigProvider locale={getAntdLocale(locale)}>{children}</AntdConfigProvider>;
 };
 
+const AppModalCloseButton = () => {
+  const { t } = useLocaleTranslation("common");
+  return <ModalCloseButton label={t("closeModal")} />;
+};
+
 /**
  * Get the default LS providers for modals
  */
 const getDefaultProviders = (): ReactElement[] => {
-  const AppLocaleProvider = appLocaleRuntime.provider;
   return [
-    <AppLocaleProvider key="locale" />,
     <ModalLocaleAdapter key="antd-locale" />,
     <ConfigProvider key="config" />,
     <ToastProvider key="toast" />,
@@ -54,17 +59,41 @@ const modalTypes = {
 
 const createModal = (type: keyof typeof modalTypes) => {
   return <T,>(props: ModalProps<T> & ExtraProps): ModalUpdateProps<T> => {
+    const AppLocaleProvider = appLocaleRuntime.provider;
+    // Every app modal needs locale context for its close control, including
+    // simple modals and callers that replace the default provider list.
+    const providers = [
+      <AppLocaleProvider key="locale" />,
+      ...(props.simple ? [] : (props.providers ?? getDefaultProviders())),
+    ];
     return modalTypes[type]({
-      simple: false,
-      providers: getDefaultProviders(),
+      closeButton: <AppModalCloseButton />,
       ...props,
+      // The core `simple` flag discards providers. The reduced provider list
+      // above preserves its no-API behavior while retaining locale context.
+      simple: false,
+      providers,
     });
   };
 };
 
-// Re-export Modal component and hooks
+// Declarative app modals share the localized close control used by the
+// imperative helpers. Preserve the core Modal's compound components and ref.
+const DeclarativeModal = forwardRef<CoreModal, ModalProps>((props, ref) => (
+  <CoreModal {...props} ref={ref} closeButton={props.closeButton ?? <AppModalCloseButton />} />
+));
+DeclarativeModal.displayName = "AppModal";
+
+export const Modal = Object.assign(DeclarativeModal, {
+  Header: CoreModal.Header,
+  Footer: CoreModal.Footer,
+  Title: CoreModal.Title,
+  Body: CoreModal.Body,
+  CloseButton: CoreModal.CloseButton,
+});
+
 export const modal = createModal("modal");
 export const confirm = createModal("confirm");
 export const info = createModal("info");
 export { modal as standaloneModal };
-export { Modal, useModalControls } from "@humansignal/ui/lib/modal";
+export { useModalControls } from "@humansignal/ui/lib/modal";

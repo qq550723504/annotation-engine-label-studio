@@ -21,6 +21,7 @@ export type ModalProps<BP = unknown> = {
   allowClose?: boolean;
   closeOnClickOutside?: boolean;
   title?: React.ReactNode;
+  closeButton?: React.ReactNode;
   header?: React.ReactNode;
   footer?: React.ReactNode;
   body?: React.ReactNode | FC<BP>;
@@ -174,7 +175,7 @@ export class Modal<BP = unknown> extends Component<ModalProps<BP>, ModalState> {
                   {this.props.header && (
                     <div className={cn("modal-ls").elem("header-content").toClassName()}>{this.props.header}</div>
                   )}
-                  {this.props.allowClose !== false && <ModalCloseButton />}
+                  {this.props.allowClose !== false && (this.props.closeButton ?? <ModalCloseButton />)}
                 </ModalHeader>
               )}
               <ModalBody bare={bare}>{this.body}</ModalBody>

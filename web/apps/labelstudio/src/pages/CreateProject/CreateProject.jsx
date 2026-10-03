@@ -19,7 +19,7 @@ import { createURL } from "../../components/HeidiTips/utils";
 import { useLocaleTranslation } from "@humansignal/i18n";
 import { localizedResponseErrorDetails } from "../../utils/localizedResponseError";
 
-const ProjectName = ({ name, setName, onSaveName, onSubmit, error, description, setDescription, show = true }) => {
+const ProjectName = ({ name, setName, onSaveName, onSubmit, error, description, setDescription, disabled, show = true }) => {
   const { t, locale } = useLocaleTranslation("projects");
   return !show ? null : (
     <form
@@ -37,6 +37,7 @@ const ProjectName = ({ name, setName, onSaveName, onSubmit, error, description, 
           name="name"
           id="project_name"
           value={name}
+          disabled={disabled}
           onChange={(e) => setName(e.target.value)}
           onBlur={onSaveName}
           className="project-title w-full"
@@ -145,6 +146,7 @@ export const CreateProject = ({ onClose }) => {
   );
 
   const onCreate = React.useCallback(async () => {
+    if (!project?.id) return;
     // First, persist project with label_config so import/reimport validates against it
     const response = await api.callApi("updateProject", {
       params: {
@@ -171,7 +173,7 @@ export const CreateProject = ({ onClose }) => {
   }, [project, projectBody, finishUpload]);
 
   const onSaveName = async () => {
-    if (error) return;
+    if (!project?.id || error) return;
     const res = await api.callApi("updateProjectRaw", {
       params: {
         pk: project.id,
@@ -247,6 +249,7 @@ export const CreateProject = ({ onClose }) => {
           setName={setName}
           error={error}
           onSaveName={onSaveName}
+          disabled={!project?.id}
           onSubmit={onCreate}
           description={description}
           setDescription={setDescription}

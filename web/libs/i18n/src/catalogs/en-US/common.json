@@ -1,5 +1,6 @@
 {
   "language": "Language",
+  "closeModal": "Close modal",
   "translationUnavailable": "Translation unavailable.",
   "selectedCount_one": "{{count}} item selected",
   "selectedCount_other": "{{count}} items selected",

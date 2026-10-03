@@ -19,6 +19,27 @@ type Fixture = {
 };
 
 describe("full enterprise collaboration browser workflow", () => {
+  const locale = Cypress.env("fullFlowLocale") || "en-US";
+  if (locale !== "en-US" && locale !== "zh-CN") throw new Error(`Unsupported full-flow locale: ${locale}`);
+  const copy = locale === "zh-CN" ? {
+    members: "项目成员",
+    enabled: "已启用",
+    disabled: "已停用",
+    assigned: "已分配",
+    rejected: "已驳回",
+    approved: "已通过",
+    releasedRevision2: "已发布修订版 2",
+    closeModal: "关闭弹窗",
+  } : {
+    members: "Project Members",
+    enabled: "Enabled",
+    disabled: "Disabled",
+    assigned: "Assigned",
+    rejected: "Rejected",
+    approved: "Approved",
+    releasedRevision2: "Released revision 2",
+    closeModal: "Close modal",
+  };
   let fixture: Fixture;
   let actorSwitchInProgress = false;
 
@@ -48,6 +69,12 @@ describe("full enterprise collaboration browser workflow", () => {
       actorSwitchInProgress = true;
     });
     cy.loginAs(email, fixture.password, nextPath);
+    cy.get('[data-testid="user-menu-trigger"]', { timeout: 30000 }).click();
+    cy.get('[data-testid="menu-language-select"]').then(($select) => {
+      if ($select.val() !== locale) cy.wrap($select).select(locale);
+    });
+    cy.get("html").should("have.attr", "lang", locale);
+    cy.get('[data-testid="user-menu-trigger"]').click();
     cy.then(() => {
       actorSwitchInProgress = false;
     });
@@ -71,7 +98,7 @@ describe("full enterprise collaboration browser workflow", () => {
   const addMember = (userId: number, role: "annotator" | "reviewer") => {
     cy.get('[data-testid="member-user-select"]').select(String(userId));
     cy.get('[data-testid="member-role-select"]').select(role);
-    cy.contains("button", "Add member").click();
+    cy.get('[data-testid="member-add"]').click();
   };
 
   const openAssignmentManager = (taskId: number) => {
@@ -89,8 +116,8 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.get('[data-testid="assignment-submit"]').click();
     cy.contains('[data-testid^="assignment-row-"]', email)
       .should("exist")
-      .and("contain.text", "Assigned");
-    cy.get('button[aria-label="Close modal"]').first().click();
+      .and("contain.text", copy.assigned);
+    cy.get('[data-testid="modal-close-button"]').should("have.attr", "aria-label", copy.closeModal).first().click();
     cy.get('[data-testid="assignment-manager"]').should("not.exist");
   };
 
@@ -156,7 +183,7 @@ describe("full enterprise collaboration browser workflow", () => {
   };
 
   const closeModal = () => {
-    cy.get('button[aria-label="Close modal"]').first().click();
+    cy.get('[data-testid="modal-close-button"]').should("have.attr", "aria-label", copy.closeModal).first().click();
   };
 
   const waitForDraft = (taskId: number, attempts = 60): Cypress.Chainable<Cypress.Response<unknown>> => {
@@ -230,21 +257,22 @@ describe("full enterprise collaboration browser workflow", () => {
     }).its("status").should("be.oneOf", [403, 404]);
   };
 
-  it("runs Manager -> Assign -> Annotate -> Reject -> Revise -> Approve -> Release -> Revoke", () => {
+  it(`runs the full Manager to Reviewer to release workflow in ${locale}`, () => {
     // 1-4: Manager adds isolated project members and roles through UI.
     loginAndVisit(fixture.users.manager.email, settingsPage());
-    cy.contains("a", "Members", { timeout: 30000 }).click();
+    cy.get('a[href*="/settings/members"]', { timeout: 30000 }).first().click();
     cy.location("pathname", { timeout: 30000 }).should("eq", membersPage());
     cy.get('[data-testid="project-members-settings"]', { timeout: 30000 }).should("be.visible");
+    cy.get('[data-testid="project-members-settings"]').should("contain.text", copy.members);
 
     addMember(fixture.users.annotator_a.id, "annotator");
-    cy.contains("tr", fixture.users.annotator_a.email).should("contain.text", "Enabled");
+    cy.contains("tr", fixture.users.annotator_a.email).should("contain.text", copy.enabled);
 
     addMember(fixture.users.annotator_b.id, "annotator");
-    cy.contains("tr", fixture.users.annotator_b.email).should("contain.text", "Enabled");
+    cy.contains("tr", fixture.users.annotator_b.email).should("contain.text", copy.enabled);
 
     addMember(fixture.users.reviewer.id, "reviewer");
-    cy.contains("tr", fixture.users.reviewer.email).should("contain.text", "Enabled");
+    cy.contains("tr", fixture.users.reviewer.email).should("contain.text", copy.enabled);
 
     // 5-6: Manager assigns tasks through the product UI.
     assignTask(fixture.full_flow.tasks.a.id, fixture.users.annotator_a.id, fixture.users.annotator_a.email);
@@ -265,7 +293,7 @@ describe("full enterprise collaboration browser workflow", () => {
     loginAndVisit(fixture.users.reviewer.email, dataPage());
     cy.request({ url: `/api/tasks/${fixture.full_flow.tasks.a.id}/`, failOnStatusCode: false })
       .its("status").should("eq", 404);
-    cy.contains("button", /Label All Tasks/i).should("not.exist");
+    cy.get('[data-testid="dm-label-all-toolbar"], [data-testid="dm-label-all-tasks-button"]').should("not.exist");
 
     // 12-14: Annotator A edits in the real Editor; draft exists before explicit Submit.
     openAssignedEditor(
@@ -325,7 +353,7 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.get('[data-testid="review-reject"]').click();
     cy.then(() => {
       cy.get(`[data-testid="review-history-${revision1Id}"]`, { timeout: 30000 })
-        .should("contain.text", "Rejected");
+        .should("contain.text", copy.rejected);
     });
     closeModal();
 
@@ -366,7 +394,7 @@ describe("full enterprise collaboration browser workflow", () => {
     });
     cy.get('[data-testid="review-result-snapshot"]').should("contain.text", "Negative");
     cy.get('[data-testid="review-approve"]').click();
-    cy.get('[data-testid="review-status"]', { timeout: 30000 }).should("contain.text", "Approved");
+    cy.get('[data-testid="review-status"]', { timeout: 30000 }).should("contain.text", copy.approved);
     closeModal();
 
     // 21-24: Manager sees immutable history and releases approved revision 2.
@@ -376,14 +404,14 @@ describe("full enterprise collaboration browser workflow", () => {
 
     cy.then(() => {
       cy.get(`[data-testid="release-submission-${revision1Id}"]`)
-        .should("contain.text", "Rejected")
+        .should("contain.text", copy.rejected)
         .click();
     });
     cy.get('[data-testid="release-approved-submission"]').should("not.exist");
 
     cy.then(() => {
       cy.get(`[data-testid="release-submission-${revision2Id}"]`)
-        .should("contain.text", "Approved")
+        .should("contain.text", copy.approved)
         .click();
     });
     cy.then(() => {
@@ -391,7 +419,7 @@ describe("full enterprise collaboration browser workflow", () => {
       cy.get('[data-testid="release-result-snapshot"]').should("contain.text", "Negative");
       cy.get('[data-testid="release-approved-submission"]').click();
       cy.get('[data-testid="release-success"]', { timeout: 30000 })
-        .should("contain.text", "Released revision 2")
+        .should("contain.text", copy.releasedRevision2)
         .and("contain.text", revision2Hash);
     });
     closeModal();
@@ -399,13 +427,13 @@ describe("full enterprise collaboration browser workflow", () => {
     // 25-29: prove Manager UI revocation, then exercise a truly stale writable Editor.
     loginAndVisit(fixture.users.manager.email, membersPage());
     cy.contains("tr", fixture.users.annotator_a.email).within(() => {
-      cy.contains("button", "Disable").click();
+      cy.get('[data-testid^="member-toggle-"]').click();
     });
-    cy.contains("tr", fixture.users.annotator_a.email).should("contain.text", "Disabled");
+    cy.contains("tr", fixture.users.annotator_a.email).should("contain.text", copy.disabled);
     cy.contains("tr", fixture.users.annotator_a.email).within(() => {
-      cy.contains("button", "Enable").click();
+      cy.get('[data-testid^="member-toggle-"]').click();
     });
-    cy.contains("tr", fixture.users.annotator_a.email).should("contain.text", "Enabled");
+    cy.contains("tr", fixture.users.annotator_a.email).should("contain.text", copy.enabled);
 
     // Use a fresh, never-annotated task so the active assignment is definitely writable before revocation.
     assignTask(
@@ -468,7 +496,7 @@ describe("full enterprise collaboration browser workflow", () => {
     loginAndVisit(fixture.users.reviewer.email, dataPage());
     cy.get('[data-testid="manage-task-assignments"]').should("not.exist");
     cy.get('[data-testid="open-release-workspace"]').should("not.exist");
-    cy.contains("button", /Label All Tasks/i).should("not.exist");
+    cy.get('[data-testid="dm-label-all-toolbar"], [data-testid="dm-label-all-tasks-button"]').should("not.exist");
     cy.request({
       url: `/api/task-assignments/?project=${projectId()}`,
       method: "POST",

@@ -56,10 +56,12 @@ From `web` with the repository's Yarn 1 lockfile installed:
 
 ```sh
 corepack yarn i18n:catalogs
-corepack yarn i18n:unit --runInBand
-corepack yarn ls:unit --runInBand
-corepack yarn dm:unit --runInBand
-corepack yarn lsf:unit --runInBand
+corepack yarn i18n:literals
+corepack yarn nx run i18n:unit
+corepack yarn ls:unit
+corepack yarn nx run app-common:unit
+corepack yarn dm:unit
+corepack yarn lsf:unit
 corepack yarn ls:build
 ```
 
@@ -70,3 +72,10 @@ Chinese `other` forms. A missing key or namespace in a production runtime shows
 a safe English sentence rather than a raw key. Development also logs it; CI
 must run the catalog command. Existing English strings outside the new library
 are the migration baseline, not an unbounded exclusion list.
+
+`i18n:literals` checks JSX text and human-facing `aria-label`, `title`,
+`placeholder` and `alt` attributes in the checked-in list of 91 migrated
+source files. Exact exceptions require a reason and fail if they become stale.
+Its negative tests prove a newly added literal fails the command. Dynamic
+JavaScript strings and upstream pages outside that manifest still need code
+review and an explicit owner before expanding the list.

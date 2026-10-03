@@ -82,3 +82,7 @@ jobs:
       - name: Run annotation/task API smoke tests
         working-directory: label_studio
         run: poetry run pytest -v tasks/tests/test_api.py -m "not integration_tests"
+
+      - name: Run request locale and translated template regressions
+        working-directory: label_studio
+        run: poetry run pytest -q users/tests/test_locale.py users/tests/test_locale_templates.py users/tests/test_locale_migration.py

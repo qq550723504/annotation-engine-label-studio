@@ -61,6 +61,18 @@ describe("JsonViewer filtered search", () => {
     expect(matchNode).toHaveBeenCalled();
   });
 
+  it("uses owner-supplied control labels without changing filter IDs", () => {
+    const view = render(<JsonViewer data={{ id: 123 }} showCopyButton={false} storageKey="json-viewer-locale-test"
+      labels={{ all: "全部", searchPlaceholder: "搜索键或值", searchJson: "搜索 JSON" }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "全部" }));
+    expect(screen.getByRole("textbox", { name: "搜索 JSON" })).toHaveAttribute("placeholder", "搜索键或值");
+    expect(localStorage.getItem("json-viewer-locale-test:filter")).toBe("all");
+
+    view.rerender(<JsonViewer data={{ id: 123 }} showCopyButton={false} storageKey="json-viewer-locale-test" labels={{ all: "All" }} />);
+    expect(screen.getByRole("button", { name: "All" })).toBeInTheDocument();
+  });
+
   it("keeps custom filter scope while matching keys in filtered nodes", () => {
     render(
       <JsonViewer

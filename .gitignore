@@ -84,4 +84,5 @@ docker-compose.override.yml
 CLAUDE.local.md
 web/libs/editor/tests/coverage
 web/coverage-chunks
+web/apps/labelstudio-e2e/.enterprise-e2e.json
 .cache

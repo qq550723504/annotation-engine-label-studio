@@ -54,7 +54,7 @@ jobs:
       - name: Install backend OS dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libffi8 libldap2-dev libsasl2-dev libssl-dev libxml2-dev libxslt-dev python3-dev
+          sudo apt-get install -y gettext libffi8 libldap2-dev libsasl2-dev libssl-dev libxml2-dev libxslt-dev python3-dev
 
       - name: Install backend dependencies
         run: poetry install --with test
@@ -64,6 +64,7 @@ jobs:
 
       - name: Migrate, collect static files, and seed enterprise E2E data
         run: |
+          poetry run python label_studio/manage.py compilemessages -l en_US -l zh_Hans
           poetry run python label_studio/manage.py migrate --noinput
           poetry run python label_studio/manage.py collectstatic --noinput
           poetry run python label_studio/manage.py seed_enterprise_e2e
@@ -78,6 +79,17 @@ jobs:
       - name: Install frontend dependencies
         working-directory: web
         run: yarn install --frozen-lockfile
+
+      - name: Validate catalogs and localized frontend contracts
+        working-directory: web
+        run: |
+          yarn i18n:catalogs
+          yarn i18n:literals
+          yarn nx run i18n:unit
+          yarn ls:unit
+          yarn nx run app-common:unit
+          yarn dm:unit
+          yarn lsf:unit
 
       - name: Build frontend
         working-directory: web
@@ -106,38 +118,38 @@ jobs:
           ls -la web/dist/apps/labelstudio || true
           exit 1
 
-      - name: Run app locale browser spec
+      - name: Run existing enterprise UI Cypress specs
         working-directory: web
         run: |
           yarn cypress run \
             --project apps/labelstudio-e2e \
             --config-file cypress.config.ts \
             --config baseUrl=http://localhost:8080,video=true \
-            --spec apps/labelstudio-e2e/src/e2e/app-locale.cy.ts
+            --env loginLocale=en-US \
+            --spec "apps/labelstudio-e2e/src/e2e/enterprise-current-ui.cy.ts,apps/labelstudio-e2e/src/e2e/project-members.cy.ts,apps/labelstudio-e2e/src/e2e/task-assignments.cy.ts,apps/labelstudio-e2e/src/e2e/reviewer-workspace.cy.ts,apps/labelstudio-e2e/src/e2e/submission-release.cy.ts"
 
-      - name: Reseed enterprise UI fixture after locale changes
-        run: poetry run python label_studio/manage.py seed_enterprise_e2e
-
-      - name: Run collaboration locale browser spec
-        working-directory: web
+      - name: Run isolated locale component journeys
         run: |
-          yarn cypress run \
-            --project apps/labelstudio-e2e \
-            --config-file cypress.config.ts \
-            --config baseUrl=http://localhost:8080,video=true \
-            --spec apps/labelstudio-e2e/src/e2e/collaboration-locale.cy.ts
+          for spec in app-locale dm-editor-locale dm-export-locale collaboration-locale; do
+            poetry run python label_studio/manage.py seed_enterprise_e2e
+            (cd web && yarn cypress run \
+              --project apps/labelstudio-e2e \
+              --config-file cypress.config.ts \
+              --config baseUrl=http://localhost:8080,video=true \
+              --spec "apps/labelstudio-e2e/src/e2e/${spec}.cy.ts")
+          done
 
-      - name: Reseed enterprise UI fixture after collaboration decisions
-        run: poetry run python label_studio/manage.py seed_enterprise_e2e
-
-      - name: Run enterprise UI Cypress specs
-        working-directory: web
+      - name: Run full collaboration workflow in each language
         run: |
-          yarn cypress run \
-            --project apps/labelstudio-e2e \
-            --config-file cypress.config.ts \
-            --config baseUrl=http://localhost:8080,video=true \
-            --spec "apps/labelstudio-e2e/src/e2e/enterprise-current-ui.cy.ts,apps/labelstudio-e2e/src/e2e/project-members.cy.ts,apps/labelstudio-e2e/src/e2e/task-assignments.cy.ts,apps/labelstudio-e2e/src/e2e/reviewer-workspace.cy.ts,apps/labelstudio-e2e/src/e2e/submission-release.cy.ts,apps/labelstudio-e2e/src/e2e/full-enterprise-workflow.cy.ts"
+          for locale in en-US zh-CN; do
+            poetry run python label_studio/manage.py seed_enterprise_e2e
+            (cd web && yarn cypress run \
+              --project apps/labelstudio-e2e \
+              --config-file cypress.config.ts \
+              --config baseUrl=http://localhost:8080,video=true \
+              --env "fullFlowLocale=${locale}" \
+              --spec apps/labelstudio-e2e/src/e2e/full-enterprise-workflow.cy.ts)
+          done
 
       - name: Print server logs on browser failure
         if: failure()

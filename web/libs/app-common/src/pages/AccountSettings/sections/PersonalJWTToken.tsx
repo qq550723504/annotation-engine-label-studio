@@ -115,6 +115,7 @@ export function PersonalJWTToken() {
         title: t("revokeToken"),
         body: t("revokeTokenConfirm", { app: window?.APP_SETTINGS?.app_name || "Label Studio" }),
         okText: t("revoke"),
+        cancelText: t("cancel"),
         buttonLook: "negative",
         onOk: async () => {
           await revokeToken.mutateAsync({ token });

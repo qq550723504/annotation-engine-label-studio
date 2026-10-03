@@ -1,7 +1,25 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { InstructionsModal } from "../InstructionsModal";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { createLocaleRuntime } from "@humansignal/i18n";
+import { InstructionsModal, InstructionsTitle } from "../InstructionsModal";
 
 describe("InstructionsModal Component", () => {
+  it("updates review and labeling titles when the editor language changes", () => {
+    const runtime = createLocaleRuntime("en-US");
+    const Provider = runtime.provider;
+    const { rerender, unmount } = render(
+      <Provider><InstructionsModal title={<InstructionsTitle review />} visible onCancel={() => {}}>Instructions</InstructionsModal></Provider>,
+    );
+    expect(screen.getByText("Review Instructions")).toBeTruthy();
+    act(() => runtime.updateLocale("zh-CN"));
+    expect(screen.getByText("复核说明")).toBeTruthy();
+    rerender(
+      <Provider><InstructionsModal title={<InstructionsTitle review={false} />} visible onCancel={() => {}}>Instructions</InstructionsModal></Provider>,
+    );
+    expect(screen.getByText("标注说明")).toBeTruthy();
+    unmount();
+    runtime.destroy();
+  });
+
   it("should render the title and children", () => {
     const title = "Test Title";
     const children = <p>Test Children</p>;

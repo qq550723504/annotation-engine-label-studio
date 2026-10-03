@@ -93,6 +93,7 @@ export const LabelButton = injector(({ store, canLabel, size, target, selectedCo
             variant="primary"
             look="outlined"
             disabled={disabled}
+            data-testid="dm-label-all-toolbar"
             style={primaryStyle}
             onClick={onLabelAll}
           >

@@ -62,7 +62,7 @@ const ControlButton = observer(({ button, disabled, onClick, variant, look, buil
       look={button.look ?? look}
       tooltip={builtinReject ? t("rejectTooltip") : button.tooltip}
       className="w-[150px]"
-      aria-label={button.ariaLabel}
+      aria-label={builtinReject ? t("reject") : button.ariaLabel}
       disabled={button.disabled || disabled}
       onClick={onClick}
       data-testid={`bottombar-custom-${button.name}-button`}
@@ -258,7 +258,7 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
             <div className={cn("controls").elem("tooltip-wrapper").toClassName()}>
               <ButtonGroup>
                 <Button
-                  aria-label="Submit current annotation"
+                  aria-label={t("submitCurrentAnnotation")}
                   name="submit"
                   className="w-[150px]"
                   disabled={isDisabled}
@@ -285,7 +285,7 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                   >
                     <Button
                       disabled={isDisabled}
-                      aria-label="Submit annotation"
+                      aria-label={t("submitAnnotation")}
                       data-testid="bottombar-submit-dropdown"
                     >
                       <IconChevronDown />
@@ -313,7 +313,7 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
             <div className={cn("controls").elem("tooltip-wrapper").toClassName()}>
               <ButtonGroup>
                 <Button
-                  aria-label="submit"
+                  aria-label={isUpdate ? t("updateAnnotation") : t("submitAnnotation")}
                   name="submit"
                   className="w-[150px]"
                   disabled={isUpdateDisabled}
@@ -336,7 +336,7 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                   >
                     <Button
                       disabled={isUpdateDisabled}
-                      aria-label="Update annotation"
+                      aria-label={isUpdate ? t("updateAnnotation") : t("submitAnnotation")}
                       data-testid="bottombar-update-dropdown"
                     >
                       <IconChevronDown />

@@ -74,12 +74,13 @@ export const FilterOperation = observer(({ filter, field, operator, value, disab
   const operators = operatorList.map(({ key, label }) => {
     if (filter.filter.field.isAnnotationResultsFilterColumn) {
       if (filter.schema?.multiple ?? false) {
-        if (key === "contains") label = "includes all";
-        if (key === "not_contains") label = "does not include all";
+        if (key === "contains") label = t("filterIncludesAll");
+        if (key === "not_contains") label = t("filterNotIncludesAll");
       } else {
-        if (key === "contains") label = "is";
-        if (key === "not_contains") label = "is not";
+        if (key === "contains") label = t("filterIs");
+        if (key === "not_contains") label = t("filterIsNot");
       }
+      if (key === "contains" || key === "not_contains") return { value: key, label };
     }
     const translatedLabels = {
       contains: "filterContains",
