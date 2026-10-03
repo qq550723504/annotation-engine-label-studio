@@ -36,7 +36,8 @@ export const importFiles = async ({
   if (res && !res.error) {
     await onFinish?.(res);
   } else {
-    onError?.(res?.response);
+    // Keep response metadata so the display can verify its Content-Language.
+    onError?.(res ?? {});
   }
 
   onUploadFinish?.(files);
