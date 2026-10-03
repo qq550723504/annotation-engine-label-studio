@@ -103,7 +103,7 @@ describe("project member and role management UI", () => {
     }).then((created) => {
       expect(created.status).to.eq(201);
 
-      cy.intercept("POST", `/api/projects/${fixture.project_id}/members/`).as("duplicateMember");
+      cy.intercept("POST", "**/api/projects/*/members*").as("duplicateMember");
       cy.contains("button", "Add member").click();
       cy.wait("@duplicateMember").then(({ response }) => {
         expect(response?.statusCode).to.eq(400);
