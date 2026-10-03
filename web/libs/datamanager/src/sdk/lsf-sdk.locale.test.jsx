@@ -106,3 +106,66 @@ it("does not read a removed Data Manager store after preload finishes", async ()
     window.APP_SETTINGS = previousSettings;
   }
 });
+
+it("does not initialize labels in an editor destroyed during the request", async () => {
+  let finishRequest;
+  const userLabels = { init: jest.fn() };
+  const wrapper = {
+    destroyed: false,
+    lsf: { userLabels },
+    project: { id: 7 },
+    datamanager: {
+      apiCall: jest.fn(() => new Promise((resolve) => { finishRequest = resolve; })),
+    },
+  };
+  const loading = LSFWrapper.prototype.loadUserLabels.call(wrapper);
+  wrapper.destroyed = true;
+  wrapper.lsf = null;
+  finishRequest({ results: [{ from_name: "choice", label: { value: "A" } }] });
+  await expect(loading).resolves.toBeUndefined();
+  expect(userLabels.init).not.toHaveBeenCalled();
+});
+
+it("releases loading only while the same editor is still alive", async () => {
+  const lsf = {};
+  const wrapper = { destroyed: false, lsf, setLoading: jest.fn() };
+  let finishRequest;
+  const pending = LSFWrapper.prototype.withinLoadingState.call(wrapper,
+    () => new Promise((resolve) => { finishRequest = resolve; }));
+  expect(wrapper.setLoading).toHaveBeenCalledWith(true);
+  wrapper.destroyed = true;
+  wrapper.lsf = null;
+  finishRequest("done");
+  await expect(pending).resolves.toBe("done");
+  expect(wrapper.setLoading.mock.calls).toEqual([[true]]);
+
+  wrapper.destroyed = false;
+  wrapper.lsf = lsf;
+  wrapper.setLoading.mockClear();
+  await expect(LSFWrapper.prototype.withinLoadingState.call(wrapper, () => Promise.reject(new Error("failed"))))
+    .rejects.toThrow("failed");
+  expect(wrapper.setLoading.mock.calls).toEqual([[true], [false]]);
+});
+
+it("does not select a task after its editor is destroyed during task loading", async () => {
+  let finishRequest;
+  const lsf = { setFlags: jest.fn() };
+  const wrapper = {
+    destroyed: false,
+    lsf,
+    labelStream: true,
+    datamanager: {
+      store: { taskStore: { loadNextTask: jest.fn(() => new Promise((resolve) => { finishRequest = resolve; })) } },
+    },
+    setLoading: jest.fn(),
+    selectTask: jest.fn(),
+  };
+  wrapper.withinLoadingState = (callback) => LSFWrapper.prototype.withinLoadingState.call(wrapper, callback);
+  const loading = LSFWrapper.prototype.loadTask.call(wrapper);
+  wrapper.destroyed = true;
+  wrapper.lsf = null;
+  finishRequest({ id: 41 });
+  await expect(loading).resolves.toBeUndefined();
+  expect(lsf.setFlags).not.toHaveBeenCalled();
+  expect(wrapper.selectTask).not.toHaveBeenCalled();
+});
