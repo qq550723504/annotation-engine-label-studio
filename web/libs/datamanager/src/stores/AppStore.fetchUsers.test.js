@@ -1,8 +1,13 @@
 import { destroy } from "mobx-state-tree";
 
 jest.mock("./Tabs", () => {
-  const { types } = jest.requireActual("mobx-state-tree");
-  return { TabStore: types.model("TestTabStore", { views: types.array(types.frozen()) }) };
+  const { flow, types } = jest.requireActual("mobx-state-tree");
+  return {
+    TabStore: types.model("TestTabStore", { views: types.array(types.frozen()) }).actions(() => ({
+      fetchColumns() {},
+      fetchTabs: flow(function* () {}),
+    })),
+  };
 });
 
 window.APP_SETTINGS = { hostname: "http://localhost" };
@@ -71,6 +76,20 @@ it("keeps project data when its in-flight request returns 401", async () => {
     await expect(store.fetchProject({ force: true })).resolves.toBe(false);
     expect(store.project).toEqual(project);
     expect(store.projectFetch).toBe(false);
+  } finally {
+    destroy(store);
+  }
+});
+
+it("ends initial loading after a reported project error", async () => {
+  const error = { status: 401, error: "Unauthorized" };
+  const { store, invoke } = makeStore(error);
+
+  try {
+    await expect(store.fetchData()).resolves.toBeUndefined();
+    expect(store.loading).toBe(false);
+    expect(store.project).toEqual({});
+    expect(invoke).toHaveBeenCalledWith("error", error);
   } finally {
     destroy(store);
   }

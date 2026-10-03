@@ -624,12 +624,10 @@ export const AppStore = types
       }
 
       const [projectFetched] = yield Promise.all(requests);
+      self.setLoading(false);
 
       if (projectFetched) {
         self.resolveURLParams();
-
-        self.setLoading(false);
-
         self.startPolling();
       }
     }),
