@@ -29,6 +29,7 @@
   "apps/labelstudio/src/providers/LocalePreferenceProvider.tsx",
   "apps/labelstudio/src/providers/RoutesProvider.jsx",
   "libs/app-common/src/pages/AccountSettings/AccountSettings.tsx",
+  "libs/app-common/src/pages/AccountSettings/hooks/useHotkeys.ts",
   "libs/app-common/src/pages/AccountSettings/sections/EmailPreferences.tsx",
   "libs/app-common/src/pages/AccountSettings/sections/Hotkeys.tsx",
   "libs/app-common/src/pages/AccountSettings/sections/Hotkeys/Help.tsx",

@@ -233,6 +233,7 @@ describe('main application display locale', () => {
         headers: { 'content-language': locale },
         body: { validation_errors: { title: [titleError] }, exc_info: 'internal traceback' },
       }).as('nameRejected');
+      cy.get('#project_name').should('be.enabled').and('not.have.value', '');
       cy.get('#project_name').clear().type('Invalid project name');
       cy.get('#project_description').click();
       cy.wait('@nameRejected');
@@ -247,6 +248,7 @@ describe('main application display locale', () => {
     cy.visit('/projects');
     cy.get('[data-testid="create-project-context"]').click();
     cy.intercept('PATCH', '**/api/projects/*', { forceNetworkError: true }).as('nameNetworkError');
+    cy.get('#project_name').should('be.enabled').and('not.have.value', '');
     cy.get('#project_name').clear().type('Unsaved project name');
     cy.get('#project_description').click();
     cy.wait('@nameNetworkError');

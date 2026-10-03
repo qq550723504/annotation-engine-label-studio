@@ -17,6 +17,11 @@ test("finds display labels in configuration objects without treating IDs as copy
   assert.deepEqual(found.map(({ text }) => text), ["Annotations", "Show Data"]);
 });
 
+test("finds confirmation bodies, toast messages, and OK labels", () => {
+  const found = scanSource('confirm({ title: "Reset?", body: "Restore defaults?", okText: "Reset to Defaults" }); toast.show({ message: "Settings restored", type: "info" });');
+  assert.deepEqual(found.map(({ text }) => text), ["Reset?", "Restore defaults?", "Reset to Defaults", "Settings restored"]);
+});
+
 test("finds static route titles assigned after component definitions", () => {
   const found = scanSource('DangerZone.title = "Danger Zone"; DangerZone.path = "/danger-zone";');
   assert.deepEqual(found.map(({ text }) => text), ["Danger Zone"]);
