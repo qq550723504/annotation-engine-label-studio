@@ -181,6 +181,36 @@ describe('main application display locale', () => {
       .and('not.contain.text', 'untrusted validation');
   });
 
+  it('keeps profile update errors in the active language', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    ensureAccountLocale('zh-CN');
+    cy.intercept('PATCH', '**/api/users/*', {
+      statusCode: 400,
+      headers: { 'content-language': 'en-US' },
+      body: { detail: 'untrusted English profile detail' },
+    }).as('profileRejected');
+    cy.get('input[name="first_name"]').clear().type('Unsaved profile name');
+    cy.get('input[name="first_name"]').closest('form').find('button').contains('保存').click();
+    cy.wait('@profileRejected');
+    cy.get('body').should('contain.text', '无法更新个人资料。')
+      .and('not.contain.text', 'untrusted English profile detail');
+  });
+
+  it('keeps configuration validation errors in the active language', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    ensureAccountLocale('zh-CN');
+    cy.intercept('POST', '**/api/projects/*/validate', {
+      statusCode: 400,
+      headers: { 'content-language': 'en-US' },
+      body: { detail: 'untrusted English config detail', validation_errors: { label_config: ['untrusted English validation'] } },
+    }).as('configRejected');
+    cy.visit(`/projects/${fixture.project_id}/settings/labeling`);
+    cy.wait('@configRejected');
+    cy.get('body').should('contain.text', '无法验证标注配置，请检查后重试。')
+      .and('not.contain.text', 'untrusted English config detail')
+      .and('not.contain.text', 'untrusted English validation');
+  });
+
   for (const [locale, titleError] of [
     ['en-US', 'The project name is too long.'],
     ['zh-CN', '项目名称过长。'],

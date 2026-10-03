@@ -64,7 +64,8 @@ export const PersonalInfo = () => {
       });
 
       if (!response.$meta.ok) {
-        toast?.show({ message: response?.response?.detail ?? t("avatarUpdateFailed"), type: ToastType.error });
+        const detail = response.$meta.headers?.get("content-language") === locale ? response?.response?.detail : null;
+        toast?.show({ message: typeof detail === "string" ? detail : t("avatarUpdateFailed"), type: ToastType.error });
       } else {
         refetchUser();
       }
@@ -89,7 +90,8 @@ export const PersonalInfo = () => {
 
       refetchUser();
       if (!response?.$meta.ok) {
-        toast?.show({ message: response?.response?.detail ?? t("profileUpdateFailed"), type: ToastType.error });
+        const detail = response?.$meta?.headers?.get("content-language") === locale ? response?.response?.detail : null;
+        toast?.show({ message: typeof detail === "string" ? detail : t("profileUpdateFailed"), type: ToastType.error });
       }
     },
     [user?.id, locale],
