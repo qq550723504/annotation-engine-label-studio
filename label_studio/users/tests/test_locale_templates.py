@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.urls import get_script_prefix, set_script_prefix
 
 
 class LocaleTemplateTests(TestCase):
@@ -24,3 +25,15 @@ class LocaleTemplateTests(TestCase):
         self.assertContains(response, 'value="zh-CN"')
         self.assertContains(response, 'data-locale-en=')
         self.assertContains(response, 'data-locale-zh=')
+
+    @override_settings(FORCE_SCRIPT_NAME='/label-studio')
+    def test_anonymous_locale_action_uses_application_prefix(self):
+        original_prefix = get_script_prefix()
+        try:
+            # The test client does not apply WSGI's FORCE_SCRIPT_NAME prefix.
+            set_script_prefix('/label-studio/')
+            with patch('users.views.flag_set', return_value=True):
+                response = self.client.get('/user/login/')
+        finally:
+            set_script_prefix(original_prefix)
+        self.assertContains(response, 'fetch("/label-studio/api/ui-locale/", {')

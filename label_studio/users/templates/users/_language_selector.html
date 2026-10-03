@@ -47,7 +47,7 @@
         const token = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
         if (!token) throw new Error('Missing CSRF token');
         const preference = select.value === 'auto' ? null : select.value;
-        const response = await fetch('/api/ui-locale/', {
+        const response = await fetch("{% url 'ui-locale' %}", {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token },
