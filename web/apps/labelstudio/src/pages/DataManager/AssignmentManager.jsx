@@ -3,21 +3,12 @@ import { Button, Typography } from "@humansignal/ui";
 import { Spinner } from "../../components/Spinner/Spinner";
 import { useAPI } from "../../providers/ApiProvider";
 import { cn } from "../../utils/bem";
+import { useLocaleTranslation } from "@humansignal/i18n";
+import { collaborationErrorCode, displayAssignmentStatus, displayCollaborationError } from "./collaborationDisplay";
 import "./AssignmentManager.scss";
 
-const flattenError = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.flatMap(flattenError);
-  if (typeof value === "object") return Object.values(value).flatMap(flattenError);
-  return [String(value)];
-};
-
-const errorMessage = (result, fallback) => {
-  const messages = flattenError(result?.response);
-  return messages.length ? messages.join(" ") : result?.error ?? fallback;
-};
-
 export const AssignmentManager = ({ projectId, taskId }) => {
+  const { t } = useLocaleTranslation("collaboration");
   const api = useAPI();
   const callApiRef = useRef(api.callApi);
   callApiRef.current = api.callApi;
@@ -58,12 +49,10 @@ export const AssignmentManager = ({ projectId, taskId }) => {
       assigneeResult?.error ||
       assigneeResult?.$meta?.ok === false
     ) {
-      setError(
-        errorMessage(
-          assignmentResult?.error ? assignmentResult : assigneeResult,
-          "Task assignments could not be loaded.",
-        ),
-      );
+      setError(collaborationErrorCode(
+        assignmentResult?.error || assignmentResult?.$meta?.ok === false ? assignmentResult : assigneeResult,
+        "assignmentsLoadFailed",
+      ));
       setLoading(false);
       return;
     }
@@ -105,7 +94,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
 
   const assign = async () => {
     if (!selectedAssigneeId) {
-      setError("Select an eligible assignee.");
+      setError("selectEligibleAssignee");
       return;
     }
 
@@ -121,7 +110,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
     });
 
     if (!result || result?.error || result?.$meta?.ok === false) {
-      setError(errorMessage(result, "The task could not be assigned."));
+      setError(collaborationErrorCode(result, "assignFailed"));
       setProcessing(null);
       await refresh(eligiblePage);
       return;
@@ -142,7 +131,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
     });
 
     if (!result || result?.error || result?.$meta?.ok === false) {
-      setError(errorMessage(result, "The assignment could not be cancelled."));
+      setError(collaborationErrorCode(result, "cancelAssignmentFailed"));
       setProcessing(null);
       await refresh(eligiblePage);
       return;
@@ -163,17 +152,17 @@ export const AssignmentManager = ({ projectId, taskId }) => {
   return (
     <div className={cn("assignment-manager").toClassName()} data-testid="assignment-manager">
       <Typography variant="body" size="medium" className="!mb-base">
-        Task #{taskId}
+        {t("taskNumber", { id: taskId })}
       </Typography>
 
       {error && (
         <div className={cn("assignment-manager").elem("error").toClassName()} role="alert" data-testid="assignment-error">
-          {error}
+          {displayCollaborationError(error, t)}
         </div>
       )}
 
       <div className={cn("assignment-manager").elem("assign").toClassName()}>
-        <label htmlFor="task-assignee">Eligible assignee</label>
+        <label htmlFor="task-assignee">{t("eligibleAssignee")}</label>
         <select
           id="task-assignee"
           data-testid="assignment-assignee-select"
@@ -181,7 +170,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
           onChange={(event) => setSelectedAssigneeId(event.target.value)}
           disabled={processing !== null}
         >
-          <option value="">Select assignee</option>
+          <option value="">{t("selectAssignee")}</option>
           {availableUsers.map((user) => (
             <option key={user.id} value={user.id}>
               {user.email || [user.first_name, user.last_name].filter(Boolean).join(" ") || `User ${user.id}`}
@@ -194,7 +183,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
           waiting={processing === "assign"}
           onClick={assign}
         >
-          Assign
+          {t("assign")}
         </Button>
       </div>
 
@@ -210,9 +199,9 @@ export const AssignmentManager = ({ projectId, taskId }) => {
             await refresh(nextPage);
           }}
         >
-          Previous assignees
+          {t("previousAssignees")}
         </Button>
-        <span>Eligible assignees page {eligiblePage}</span>
+        <span>{t("eligibleAssigneesPage", { page: eligiblePage })}</span>
         <Button
           size="small"
           look="outlined"
@@ -224,13 +213,13 @@ export const AssignmentManager = ({ projectId, taskId }) => {
             await refresh(nextPage);
           }}
         >
-          Next assignees
+          {t("nextAssignees")}
         </Button>
       </div>
 
       <div className={cn("assignment-manager").elem("list").toClassName()}>
         {assignments.length === 0 ? (
-          <div data-testid="assignment-empty">No active assignments.</div>
+          <div data-testid="assignment-empty">{t("noActiveAssignments")}</div>
         ) : (
           assignments.map((assignment) => {
             const user = assignment.assignee_identity ?? userById.get(assignment.assignee);
@@ -247,7 +236,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
               >
                 <div>
                   <strong>{identity}</strong>
-                  <span>{assignment.status}</span>
+                  <span>{displayAssignmentStatus(assignment.status, t)}</span>
                   <span>v{assignment.version}</span>
                 </div>
                 <Button
@@ -258,7 +247,7 @@ export const AssignmentManager = ({ projectId, taskId }) => {
                   waiting={processing === `cancel-${assignment.id}`}
                   onClick={() => cancel(assignment)}
                 >
-                  Cancel assignment
+                  {t("cancelAssignment")}
                 </Button>
               </div>
             );

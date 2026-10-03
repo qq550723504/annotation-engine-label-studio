@@ -181,6 +181,25 @@ download filename and bytes never depend on translated text. The import modal
 uses the existing sample-task preview endpoint; its POST generates display
 data without persisting a task.
 
+The #56 collaboration workspaces live in independent modal roots. Their
+header exposes the existing authenticated locale preference save action so
+reviewers can switch language while retaining an unsubmitted rejection
+reason. The modal shares the App locale runtime, and its title accepts a React
+node so it re-renders with the same selected submission. Known role, assignment
+status, submission status, and decision codes are translated only at render;
+unknown codes remain visible unchanged for diagnosis. Errors are kept as
+stable display codes, including explicit 403/404 states, so a locale switch
+cannot leave an English failure or show a false success. Revision, snapshot,
+hash, assignment version, and rejection text remain raw business data. The
+`ModalProps.title` type widening is an upstream-sensitive one-line change;
+retain this header behavior during upstream upgrades.
+
+The existing `/api/submissions/{id}/release/` endpoint is a GET of the
+approved immutable snapshot. It does not persist a publish state or deliver a
+dataset from this fork. The browser test checks the exact returned revision
+and hash and records this as a release-read boundary; host-platform delivery
+requires separate acceptance.
+
 ## Human messages, machine fields and test handoff
 
 Keep HTTP status, JSON keys/envelope, DRF machine codes, route/event/hotkey

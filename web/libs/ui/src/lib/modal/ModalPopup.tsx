@@ -20,7 +20,7 @@ export type ModalProps<BP = unknown> = {
   animateAppearance?: boolean;
   allowClose?: boolean;
   closeOnClickOutside?: boolean;
-  title?: string;
+  title?: React.ReactNode;
   header?: React.ReactNode;
   footer?: React.ReactNode;
   body?: React.ReactNode | FC<BP>;

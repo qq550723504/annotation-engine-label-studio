@@ -17,7 +17,7 @@ import { APIConfig } from "./api-config";
 import { AssignmentManager } from "./AssignmentManager";
 import { ReviewerWorkspace } from "./ReviewerWorkspace";
 import { SubmissionReleaseWorkspace } from "./SubmissionReleaseWorkspace";
-import { useLocaleTranslation } from "@humansignal/i18n";
+import { isDisplayLocale, useLocalePreference, useLocaleTranslation } from "@humansignal/i18n";
 
 import "./DataManager.scss";
 
@@ -60,6 +60,48 @@ const initializeDataManager = async (root, props, params) => {
 
 const buildLink = (path, params) => {
   return generatePath(`/projects/:id${path}`, params);
+};
+
+const CollaborationModalTitle = ({ kind, taskId }) => {
+  const { t } = useLocaleTranslation("collaboration");
+  if (kind === "assignments") return t("taskAssignmentsTitle", { id: taskId });
+  if (kind === "reviews") return t("reviewSubmissionsTitle");
+  return t("releaseWorkspaceTitle");
+};
+
+const CollaborationModalLanguage = ({ initialPreference, setPreference }) => {
+  const { t } = useLocaleTranslation("app");
+  const [preference, setLocalPreference] = useState(initialPreference ?? "auto");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(false);
+
+  const change = async (event) => {
+    const next = event.target.value;
+    if (next !== "auto" && !isDisplayLocale(next)) return;
+    setSaving(true);
+    setError(false);
+    const saved = await setPreference(next === "auto" ? null : next);
+    if (saved) setLocalPreference(next);
+    else setError(true);
+    setSaving(false);
+  };
+
+  return <div className="flex items-center gap-2">
+    <label htmlFor="collaboration-language-select">{t("displayLanguage")}</label>
+    <select
+      id="collaboration-language-select"
+      data-testid="collaboration-language-select"
+      aria-label={t("displayLanguage")}
+      value={preference}
+      disabled={saving}
+      onChange={change}
+    >
+      <option value="auto">{t("languageAutomatic")}</option>
+      <option value="en-US">English</option>
+      <option value="zh-CN">简体中文</option>
+    </select>
+    {error && <span role="alert">{t("languageSaveFailed")}</span>}
+  </div>;
 };
 
 export const DataManagerPage = ({ ...props }) => {
@@ -251,6 +293,8 @@ DataManagerPage.pages = {
 };
 DataManagerPage.context = ({ dmRef }) => {
   const { locale, t } = useLocaleTranslation("datamanager");
+  const { t: tc } = useLocaleTranslation("collaboration");
+  const localePreference = useLocalePreference();
   const { project } = useProject();
   const api = useAPI();
   const toast = useContext(ToastContext);
@@ -313,14 +357,15 @@ DataManagerPage.context = ({ dmRef }) => {
 
     if (!taskId) {
       toast.show({
-        message: "Open a task before managing assignments.",
+        message: tc("openTaskBeforeAssignments"),
         type: ToastType.error,
       });
       return;
     }
 
     modal({
-      title: `Task #${taskId} assignments`,
+      title: <CollaborationModalTitle kind="assignments" taskId={taskId} />,
+      header: <CollaborationModalLanguage initialPreference={localePreference.preference} setPreference={localePreference.setPreference} />,
       body: <AssignmentManager projectId={project.id} taskId={taskId} />,
       style: { width: 640 },
     });
@@ -328,7 +373,8 @@ DataManagerPage.context = ({ dmRef }) => {
 
   const openReviews = () => {
     modal({
-      title: "Review submissions",
+      title: <CollaborationModalTitle kind="reviews" />,
+      header: <CollaborationModalLanguage initialPreference={localePreference.preference} setPreference={localePreference.setPreference} />,
       body: <ReviewerWorkspace projectId={project.id} />,
       style: { width: 960 },
     });
@@ -336,7 +382,8 @@ DataManagerPage.context = ({ dmRef }) => {
 
   const openReleases = () => {
     modal({
-      title: "Submission history and release",
+      title: <CollaborationModalTitle kind="releases" />,
+      header: <CollaborationModalLanguage initialPreference={localePreference.preference} setPreference={localePreference.setPreference} />,
       body: <SubmissionReleaseWorkspace projectId={project.id} />,
       style: { width: 960 },
     });
@@ -399,7 +446,7 @@ DataManagerPage.context = ({ dmRef }) => {
           onClick={openAssignments}
           data-testid="manage-task-assignments"
         >
-          Assignments
+          {tc("assignments")}
         </Button>
       )}
 
@@ -410,7 +457,7 @@ DataManagerPage.context = ({ dmRef }) => {
           onClick={openReleases}
           data-testid="open-release-workspace"
         >
-          Releases
+          {tc("releases")}
         </Button>
       )}
 
@@ -421,7 +468,7 @@ DataManagerPage.context = ({ dmRef }) => {
           onClick={openReviews}
           data-testid="open-review-workspace"
         >
-          Reviews
+          {tc("reviews")}
         </Button>
       )}
 

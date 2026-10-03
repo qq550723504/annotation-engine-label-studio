@@ -74,8 +74,8 @@ describe("immutable submission reviewer workspace", () => {
 
     cy.get(`[data-testid="review-history-${fixture.tasks.review.submission_id}"]`, { timeout: 30000 })
       .should("exist")
-      .and("contain.text", "rejected");
-    cy.get('[data-testid="review-status"]').should("contain.text", "rejected");
+      .and("contain.text", "Rejected");
+    cy.get('[data-testid="review-status"]').should("contain.text", "Rejected");
     cy.get('[data-testid="review-result-snapshot"]').should("contain.text", "Positive");
     cy.get('[data-testid="review-approve"]').should("not.exist");
 
@@ -89,7 +89,7 @@ describe("immutable submission reviewer workspace", () => {
     cy.get('[data-testid="reviewer-workspace"]', { timeout: 30000 }).should("exist");
 
     cy.contains('[data-testid^="review-submission-"]', "Revision 2", { timeout: 30000 }).click();
-    cy.get('[data-testid="review-status"]').should("contain.text", "pending");
+    cy.get('[data-testid="review-status"]').should("contain.text", "Pending");
     cy.get('[data-testid="review-result-snapshot"]').should("contain.text", "Negative");
     cy.request(
       `/api/submissions/?project=${fixture.project_id}&reviewable=true&page=1&page_size=50`,
@@ -112,10 +112,10 @@ describe("immutable submission reviewer workspace", () => {
     });
     cy.contains('[data-testid^="review-history-"]', "Revision 1")
       .should("exist")
-      .and("contain.text", "rejected");
+      .and("contain.text", "Rejected");
 
     cy.get('[data-testid="review-approve"]').click();
-    cy.get('[data-testid="review-status"]', { timeout: 30000 }).should("contain.text", "approved");
+    cy.get('[data-testid="review-status"]', { timeout: 30000 }).should("contain.text", "Approved");
     cy.get('[data-testid="review-approve"]').should("not.exist");
 
     closeReviews();
@@ -139,7 +139,7 @@ describe("immutable submission reviewer workspace", () => {
 
     openReviewsAs(fixture.users.reviewer.email);
     cy.get('[data-testid^="review-submission-"]', { timeout: 30000 }).first().click();
-    cy.get('[data-testid="review-status"]').should("contain.text", "pending");
+    cy.get('[data-testid="review-status"]').should("contain.text", "Pending");
     cy.get('[data-testid="review-approve"]').should("be.visible");
 
     cy.task("setEnterpriseE2EMember", { actor: "reviewer", enabled: false });
