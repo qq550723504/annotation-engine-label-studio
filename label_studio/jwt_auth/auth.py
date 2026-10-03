@@ -40,6 +40,10 @@ class TokenAuthenticationPhaseout(TokenAuthentication):
                 'Legacy token authentication used',
                 extra={'user_id': user.id, 'organization_id': org_id, 'endpoint': request.path},
             )
+        if auth_result is not None:
+            from users.locale import activate_request_locale
+
+            activate_request_locale(request, auth_result[0])
         return auth_result
 
 

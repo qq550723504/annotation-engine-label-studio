@@ -1,0 +1,47 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: en_US\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Unknown error"
+msgstr "Unknown error"
+
+msgid "Validation error"
+msgstr "Validation error"
+
+msgid "Provide only the preference field."
+msgstr "Provide only the preference field."
+
+msgid "Choose English, Simplified Chinese, or Automatic."
+msgstr "Choose English, Simplified Chinese, or Automatic."
+
+msgid "Only anonymous visitors can select a display cookie."
+msgstr "Only anonymous visitors can select a display cookie."
+
+msgid "Invalid locale request."
+msgstr "Invalid locale request."
+
+msgid "The email and password you entered don't match."
+msgstr "The email and password you entered don't match."
+
+msgid "Email is too long"
+msgstr "Email is too long"
+
+msgid "Invalid email"
+msgstr "Invalid email"
+
+msgid "User with username already exists"
+msgstr "User with username already exists"
+
+msgid "User with this email already exists"
+msgstr "User with this email already exists"
+
+msgid "User"
+msgstr "User"
+
+msgid "Email"
+msgstr "Email"
+
+msgid "Work Email"
+msgstr "Work Email"

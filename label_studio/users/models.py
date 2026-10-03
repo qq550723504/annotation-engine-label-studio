@@ -288,6 +288,16 @@ class UserSessionVersion(models.Model):
         db_table = 'htx_user_session_version'
 
 
+class UserLocalePreference(models.Model):
+    """Optional display preference, deliberately separate from authentication state."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, primary_key=True, on_delete=models.CASCADE)
+    locale = models.CharField(max_length=5, null=True, blank=True, choices=(('en-US', 'English'), ('zh-CN', '简体中文')))
+
+    class Meta:
+        db_table = 'htx_user_locale_preference'
+
+
 @receiver(user_logged_in, sender=User)
 def reject_unversioned_login(sender, request, user, **kwargs):
     if not request.session.get(auth.HASH_SESSION_KEY):
