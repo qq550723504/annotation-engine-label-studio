@@ -14,6 +14,7 @@ import { useValueTracker } from "../Form/Utils";
 import "./Pagination.scss";
 import { useUpdateEffect } from "../../../hooks/useUpdateEffect";
 import { Select } from "../Form/Elements";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 interface PaginationProps {
   name?: string | (() => string);
@@ -81,6 +82,7 @@ export const Pagination: FC<PaginationProps> = forwardRef<any, PaginationProps>(
     },
     ref,
   ) => {
+    const { t } = useLocaleTranslation("datamanager");
     const [inputMode, setInputMode] = useState(false);
     const [currentPage, setCurrentPage] = useValueTracker(props.page);
     const [waiting, setWaiting] = useValueTracker(props.waiting);
@@ -267,7 +269,7 @@ export const Pagination: FC<PaginationProps> = forwardRef<any, PaginationProps>(
                   if (allowInput) setInputMode(true);
                 }}
               >
-                {currentPage} <span>of {totalPages}</span>
+                {currentPage} <span>{t("pageOf", { total: totalPages })}</span>
                 <div
                   onClick={() => {
                     /*  */
@@ -298,7 +300,7 @@ export const Pagination: FC<PaginationProps> = forwardRef<any, PaginationProps>(
             <Select
               size={size}
               value={pageSize}
-              options={pageSizeOptions.map((v) => ({ label: `${v} per page`, value: v }))}
+              options={pageSizeOptions.map((v) => ({ label: t("perPage", { count: v }), value: v }))}
               onChange={(val: any) => {
                 const newPageSize = Number.parseInt(val);
 

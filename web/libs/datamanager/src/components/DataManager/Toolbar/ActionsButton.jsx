@@ -10,6 +10,21 @@ import Form from "../../Common/Form/Form";
 import { Menu } from "../../Common/Menu/Menu";
 import { Modal } from "../../Common/Modal/ModalPopup";
 import "./ActionsButton.scss";
+import { useLocaleTranslation } from "@humansignal/i18n";
+
+const actionTitleKeys = {
+  retrieve_tasks_predictions: "retrievePredictions",
+  delete_tasks: "deleteTasks",
+  delete_tasks_annotations: "deleteAnnotations",
+  delete_tasks_predictions: "deletePredictions",
+};
+
+const actionDialogKeys = {
+  retrieve_tasks_predictions: ["retrievePredictions", "retrievePredictionsConfirm"],
+  delete_tasks: ["deleteSelectedTasks", "deleteTasksConfirm"],
+  delete_tasks_annotations: ["deleteSelectedAnnotations", "deleteAnnotationsConfirm"],
+  delete_tasks_predictions: ["deleteSelectedPredictions", "deletePredictionsConfirm"],
+};
 
 const isFFLOPSE3 = isFF(FF_LOPS_E_3);
 const injector = inject(({ store }) => ({
@@ -58,6 +73,8 @@ const DialogContent = ({ text, form, formRef, store, action }) => {
 };
 
 const ActionButton = ({ action, parentRef, store, formRef }) => {
+  const { t } = useLocaleTranslation("datamanager");
+  const displayTitle = actionTitleKeys[action.id] ? t(actionTitleKeys[action.id]) : action.title;
   const isDeleteAction = action.id.includes("delete");
   const hasChildren = !!action.children?.length;
   const submenuRef = useRef();
@@ -68,10 +85,10 @@ const ActionButton = ({ action, parentRef, store, formRef }) => {
       if (action.disabled) return;
       action?.callback
         ? action?.callback(store.currentView?.selected?.snapshot, action)
-        : invokeAction(action, isDeleteAction, store, formRef);
+        : invokeAction(action, isDeleteAction, store, formRef, t);
       parentRef?.current?.close?.();
     },
-    [store.currentView?.selected, action, isDeleteAction, parentRef, store, formRef],
+    [store.currentView?.selected, action, isDeleteAction, parentRef, store, formRef, t],
   );
 
   const titleContainer = (
@@ -89,14 +106,14 @@ const ActionButton = ({ action, parentRef, store, formRef }) => {
         .toClassName()}
       size="small"
       onClick={onClick}
-      aria-label={action.title}
+      aria-label={displayTitle}
     >
       <div
         className={cn("actionButton").elem("titleContainer").toClassName()}
         {...(action.disabled ? { title: action.disabledReason } : {})}
       >
         <div className={cn("actionButton").elem("title").toClassName()}>
-          {action.title}
+          {displayTitle}
           {action.enterprise_badge && <EnterpriseBadge className="ml-tightest" style="ghost" />}
         </div>
         {hasChildren ? <IconChevronRight className={cn("actionButton").elem("icon").toClassName()} /> : null}
@@ -141,20 +158,20 @@ const ActionButton = ({ action, parentRef, store, formRef }) => {
       }`}
       icon={isDeleteAction && <IconTrash />}
       title={action.disabled ? action.disabledReason : null}
-      aria-label={action.title}
+      aria-label={displayTitle}
       disabled={action.disabled}
       tooltip={action.disabled_reason}
       tooltipAlignment="bottom-center"
     >
       <span className="flex items-center justify-between gap-base w-full">
-        {action.title}
+        {displayTitle}
         {action.enterprise_badge && <EnterpriseBadge style="ghost" children="" />}
       </span>
     </Menu.Item>
   );
 };
 
-const invokeAction = (action, destructive, store, formRef) => {
+const invokeAction = (action, destructive, store, formRef, t) => {
   if (action.dialog) {
     const { type: dialogType, text, form, title } = action.dialog;
     const dialog = Modal[dialogType] ?? Modal.confirm;
@@ -193,8 +210,15 @@ const invokeAction = (action, destructive, store, formRef) => {
       dialogText = `You are about to delete the selected ${objectType}.\n\nThis can't be undone.`;
     }
 
+    const localizedDialog = actionDialogKeys[action.id];
+    if (localizedDialog) {
+      dialogTitle = t(localizedDialog[0]);
+      dialogText = t(localizedDialog[1]);
+      if (destructive) okButtonText = t("delete");
+    }
+
     dialog({
-      title: dialogTitle ? dialogTitle : destructive ? "Destructive action" : "Confirm action",
+      title: dialogTitle ? dialogTitle : destructive ? t("destructiveAction") : t("confirmAction"),
       body: <DialogContent text={dialogText} form={form} formRef={formRef} store={store} action={action} />,
       buttonLook: destructive ? "negative" : "primary",
       okText: destructive ? okButtonText : undefined,
@@ -213,6 +237,7 @@ const invokeAction = (action, destructive, store, formRef) => {
 
 export const ActionsButton = injector(
   observer(({ store, size, hasSelected, ...rest }) => {
+    const { t } = useLocaleTranslation("datamanager");
     const formRef = useRef();
     const selectedCount = store.currentView.selectedCount;
     const [isOpen, setIsOpen] = useState(false);
@@ -233,7 +258,7 @@ export const ActionsButton = injector(
     const actionButtons = actions.map((action) => (
       <ActionButton key={action.id} action={action} parentRef={formRef} store={store} formRef={formRef} />
     ));
-    const recordTypeLabel = isFFLOPSE3 && store.SDK.type === "DE" ? "Record" : "Task";
+    const recordTypeLabel = isFFLOPSE3 && store.SDK.type === "DE" ? t("selectedRecords", { count: selectedCount }) : t("selectedTasks", { count: selectedCount });
 
     return (
       <Dropdown.Trigger
@@ -241,7 +266,7 @@ export const ActionsButton = injector(
           <Menu size="compact">
             {isLoading || isFetching ? (
               <Menu.Item data-testid="loading-actions" disabled>
-                Loading actions...
+                {t("loadingActions")}
               </Menu.Item>
             ) : (
               actionButtons
@@ -258,10 +283,10 @@ export const ActionsButton = injector(
           look="outlined"
           disabled={!hasSelected}
           trailing={<IconChevronDown />}
-          aria-label="Tasks Actions"
+          aria-label={t("taskActions")}
           {...rest}
         >
-          {selectedCount > 0 ? `${selectedCount} ${recordTypeLabel}${selectedCount > 1 ? "s" : ""}` : "Actions"}
+          {selectedCount > 0 ? recordTypeLabel : t("actions")}
         </Button>
       </Dropdown.Trigger>
     );

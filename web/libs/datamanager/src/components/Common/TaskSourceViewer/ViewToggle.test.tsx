@@ -1,7 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { render as renderReact, screen } from "@testing-library/react";
+import { createLocaleRuntime } from "@humansignal/i18n";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import { ViewToggle } from "./ViewToggle";
+
+const runtime = createLocaleRuntime("en-US");
+const LocaleProvider = runtime.provider;
+const render = (view: ReactElement) => renderReact(<LocaleProvider>{view}</LocaleProvider>);
+afterAll(() => runtime.destroy());
 
 // Mock the UI components
 jest.mock("@humansignal/ui", () => ({

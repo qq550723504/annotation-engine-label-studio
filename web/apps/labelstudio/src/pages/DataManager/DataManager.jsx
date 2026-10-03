@@ -17,6 +17,7 @@ import { APIConfig } from "./api-config";
 import { AssignmentManager } from "./AssignmentManager";
 import { ReviewerWorkspace } from "./ReviewerWorkspace";
 import { SubmissionReleaseWorkspace } from "./SubmissionReleaseWorkspace";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 import "./DataManager.scss";
 
@@ -51,6 +52,7 @@ const initializeDataManager = async (root, props, params) => {
     },
     ...props,
     ...settings,
+    locale: params.locale,
   };
 
   return new window.DataManager(dmConfig);
@@ -61,6 +63,9 @@ const buildLink = (path, params) => {
 };
 
 export const DataManagerPage = ({ ...props }) => {
+  const { locale, t } = useLocaleTranslation("datamanager");
+  const latestLocale = useRef(locale);
+  latestLocale.current = locale;
   const dependencies = useMemo(loadDependencies, []);
   const toast = useContext(ToastContext);
   const root = useRef();
@@ -93,6 +98,7 @@ export const DataManagerPage = ({ ...props }) => {
         ...params,
         project,
         autoAnnotation: isDefined(interactiveBacked),
+        locale: latestLocale.current,
       })));
 
     Object.assign(window, { dataManager });
@@ -103,9 +109,7 @@ export const DataManagerPage = ({ ...props }) => {
       const isMissingProjectError = error?.startsWith("Project ID:");
 
       if (isMissingTaskError || isMissingProjectError) {
-        const message = `The ${
-          isMissingTaskError ? "task" : "project"
-        } you are trying to access does not exist or is no longer available.`;
+        const message = t(isMissingTaskError ? "missingTask" : "missingProject");
 
         toast.show({
           message,
@@ -215,12 +219,16 @@ export const DataManagerPage = ({ ...props }) => {
     return () => destroyDM();
   }, []);
 
+  useEffect(() => {
+    dataManagerRef.current?.setLocale(locale);
+  }, [locale]);
+
   return crashed ? (
     <div className={cn("crash").toClassName()}>
-      <div className={cn("crash").elem("info").toClassName()}>Project was deleted or not yet created</div>
+      <div className={cn("crash").elem("info").toClassName()}>{t("projectUnavailable")}</div>
 
-      <Button to="/projects" aria-label="Back to projects">
-        Back to projects
+      <Button to="/projects" aria-label={t("backToProjects")}>
+        {t("backToProjects")}
       </Button>
     </div>
   ) : (
@@ -242,6 +250,7 @@ DataManagerPage.pages = {
   ImportModal,
 };
 DataManagerPage.context = ({ dmRef }) => {
+  const { locale, t } = useLocaleTranslation("datamanager");
   const { project } = useProject();
   const api = useAPI();
   const toast = useContext(ToastContext);
@@ -334,18 +343,16 @@ DataManagerPage.context = ({ dmRef }) => {
   };
 
   const links = {
-    "/settings": "Settings",
+    "/settings": t("settings"),
   };
 
   const updateCrumbs = (currentMode) => {
     const isExplorer = currentMode === "explorer";
-
-    if (isExplorer) {
-      deleteCrumb("dm-crumb");
-    } else {
+    deleteCrumb("dm-crumb");
+    if (!isExplorer) {
       addCrumb({
         key: "dm-crumb",
-        title: "Labeling",
+        title: t("labeling"),
       });
     }
   };
@@ -356,7 +363,7 @@ DataManagerPage.context = ({ dmRef }) => {
 
     if (isLabelStream && show_instruction && expert_instruction) {
       modal({
-        title: "Labeling Instructions",
+        title: t("labelingInstructions"),
         body: <div dangerouslySetInnerHTML={{ __html: expert_instruction }} />,
         style: { width: 680 },
       });
@@ -365,7 +372,6 @@ DataManagerPage.context = ({ dmRef }) => {
 
   const onDMModeChanged = (currentMode) => {
     setMode(currentMode);
-    updateCrumbs(currentMode);
     showLabelingInstruction(currentMode);
   };
 
@@ -377,7 +383,11 @@ DataManagerPage.context = ({ dmRef }) => {
     return () => {
       dmRef?.off?.("modeChanged", onDMModeChanged);
     };
-  }, [dmRef, project]);
+  }, [dmRef, project, locale]);
+
+  useEffect(() => {
+    updateCrumbs(mode);
+  }, [mode, locale]);
 
   return project && project.id ? (
     <Space size="small">
@@ -421,7 +431,7 @@ DataManagerPage.context = ({ dmRef }) => {
           look="outlined"
           onClick={() => {
             modal({
-              title: "Instructions",
+              title: t("instructions"),
               body: () => (
                 <div
                   dangerouslySetInnerHTML={{
@@ -432,7 +442,7 @@ DataManagerPage.context = ({ dmRef }) => {
             });
           }}
         >
-          Instructions
+          {t("instructions")}
         </Button>
       )}
 

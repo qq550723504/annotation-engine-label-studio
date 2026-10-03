@@ -1,4 +1,6 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
+import { renderWithLocale as render } from "../../../__tests__/localeTestUtils";
+import { createLocaleRuntime } from "@humansignal/i18n";
 import { TimeAgo } from "../TimeAgo";
 
 describe("TimeAgo", () => {
@@ -17,6 +19,21 @@ describe("TimeAgo", () => {
     const twoHoursAgo = new Date(fixedNow - 2 * 60 * 60 * 1000);
     render(<TimeAgo date={twoHoursAgo} />);
     expect(screen.getByText(/2 hours ago/)).toBeInTheDocument();
+  });
+
+  it("updates relative time in place when the locale changes", () => {
+    const runtime = createLocaleRuntime("en-US");
+    const LocaleProvider = runtime.provider;
+    const twoHoursAgo = new Date(fixedNow - 2 * 60 * 60 * 1000);
+    const view = render(<LocaleProvider><TimeAgo date={twoHoursAgo} /></LocaleProvider>);
+    const time = screen.getByRole("time");
+    const dateTime = time.getAttribute("dateTime");
+    expect(time).toHaveTextContent("2 hours ago");
+    act(() => runtime.updateLocale("zh-CN"));
+    expect(time).toHaveTextContent("2 小时前");
+    expect(time.getAttribute("dateTime")).toBe(dateTime);
+    view.unmount();
+    runtime.destroy();
   });
 
   it("shows 'seconds ago' when date is less than a minute ago", () => {

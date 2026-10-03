@@ -14,6 +14,8 @@ import { GridView } from "../GridView/GridView";
 import "./Table.scss";
 import { Button } from "@humansignal/ui";
 import { useEffect, useState } from "react";
+import { useLocaleTranslation } from "@humansignal/i18n";
+import { displayColumnTitle, displayColumnHelp } from "../../displayColumn";
 import { EmptyState } from "./empty-state";
 import {
   DENSITY_STORAGE_KEY,
@@ -83,6 +85,7 @@ export const DataView = injector(
     RowContextMenuComponent,
     ...props
   }) => {
+    const { t } = useLocaleTranslation("datamanager");
     const [datasetStatusID, setDatasetStatusID] = useState(store.SDK.dataset?.status?.id);
     const [density, setDensity] = useState(() => {
       return localStorage.getItem(DENSITY_STORAGE_KEY) ?? DENSITY_COMFORTABLE;
@@ -124,7 +127,7 @@ export const DataView = injector(
       if (parent) {
         children.push(
           <Badge key="column-type" size="small">
-            {original?.readableType ?? parent.title}
+            {original?.readableType ?? displayColumnTitle(parent, t)}
           </Badge>,
         );
       } else if (typeof original?.alias === "string" && original.alias.startsWith("dimension_agreement__")) {
@@ -143,14 +146,14 @@ export const DataView = injector(
 
       if (help && decoration?.help !== false) {
         children.push(
-          <Tooltip key="help-tooltip" title={help}>
+          <Tooltip key="help-tooltip" title={displayColumnHelp(original, t) ?? help}>
             <Icon icon={IconQuestionOutline} style={{ opacity: 0.5 }} />
           </Tooltip>,
         );
       }
 
       return children.length ? <>{children}</> : null;
-    }, []);
+    }, [t]);
 
     const onSelectAll = useCallback(() => view.selectAll(), [view]);
 
@@ -186,9 +189,9 @@ export const DataView = injector(
         if (store.SDK.type === "DE" && ["canceled", "failed"].includes(datasetStatusID)) {
           return (
             <div className={cn("syncInProgress").toClassName()}>
-              <h3 className={cn("syncInProgress").elem("title").toClassName()}>Failed to sync data</h3>
+              <h3 className={cn("syncInProgress").elem("title").toClassName()}>{t("syncFailed")}</h3>
               <div className={cn("syncInProgress").elem("text").toClassName()}>
-                Check your storage settings. You may need to recreate this dataset
+                {t("syncFailedHelp")}
               </div>
             </div>
           );
@@ -200,9 +203,9 @@ export const DataView = injector(
         ) {
           return (
             <div className={cn("syncInProgress").toClassName()}>
-              <h3 className={cn("syncInProgress").elem("title").toClassName()}>Nothing found</h3>
+              <h3 className={cn("syncInProgress").elem("title").toClassName()}>{t("nothingFound")}</h3>
               <div className={cn("syncInProgress").elem("text").toClassName()}>
-                Try adjusting the filter or similarity search parameters
+                {t("nothingFoundHelp")}
               </div>
             </div>
           );
@@ -211,10 +214,10 @@ export const DataView = injector(
           return (
             <div className={cn("syncInProgress").toClassName()}>
               <h3 className={cn("syncInProgress").elem("title").toClassName()}>
-                Hang tight! Records are syncing in the background
+                {t("syncInProgress")}
               </h3>
               <div className={cn("syncInProgress").elem("text").toClassName()}>
-                Press the button below to see any synced records
+                {t("syncInProgressHelp")}
               </div>
               <Button
                 size="small"
@@ -227,7 +230,7 @@ export const DataView = injector(
                   await store.currentView?.reload();
                 }}
               >
-                Refresh
+                {t("refresh")}
               </Button>
             </div>
           );
@@ -276,18 +279,18 @@ export const DataView = injector(
 
         return content;
       },
-      [hasData, isLabeling, isLoading, total, datasetStatusID, role, project, hasFilters, canLabel],
+      [hasData, isLabeling, isLoading, total, datasetStatusID, role, project, hasFilters, canLabel, t],
     );
 
-    const decorationContent = (col) => {
+    const decorationContent = useCallback((col) => {
       const column = col.original;
 
       if (column.icon) {
-        return <Tooltip title={column.help ?? col.title}>{column.icon}</Tooltip>;
+        return <Tooltip title={displayColumnHelp(column, t) ?? col.title}>{column.icon}</Tooltip>;
       }
 
-      return column.title;
-    };
+      return displayColumnTitle(column, t);
+    }, [t]);
 
     const commonDecoration = useCallback(
       (alias, size, align = "flex-start", help = false) => ({
@@ -296,7 +299,7 @@ export const DataView = injector(
         style: (col) => ({ width: col.width ?? size, justifyContent: align }),
         help,
       }),
-      [],
+      [decorationContent],
     );
 
     const decoration = useMemo(

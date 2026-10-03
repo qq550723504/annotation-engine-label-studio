@@ -20,6 +20,7 @@ import { cn } from "../../../utils/bem";
 import { SidePanelsContext } from "../SidePanelsContext";
 import "./ViewControls.scss";
 import { observer } from "mobx-react";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 export type GroupingOptions = "manual" | "label" | "type";
 
@@ -44,6 +45,7 @@ const mediaStartTimeSupportedTags = [
 
 export const ViewControls: FC<ViewControlsProps> = observer(
   ({ ordering, regions, orderingDirection, onOrderingChange, onGroupingChange }) => {
+    const { t } = useLocaleTranslation("editor");
     const grouping = regions.group;
     const context = useContext(SidePanelsContext);
 
@@ -72,37 +74,37 @@ export const ViewControls: FC<ViewControlsProps> = observer(
           return {
             label: (
               <>
-                <IconList /> Group Manually
+                <IconList /> {t("groupManually")}
               </>
             ),
-            selectedLabel: "Manual",
+            selectedLabel: t("manual"),
             icon: <IconList width={16} height={16} />,
-            tooltip: "Manually Grouped",
+            tooltip: t("manuallyGrouped"),
           };
         case "label":
           return {
             label: (
               <>
-                <IconBoundingBox /> Group by Label
+                <IconBoundingBox /> {t("groupByLabel")}
               </>
             ),
-            selectedLabel: "By Label",
+            selectedLabel: t("byLabel"),
             icon: <IconBoundingBox width={16} height={16} />,
-            tooltip: "Grouped by Label",
+            tooltip: t("groupedByLabel"),
           };
         case "type":
           return {
             label: (
               <>
-                <IconCursor /> Group by Tool
+                <IconCursor /> {t("groupByTool")}
               </>
             ),
-            selectedLabel: "By Tool",
+            selectedLabel: t("byTool"),
             icon: <IconCursor width={16} height={16} />,
-            tooltip: "Grouped by Tool",
+            tooltip: t("groupedByTool"),
           };
       }
-    }, []);
+    }, [t]);
 
     const getOrderingLabels = useCallback((value: OrderingOptions): LabelInfo => {
       switch (value) {
@@ -110,34 +112,34 @@ export const ViewControls: FC<ViewControlsProps> = observer(
           return {
             label: (
               <>
-                <IconClockTimeFourOutline /> Order by Time
+                <IconClockTimeFourOutline /> {t("orderByTime")}
               </>
             ),
-            selectedLabel: "By Time",
+            selectedLabel: t("byTime"),
             icon: <IconClockTimeFourOutline width={16} height={16} />,
           };
         case "score":
           return {
             label: (
               <>
-                <IconPredictions /> Order by Score
+                <IconPredictions /> {t("orderByScore")}
               </>
             ),
-            selectedLabel: "By Score",
+            selectedLabel: t("byScore"),
             icon: <IconPredictions width={16} height={16} />,
           };
         case "mediaStartTime":
           return {
             label: (
               <>
-                <IconTimelineRegion /> Order by Media Start Time
+                <IconTimelineRegion /> {t("orderByMediaStartTime")}
               </>
             ),
-            selectedLabel: "By Media Start Time",
+            selectedLabel: t("byMediaStartTime"),
             icon: <IconTimelineRegion width={16} height={16} />,
           };
       }
-    }, []);
+    }, [t]);
 
     const renderOrderingDirectionIcon = orderingDirection === "asc" ? <IconSortUp /> : <IconSortDown />;
 
@@ -199,7 +201,7 @@ const Grouping = <T extends string>({
 }: GroupingProps<T>) => {
   const readableValue = useMemo(() => {
     return readableValueForKey(value);
-  }, [value]);
+  }, [value, readableValueForKey]);
 
   const optionsList: [T, LabelInfo][] = useMemo(() => {
     return options.map((key) => [key, readableValueForKey(key)]);
@@ -287,6 +289,7 @@ interface ToggleRegionsVisibilityButton {
 }
 
 const ToggleRegionsVisibilityButton = observer<FC<ToggleRegionsVisibilityButton>>(({ regions }) => {
+  const { t } = useLocaleTranslation("editor");
   const toggleRegionsVisibility = useCallback(
     (e) => {
       e.preventDefault();
@@ -306,8 +309,8 @@ const ToggleRegionsVisibilityButton = observer<FC<ToggleRegionsVisibilityButton>
       look="string"
       disabled={isDisabled}
       onClick={toggleRegionsVisibility}
-      aria-label={isAllHidden ? "Show all regions" : "Hide all regions"}
-      tooltip={isAllHidden ? "Show all regions" : "Hide all regions"}
+      aria-label={t(isAllHidden ? "showAllRegions" : "hideAllRegions")}
+      tooltip={t(isAllHidden ? "showAllRegions" : "hideAllRegions")}
     >
       {isAllHidden ? (
         <IconOutlinerEyeClosed width={16} height={16} />

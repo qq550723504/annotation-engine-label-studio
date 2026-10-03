@@ -8,11 +8,13 @@ import { guidGenerator } from "../../utils/unique";
 import { isDefined } from "../../utils/utilities";
 import "./CurrentTask.scss";
 import { reaction } from "mobx";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 // Manager roles that can force-skip unskippable tasks (OW=Owner, AD=Admin, MA=Manager)
 const MANAGER_ROLES = ["OW", "AD", "MA"];
 
 export const CurrentTask = observer(({ store }) => {
+  const { t, locale } = useLocaleTranslation("editor");
   const currentIndex = useMemo(() => {
     return store.taskHistory.findIndex((x) => x.taskId === store.task.id) + 1;
   }, [store.taskHistory]);
@@ -72,25 +74,25 @@ export const CurrentTask = observer(({ store }) => {
 
   // Memoized messages for previous button
   const prevButtonMessage = useMemo(() => {
-    return !store.canGoPrevTask ? "No previous task" : "Previous task";
-  }, [store.canGoPrevTask]);
+    return !store.canGoPrevTask ? t("noPreviousTask") : t("previousTask");
+  }, [store.canGoPrevTask, locale]);
 
   // Memoized messages for next button
   const nextButtonMessage = useMemo(() => {
     if (requiresAnnotationSubmission) {
-      return "Submit an annotation to continue";
+      return t("submitToContinue");
     }
     if (canNavigateNext) {
-      return "Next task";
+      return t("nextTask");
     }
     if (canPostponeTask) {
-      return "Postpone task";
+      return t("postponeTask");
     }
     if (!canSkipOrPostpone) {
-      return "Cannot postpone: task cannot be skipped";
+      return t("cannotPostpone");
     }
-    return "No next task available";
-  }, [requiresAnnotationSubmission, canNavigateNext, canPostponeTask, canSkipOrPostpone]);
+    return t("noNextTask");
+  }, [requiresAnnotationSubmission, canNavigateNext, canPostponeTask, canSkipOrPostpone, locale]);
 
   if (store.hasInterface("annotations:comments") && isFF(FF_DEV_4174)) {
     canPostpone = canPostpone && store.commentStore.addedCommentThisSession && visibleComments >= initialCommentLength;
@@ -105,11 +107,11 @@ export const CurrentTask = observer(({ store }) => {
             showCounter &&
             (isFF(FF_TASK_COUNT_FIX) ? (
               <div className={cn("current-task").elem("task-count").toClassName()}>
-                {store.queuePosition} of {store.queueTotal}
+                {t("taskCount", { current: store.queuePosition, total: store.queueTotal })}
               </div>
             ) : (
               <div className={cn("current-task").elem("task-count").toClassName()}>
-                {currentIndex} of {store.taskHistory.length}
+                {t("taskCount", { current: currentIndex, total: store.taskHistory.length })}
               </div>
             ))}
         </div>

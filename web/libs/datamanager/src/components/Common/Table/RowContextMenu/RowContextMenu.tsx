@@ -7,6 +7,8 @@ import { modal } from "../../Modal/Modal";
 import { TaskSourceViewer, getTaskSourceViewerStorageKey } from "../../TaskSourceViewer";
 // @ts-expect-error - utils is JS module
 import { getProperty } from "../utils";
+import { useLocaleRuntime, useLocaleTranslation } from "@humansignal/i18n";
+import { displayColumnTitle } from "../../../displayColumn";
 
 export interface RowContextMenuProps {
   /** Task data object */
@@ -40,6 +42,8 @@ export const RowContextMenu: FC<RowContextMenuProps> = ({
   onClose,
   projectId,
 }) => {
+  const { t } = useLocaleTranslation("datamanager");
+  const runtime = useLocaleRuntime();
   // Columns that should not have copy cell content option
   const excludedColumns = [
     "select",
@@ -92,7 +96,7 @@ export const RowContextMenu: FC<RowContextMenuProps> = ({
   // 2. Copy cell content
   const handleCopyCellContent = useCallback(async () => {
     if (!cellValue) {
-      showToast("No content to copy", "error");
+      showToast(t("noContentToCopy"), "error");
       onClose();
       return;
     }
@@ -130,32 +134,32 @@ export const RowContextMenu: FC<RowContextMenuProps> = ({
       await navigator.clipboard.writeText(textToCopy);
 
       const taskId = row.id ?? row.task_id;
-      const columnName = column?.title || column?.alias || "content";
-      showToast(`Copied "${columnName}" for Task ${taskId} to clipboard`, "info");
+      const columnName = (column && (displayColumnTitle(column, t) || column.alias)) || t("content");
+      showToast(t("copiedColumnForTask", { column: columnName, taskId }), "info");
     } catch {
-      showToast("Failed to copy to clipboard", "error");
+      showToast(t("copyFailed"), "error");
     }
     onClose();
-  }, [cellValue, column, row, onClose, showToast, view]);
+  }, [cellValue, column, row, onClose, showToast, view, t]);
 
   // 3. Copy task ID
   const handleCopyTaskId = useCallback(async () => {
     const taskId = row.id ?? row.task_id;
 
     if (!taskId) {
-      showToast("Task ID not found", "error");
+      showToast(t("taskIdNotFound"), "error");
       onClose();
       return;
     }
 
     try {
       await navigator.clipboard.writeText(String(taskId));
-      showToast(`Copied Task ID ${taskId} to clipboard`, "info");
+      showToast(t("copiedTaskId", { taskId }), "info");
     } catch {
-      showToast("Failed to copy to clipboard", "error");
+      showToast(t("copyFailed"), "error");
     }
     onClose();
-  }, [row, onClose, showToast]);
+  }, [row, onClose, showToast, t]);
 
   // 4. View task source
   const handleViewTaskSource = useCallback(() => {
@@ -179,8 +183,11 @@ export const RowContextMenu: FC<RowContextMenuProps> = ({
       return response ?? {};
     };
 
+    const LocaleProvider = runtime.provider;
     const modalInstance = modal({
-      title: `Source for task ${taskId}`,
+      title: t("sourceForTask", { taskId }),
+      simple: false,
+      providers: [<LocaleProvider key="locale" />],
       style: { width: 900 },
       header: null, // Will be set by renderToggle
       body: (
@@ -198,7 +205,7 @@ export const RowContextMenu: FC<RowContextMenuProps> = ({
     });
 
     onClose();
-  }, [row, api, sdkType, onClose, projectId]);
+  }, [row, api, sdkType, onClose, projectId, runtime, t]);
 
   // 5. View annotator performance (LSE-only)
   const handleViewAnalytics = useCallback(() => {
@@ -215,7 +222,6 @@ export const RowContextMenu: FC<RowContextMenuProps> = ({
   // Use annotators array which only contains actual annotators, not predictions
   const hasAnnotators = row.annotators && row.annotators.length > 0;
   const annotatorCount = row.annotators?.length ?? 0;
-  const annotatorLabel = annotatorCount === 1 ? "Annotator" : "Annotators";
 
   // Create dropdown ref for context
   const dropdownRef = useRef(null);
@@ -247,30 +253,30 @@ export const RowContextMenu: FC<RowContextMenuProps> = ({
             data-testid="menu-item-compare-annotations"
             icon={<IconViewAll />}
           >
-            Compare All Annotations
+            {t("compareAllAnnotations")}
           </Menu.Item>
 
           <Menu.Divider />
 
           {canCopyCellContent && (
             <Menu.Item onClick={handleCopyCellContent} data-testid="menu-item-copy-cell" icon={<IconCopyOutline />}>
-              Copy Cell Contents
+              {t("copyCellContents")}
             </Menu.Item>
           )}
 
           <Menu.Item onClick={handleCopyTaskId} data-testid="menu-item-copy-task-id" icon={<IconCopyOutline />}>
-            Copy Task ID
+            {t("copyTaskId")}
           </Menu.Item>
 
           <Menu.Item onClick={handleViewTaskSource} data-testid="menu-item-view-source" icon={<IconBraces />}>
-            View Task Source
+            {t("viewTaskSource")}
           </Menu.Item>
 
           {onViewAnalytics && hasAnnotators && (
             <>
               <Menu.Divider />
               <Menu.Item onClick={handleViewAnalytics} data-testid="menu-item-view-analytics" icon={<IconUserStats />}>
-                View {annotatorLabel} Performance
+                {t("viewAnnotatorPerformance", { count: annotatorCount })}
               </Menu.Item>
             </>
           )}

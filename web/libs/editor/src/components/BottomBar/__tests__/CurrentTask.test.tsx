@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { renderWithLocale as render } from "../../../__tests__/localeTestUtils";
 import { CurrentTask } from "../CurrentTask";
 import { FF_LEAP_1173 } from "../../../utils/feature-flags";
 import { mockFF } from "../../../../__mocks__/global";

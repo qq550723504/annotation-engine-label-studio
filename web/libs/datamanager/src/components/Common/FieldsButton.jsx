@@ -3,6 +3,8 @@ import { inject, observer } from "mobx-react";
 import React from "react";
 import { cn } from "../../utils/bem";
 import { Menu } from "./Menu/Menu";
+import { useLocaleTranslation } from "@humansignal/i18n";
+import { displayColumnTitle } from "../displayColumn";
 
 const injector = inject(({ store }) => {
   return {
@@ -11,11 +13,12 @@ const injector = inject(({ store }) => {
 });
 
 const FieldsMenu = observer(({ columns, WrapperComponent, onClick, onReset, selected, resetTitle }) => {
+  const { t } = useLocaleTranslation("datamanager");
   const MenuItem = (col, onClick) => {
     const enterpriseBadge = col.enterprise_badge ?? col.original?.enterprise_badge;
     const shouldDisable = col.disabled || enterpriseBadge;
 
-    const titleContent = <span>{col.title}</span>;
+    const titleContent = <span>{displayColumnTitle(col.original ?? col, t)}</span>;
 
     return (
       <Menu.Item key={col.key} name={col.key} onClick={onClick} disabled={shouldDisable}>
@@ -39,7 +42,7 @@ const FieldsMenu = observer(({ columns, WrapperComponent, onClick, onReset, sele
         MenuItem(
           {
             key: "none",
-            title: resetTitle ?? "Default",
+            title: resetTitle ?? t("default"),
             wrap: false,
           },
           onReset,
@@ -48,7 +51,7 @@ const FieldsMenu = observer(({ columns, WrapperComponent, onClick, onReset, sele
       {columns.map((col) => {
         if (col.children) {
           return (
-            <Menu.Group key={col.key} title={col.title}>
+            <Menu.Group key={col.key} title={displayColumnTitle(col.original ?? col, t)}>
               {col.children.map((col) => MenuItem(col, () => onClick?.(col)))}
             </Menu.Group>
           );

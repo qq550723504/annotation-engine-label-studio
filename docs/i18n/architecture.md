@@ -159,6 +159,28 @@ region or undo state and might call annotation/save/submit. If one legacy
 control cannot update safely, keep its old display with an explicit deferred
 refresh notice after safe navigation rather than silently remounting it.
 
+The #55 candidate mounts one locale runtime per Data Manager instance and one
+per editor instance. The main App passes its confirmed locale into Data
+Manager; a later switch calls `setLocale` on the existing Data Manager and
+editor. Standalone editor defaults to English, accepts only the two canonical
+codes and destroys its runtime with the root. Visible column/filter/panel
+titles are projections of stable IDs; query operators, task fields, label
+values, result JSON and assignment tokens remain unchanged. Data Manager's
+initial task selection is asynchronous and can reset the editor store. The
+integration now holds loading until that selection completes and shares its
+in-flight promise so another caller cannot expose or repeat a partial load.
+This readiness rule also protects an annotation started just after opening a
+task, independently of a language switch.
+
+The Data Manager export route keeps using `label_studio_sdk.converter` for
+available formats and capabilities. `ExportPage` maps known converter format
+names to bundled display titles, descriptions and tags, with each dynamic key
+registered in `dynamic-keys.json`. Unknown formats retain the converter's
+metadata. The selected raw `format.name`, export request, CLI command,
+download filename and bytes never depend on translated text. The import modal
+uses the existing sample-task preview endpoint; its POST generates display
+data without persisting a task.
+
 ## Human messages, machine fields and test handoff
 
 Keep HTTP status, JSON keys/envelope, DRF machine codes, route/event/hotkey

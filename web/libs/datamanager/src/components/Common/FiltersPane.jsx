@@ -4,6 +4,7 @@ import { IconChevronDown } from "@humansignal/icons";
 import { Filters } from "../Filters/Filters";
 import { Badge, Button, Dropdown } from "@humansignal/ui";
 import { Icon } from "./Icon/Icon";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 const buttonInjector = inject(({ store }) => {
   const { viewsStore, currentView } = store;
@@ -18,6 +19,7 @@ const buttonInjector = inject(({ store }) => {
 export const FiltersButton = buttonInjector(
   observer(
     React.forwardRef(({ activeFiltersNumber, size, sidebarEnabled, viewsStore, ...rest }, ref) => {
+      const { t } = useLocaleTranslation("datamanager");
       const hasFilters = activeFiltersNumber > 0;
 
       return (
@@ -28,10 +30,10 @@ export const FiltersButton = buttonInjector(
           look="outlined"
           onClick={() => sidebarEnabled && viewsStore.toggleSidebar()}
           trailing={<Icon icon={IconChevronDown} />}
-          aria-label="Filters"
+          aria-label={t("filters")}
           {...rest}
         >
-          Filters{" "}
+          {t("filters")}{" "}
           {hasFilters && (
             <Badge size="small" className="ml-tightest">
               {activeFiltersNumber}

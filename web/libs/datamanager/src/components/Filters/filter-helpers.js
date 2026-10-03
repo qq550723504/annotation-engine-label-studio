@@ -9,9 +9,10 @@
  * and recent duplicates — only matches real column options by title.
  * @param {object} option  – the dropdown option (may have .original with _isHeader, etc.)
  * @param {string} query   – the current search string
+ * @param {function} displayTitle – optional localized column title formatter
  * @returns {boolean} true if the option should be visible
  */
-export function filterFieldSearchHandler(option, query) {
+export function filterFieldSearchHandler(option, query, displayTitle) {
   const original = option?.original ?? option;
 
   if (original?._isHeader || original?._isSeparator) {
@@ -22,8 +23,12 @@ export function filterFieldSearchHandler(option, query) {
   }
 
   const title = original?.field?.title ?? original?.title ?? "";
-  const parentTitle = original?.field?.parent?.title ?? "";
-  return `${title} ${parentTitle}`.toLowerCase().includes(query.toLowerCase());
+  const field = original?.field;
+  const parentTitle = field?.parent?.title ?? "";
+  const localizedTitle = field && displayTitle?.(field);
+  const localizedParentTitle = field?.parent && displayTitle?.(field.parent);
+  return `${title} ${parentTitle} ${localizedTitle ?? ""} ${localizedParentTitle ?? ""}`
+    .toLowerCase().includes(query.toLowerCase());
 }
 
 /**

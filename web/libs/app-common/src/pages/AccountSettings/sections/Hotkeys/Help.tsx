@@ -6,6 +6,8 @@ import { KeyboardKey } from "./Key";
 import { HOTKEY_SECTIONS, URL_TO_SECTION_MAPPING } from "./defaults";
 import type { Hotkey, Section } from "./utils";
 import { getTypedDefaultHotkeys } from "./utils";
+import { createLocaleRuntime, useLocaleRuntime, useLocaleTranslation, type LocaleRuntime } from "@humansignal/i18n";
+import { displayHotkey, displayHotkeySection } from "./display";
 
 // Type definitions for imported constants
 interface UrlMapping {
@@ -60,6 +62,8 @@ const useCurrentHotkeys = (): Hotkey[] => {
  * Renders shortcuts organized by sections and subgroups
  */
 const HotkeyHelpModal = ({ sectionsToShow }: HotkeyHelpModalProps) => {
+  const { t, locale } = useLocaleTranslation("app");
+  const localeRuntime = useLocaleRuntime();
   const hotkeys = useCurrentHotkeys();
 
   /**
@@ -77,6 +81,7 @@ const HotkeyHelpModal = ({ sectionsToShow }: HotkeyHelpModalProps) => {
     (sectionId: string) => {
       const section = sections.find((s: Section) => s.id === sectionId);
       if (!section) return null;
+      const sectionDisplay = displayHotkeySection(section, localeRuntime);
 
       const sectionHotkeys = hotkeys.filter((h: Hotkey) => h.section === sectionId);
       if (sectionHotkeys.length === 0) return null;
@@ -102,8 +107,8 @@ const HotkeyHelpModal = ({ sectionsToShow }: HotkeyHelpModalProps) => {
         <div key={sectionId} className="border border-neutral-border rounded-lg">
           {/* Section Header */}
           <div className="px-4 py-3 border-b border-neutral-border">
-            <h3 className="font-medium">{section.title}</h3>
-            <p className="text-sm text-neutral-content-subtler">{section.description}</p>
+            <h3 className="font-medium">{sectionDisplay.title}</h3>
+            <p className="text-sm text-neutral-content-subtler">{sectionDisplay.description}</p>
           </div>
 
           {/* Section Content */}
@@ -118,11 +123,11 @@ const HotkeyHelpModal = ({ sectionsToShow }: HotkeyHelpModalProps) => {
                   {subgroup !== "default" && (
                     <div className="mb-3">
                       <div className="text-sm font-medium mb-1 capitalize">
-                        {sections.find((s: Section) => s.id === subgroup)?.title || subgroup}
+                        {displayHotkeySection(sections.find((s: Section) => s.id === subgroup) ?? { id: subgroup, title: subgroup, description: "" }, localeRuntime).title}
                       </div>
                       {sections.find((s: Section) => s.id === subgroup)?.description && (
                         <div className="text-xs text-neutral-content-subtler">
-                          {sections.find((s: Section) => s.id === subgroup)?.description}
+                          {displayHotkeySection(sections.find((s: Section) => s.id === subgroup)!, localeRuntime).description}
                         </div>
                       )}
                     </div>
@@ -132,9 +137,9 @@ const HotkeyHelpModal = ({ sectionsToShow }: HotkeyHelpModalProps) => {
                   {groupedHotkeys[subgroup].map((hotkey: Hotkey) => (
                     <div key={`${section.id}-${hotkey.element}`} className="flex items-center justify-between py-2">
                       <div>
-                        <div className="font-medium text-neutral-content">{hotkey.label}</div>
+                        <div className="font-medium text-neutral-content">{displayHotkey(hotkey, localeRuntime).label}</div>
                         {hotkey.description && (
-                          <div className="text-sm text-neutral-content-subtler">{hotkey.description}</div>
+                          <div className="text-sm text-neutral-content-subtler">{displayHotkey(hotkey, localeRuntime).description}</div>
                         )}
                       </div>
                       <KeyboardKey>{hotkey.key}</KeyboardKey>
@@ -147,7 +152,7 @@ const HotkeyHelpModal = ({ sectionsToShow }: HotkeyHelpModalProps) => {
         </div>
       );
     },
-    [hotkeys],
+    [hotkeys, localeRuntime, locale],
   );
 
   const modalContent = useMemo(
@@ -155,16 +160,16 @@ const HotkeyHelpModal = ({ sectionsToShow }: HotkeyHelpModalProps) => {
       <div className="max-w-3xl max-h-[90vh] h-full overflow-hidden w-full mx-4 flex flex-col">
         <div className="px-wide py-base border-b border-neutral-border">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">Keyboard Shortcuts</h2>
+            <h2 className="text-lg font-semibold">{t("keyboardShortcuts")}</h2>
           </div>
           <p className="text-sm text-neutral-content-subtler mt-1">
-            View all available keyboard shortcuts.&nbsp;
+            {t("hotkeyHelpDescription")}&nbsp;
             <a
               href="/user/account/hotkeys"
               onClick={handleCustomizeClick}
               className="text-primary-content hover:underline hover:text-primary-content-hover"
             >
-              Customize
+              {t("customize")}
             </a>
           </p>
         </div>
@@ -252,12 +257,17 @@ const determineSectionsToShow = (sectionOrUrl?: string | string[]): string[] => 
  * // Show shortcuts based on URL
  * openHotkeyHelp('/projects/123/data/?task=456');
  */
-export const openHotkeyHelp = (sectionOrUrl?: string | string[]): ModalReturn => {
+export const openHotkeyHelp = (sectionOrUrl?: string | string[], runtime?: LocaleRuntime): ModalReturn => {
   const sectionsToShow = determineSectionsToShow(sectionOrUrl);
+  const localeRuntime = runtime ?? createLocaleRuntime("en-US");
+  const LocaleProvider = localeRuntime.provider;
 
   const modalInstance = modal({
-    title: "Keyboard Shortcuts",
+    title: localeRuntime.t("app:keyboardShortcuts"),
     body: () => <HotkeyHelpModal sectionsToShow={sectionsToShow} />,
+    simple: false,
+    providers: [<LocaleProvider key="locale" />],
+    onHidden: runtime ? undefined : () => localeRuntime.destroy(),
     bare: true,
     allowClose: true,
     width: 768,

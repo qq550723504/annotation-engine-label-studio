@@ -7,9 +7,11 @@ import { AutoAcceptToggle } from "../AnnotationTab/AutoAcceptToggle";
 import { DynamicPreannotationsToggle } from "../AnnotationTab/DynamicPreannotationsToggle";
 import { GroundTruth } from "../CurrentEntity/GroundTruth";
 import { EditingHistory } from "./HistoryActions";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import "./Actions.scss";
 
 export const Actions = ({ store }) => {
+  const { t } = useLocaleTranslation("editor");
   const annotationStore = store.annotationStore;
   const entity = annotationStore.selected;
   const isPrediction = entity?.type === "prediction";
@@ -24,11 +26,11 @@ export const Actions = ({ store }) => {
         {store.description && store.hasInterface("instruction") && (
           <Button
             type="text"
-            aria-label="Instructions"
+            aria-label={t("instructions")}
             size="small"
             variant="neutral"
             look="string"
-            tooltip="Show instructions"
+            tooltip={t("showInstructions")}
             onClick={() => store.toggleDescription()}
             className="aspect-square"
             leading={<IconInfoOutline />}
@@ -37,12 +39,12 @@ export const Actions = ({ store }) => {
         )}
         <Button
           type="text"
-          aria-label="Settings"
+          aria-label={t("settings")}
           size="small"
           look="string"
           variant="neutral"
           onClick={() => store.toggleSettings()}
-          tooltip="Settings"
+          tooltip={t("settings")}
           className="aspect-square"
           leading={<IconSettings />}
           data-testid="bottombar-settings-button"

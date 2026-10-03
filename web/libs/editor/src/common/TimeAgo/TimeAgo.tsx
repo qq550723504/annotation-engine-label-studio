@@ -1,4 +1,6 @@
 import { format, formatDistanceToNow } from "date-fns";
+import { enUS, zhCN } from "date-fns/locale";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -31,6 +33,7 @@ type TimeAgoProps = React.ComponentPropsWithoutRef<"time"> & {
 };
 
 export const TimeAgo = ({ date, ...rest }: TimeAgoProps) => {
+  const { locale, t } = useLocaleTranslation("editor");
   const [timestamp, forceUpdate] = useState(Date.now());
   const fromTS = useMemo(() => {
     return new Date(date).valueOf();
@@ -54,13 +57,12 @@ export const TimeAgo = ({ date, ...rest }: TimeAgoProps) => {
 
   // Replace the longer english text when less than a minute in time. This is done this way due to a limiting API
   // with the date-fns function. If we require an entire overhaul to the messaging for the en-US locale, revisit this and replace with an entire locale override option.
-  const text =
-    formatDistanceToNow(fromTS, { addSuffix: true }) === "less than a minute ago"
-      ? "seconds ago"
-      : formatDistanceToNow(fromTS, { addSuffix: true });
+  const dateLocale = locale === "zh-CN" ? zhCN : enUS;
+  const distance = formatDistanceToNow(fromTS, { addSuffix: true, locale: dateLocale });
+  const text = locale === "en-US" && distance === "less than a minute ago" ? t("secondsAgo") : distance;
 
   return (
-    <time dateTime={format(fromTS, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx")} title={format(fromTS, "PPpp")} {...rest}>
+    <time dateTime={format(fromTS, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx")} title={format(fromTS, "PPpp", { locale: dateLocale })} {...rest}>
       {text}
     </time>
   );

@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
+import { renderWithLocale as render } from "../../../../__tests__/localeTestUtils";
+import { createLocaleRuntime } from "@humansignal/i18n";
 import { OutlinerPanel } from "../OutlinerPanel";
 
 // Mock the dependencies
@@ -98,6 +100,20 @@ describe("OutlinerPanel", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it("re-renders translated empty copy without changing region grouping", () => {
+    const runtime = createLocaleRuntime("en-US");
+    const LocaleProvider = runtime.provider;
+    const regions = { ...mockRegions, setGrouping: jest.fn() };
+    const view = render(<LocaleProvider><OutlinerPanel {...defaultProps} regions={regions} /></LocaleProvider>);
+    expect(screen.getByTestId("empty-state-header")).toHaveTextContent("Labeled regions will appear here");
+    expect(regions.setGrouping).not.toHaveBeenCalled();
+    act(() => runtime.updateLocale("zh-CN"));
+    expect(screen.getByTestId("empty-state-header")).toHaveTextContent("标注区域将在这里显示");
+    expect(regions.setGrouping).not.toHaveBeenCalled();
+    view.unmount();
+    runtime.destroy();
   });
 
   describe("OutlinerEmptyState", () => {

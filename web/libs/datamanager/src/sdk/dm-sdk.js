@@ -34,6 +34,7 @@
  * instruments: Dict<any>,
  * toolbar?: string,
  * spinner?: import("react").ReactNode
+ * locale?: "en-US" | "zh-CN",
  * apiTransform?: Record<string, Record<string, Function>
  * tabControls?: { add?: boolean, delete?: boolean, edit?: boolean, duplicate?: boolean },
  * }} DMConfig
@@ -52,6 +53,7 @@ import { APIConfig } from "./api-config";
 import { createApp } from "./app-create";
 import { LSFWrapper } from "./lsf-sdk";
 import { taskToLSFormat } from "./lsf-utils";
+import { createLocaleRuntime } from "@humansignal/i18n";
 
 const DEFAULT_TOOLBAR =
   "actions columns filters ordering label-button loading-possum error-box | refresh import-button export-button density-toggle grid-size view-toggle";
@@ -121,6 +123,10 @@ export class DataManager {
   /** @type {boolean} */
   started = false;
 
+  isDestroyed = false;
+
+  appGeneration = 0;
+
   instruments = new Map();
 
   /**
@@ -138,12 +144,14 @@ export class DataManager {
 
   /** @type {string} */
   role = null;
+  taskSelectionPromise = null;
 
   /**
    * Constructor
    * @param {DMConfig} config
    */
   constructor(config) {
+    this.localeRuntime = createLocaleRuntime(config.locale);
     this.root = config.root;
     this.project = config.project;
     this.projectId = config.projectId ?? this?.project?.id;
@@ -406,15 +414,24 @@ export class DataManager {
 
   /** @private */
   async initApp() {
-    this.store = await createApp(this.root, this);
+    if (this.isDestroyed) return;
+    const generation = ++this.appGeneration;
+    const store = await createApp(this.root, this, () => generation === this.appGeneration && !this.isDestroyed);
+    if (!store) return;
+    if (generation !== this.appGeneration || this.isDestroyed) {
+      destroy(store);
+      return;
+    }
+    this.store = store;
     this.invoke("ready", [this]);
   }
 
   initLSF(element) {
-    if (this.lsf) return;
+    if (this.lsf || this.isDestroyed || !this.store) return;
 
     this.lsf = new LSFWrapper(this, element, {
       ...this.labelStudioOptions,
+      locale: this.localeRuntime.locale,
       task: this.store.taskStore.selected,
       preload: this.preload,
       // annotation: this.store.annotationStore.selected,
@@ -429,51 +446,76 @@ export class DataManager {
    * @param {import("../stores/Tasks").TaskModel} task
    */
   async startLabeling() {
-    if (!this.lsf) return;
+    // A later taskSelected event can arrive while the editor is still loading
+    // the previous task. The active selection must catch up to the latest one.
+    if (this.taskSelectionPromise) return this.taskSelectionPromise;
+    const lsf = this.lsf;
+    if (!lsf || this.mode === "labelstream") return;
 
-    const [task, annotation] = [this.store.taskStore.selected, this.store.annotationStore.selected];
+    const selectLatestTask = async () => {
+      while (!this.isDestroyed && this.lsf === lsf) {
+        const task = this.store?.taskStore.selected;
+        if (!task || lsf.task?.id === task.id) return;
 
-    const isLabelStream = this.mode === "labelstream";
-    const taskExists = isDefined(this.lsf.task) && isDefined(task);
-    const taskSelected = this.lsf.task?.id === task?.id;
+        const annotation = this.store.annotationStore.selected;
+        const annotationID = annotation?.id ?? task.lastAnnotation?.id;
+        await lsf.selectTask(task, annotationID);
+        // The selection is settled unless the store moved to another task
+        // while it was in flight. Avoid retrying a failed/no-op selection.
+        if (this.store?.taskStore.selected?.id === task.id) return;
+      }
+    };
 
-    // do nothing if the task is already selected
-    if (taskExists && taskSelected) {
-      return;
-    }
-
-    if (!isLabelStream && (!taskSelected || isDefined(annotation))) {
-      const annotationID = annotation?.id ?? task.lastAnnotation?.id;
-
-      // this.lsf.loadTask(task.id, annotationID);
-      this.lsf.selectTask(task, annotationID);
+    // Publish the shared promise before selectTask can invoke another callback.
+    const selection = Promise.resolve().then(selectLatestTask);
+    this.taskSelectionPromise = selection;
+    try {
+      await selection;
+    } finally {
+      if (this.taskSelectionPromise === selection) this.taskSelectionPromise = null;
     }
   }
 
   destroyLSF() {
+    // A selection in the old editor must not block taskSelected in a new editor
+    // created by reload(). Its completion only belongs to that old instance.
+    this.taskSelectionPromise = null;
     this.invoke("beforeLsfDestroy", this, this.lsf?.lsfInstance);
     this.lsf?.destroy();
     this.lsf = undefined;
   }
 
   destroy(detachCallbacks = true) {
+    if (this.isDestroyed) return;
+    ++this.appGeneration;
+    if (detachCallbacks) this.isDestroyed = true;
     this.destroyLSF();
     unmountComponentAtNode(this.root);
 
     if (this.store) {
       destroy(this.store);
+      this.store = null;
     }
 
     if (detachCallbacks) {
+      this.localeRuntime.destroy();
       this.callbacks.forEach((callbacks) => callbacks.clear());
       this.callbacks.clear();
     }
   }
 
   reload() {
+    if (this.isDestroyed) return;
     this.destroy(false);
     this.initApp();
     this.installActions();
+  }
+
+  setLocale(locale) {
+    if (this.isDestroyed) return false;
+    if (!this.localeRuntime.updateLocale(locale)) return false;
+    this.lsf?.lsfInstance?.setLocale?.(this.localeRuntime.locale);
+    return true;
   }
 
   async apiCall(...args) {

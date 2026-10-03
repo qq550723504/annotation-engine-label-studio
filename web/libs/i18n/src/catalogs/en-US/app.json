@@ -5,6 +5,8 @@
   "languageAutomatic": "Automatic",
   "languageSaveFailed": "Could not save your language. Please try again.",
   "keyboardShortcuts": "Keyboard shortcuts",
+  "hotkeyHelpDescription": "View all available keyboard shortcuts.",
+  "customize": "Customize",
   "accountAndSettings": "Account & Settings",
   "logOut": "Log out",
   "notificationSettingsNotice": "Please check new notification settings in the Account & Settings page",

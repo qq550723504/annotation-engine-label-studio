@@ -34,7 +34,7 @@ import { isFF } from "../../utils/feature-flags";
 import { ff } from "@humansignal/core";
 import { openHotkeyHelp } from "@humansignal/app-common/pages/AccountSettings/sections/Hotkeys/Help";
 import { LanguagePreferences } from "@humansignal/app-common/pages/AccountSettings/sections/LanguagePreferences";
-import { useLocaleTranslation } from "@humansignal/i18n";
+import { useLocaleRuntime, useLocaleTranslation } from "@humansignal/i18n";
 
 export const MenubarContext = createContext();
 
@@ -58,6 +58,7 @@ const RightContextMenu = ({ className, ...props }) => {
 
 export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSidebarToggle, onSidebarPin }) => {
   const { t } = useLocaleTranslation("app");
+  const localeRuntime = useLocaleRuntime();
   const menuDropdownRef = useRef();
   const useMenuRef = useRef();
   const { user, isLoading } = useAuth();
@@ -171,7 +172,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
                     "video",
                     "timeseries",
                     "image_gallery",
-                  ]);
+                  ], localeRuntime);
                 }}
                 icon={<IconHotkeys />}
               />
