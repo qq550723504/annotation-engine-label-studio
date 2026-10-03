@@ -4,8 +4,9 @@
  * This file provides backward compatibility by wrapping @humansignal/ui Modal
  * with LS-specific providers automatically injected.
  */
-import type { ReactElement, ReactNode } from "react";
+import { forwardRef, type ReactElement, type ReactNode } from "react";
 import {
+  Modal as CoreModal,
   modal as coreModal,
   confirm as coreConfirm,
   info as coreInfo,
@@ -76,9 +77,23 @@ const createModal = (type: keyof typeof modalTypes) => {
   };
 };
 
-// Re-export Modal component and hooks
+// Declarative app modals share the localized close control used by the
+// imperative helpers. Preserve the core Modal's compound components and ref.
+const DeclarativeModal = forwardRef<CoreModal, ModalProps>((props, ref) => (
+  <CoreModal {...props} ref={ref} closeButton={props.closeButton ?? <AppModalCloseButton />} />
+));
+DeclarativeModal.displayName = "AppModal";
+
+export const Modal = Object.assign(DeclarativeModal, {
+  Header: CoreModal.Header,
+  Footer: CoreModal.Footer,
+  Title: CoreModal.Title,
+  Body: CoreModal.Body,
+  CloseButton: CoreModal.CloseButton,
+});
+
 export const modal = createModal("modal");
 export const confirm = createModal("confirm");
 export const info = createModal("info");
 export { modal as standaloneModal };
-export { Modal, useModalControls } from "@humansignal/ui/lib/modal";
+export { useModalControls } from "@humansignal/ui/lib/modal";
