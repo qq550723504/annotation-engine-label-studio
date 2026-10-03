@@ -548,14 +548,15 @@ Form.Actions = ({ children, valid, extra, size }) => {
   );
 };
 
-Form.Indicator = ({ successLabel = "Saved!" }) => {
+Form.Indicator = ({ successLabel }) => {
+  const { t } = useLocaleTranslation("projects");
   const state = React.useContext(FormStateContext);
 
   return (
     <div className={cn("form-indicator").toClassName()}>
       <Oneof value={state}>
         <span className={cn("form-indicator").elem("item").mod({ type: state }).toClassName()} case="success">
-          {successLabel}
+          {successLabel ?? t("saved")}
         </span>
       </Oneof>
     </div>

@@ -27,6 +27,11 @@ test("finds logical and template fallbacks rendered as JSX children", () => {
   assert.deepEqual(found.map(({ text }) => text), ["User"]);
 });
 
+test("finds human-facing destructuring defaults but not machine defaults", () => {
+  const found = scanSource('const Indicator = ({ successLabel = "Saved!", mode = "raw" }) => <span>{successLabel}</span>;');
+  assert.deepEqual(found.map(({ text }) => text), ["Saved!"]);
+});
+
 test("finds human text passed through component labels and tooltips", () => {
   const found = scanSource('const Example = () => <Control label="Review task" tooltip="View Task Source" />;');
   assert.deepEqual(found.map(({ text }) => text), ["Review task", "View Task Source"]);

@@ -63,6 +63,7 @@ const allowed = {
 };
 
 const humanAttribute = new Set(["aria-label", "ariaLabel", "title", "placeholder", "alt", "tooltip", "label"]);
+const humanDefaultName = /(?:label|title|placeholder|tooltip|message|text)$/i;
 const normalized = (text) => text.replace(/\s+/g, " ").trim();
 const humanText = (text) => /[A-Za-z\u4e00-\u9fff]{2,}/u.test(text);
 
@@ -128,6 +129,10 @@ function scanSource(source) {
     }
     if (node.type === "AssignmentExpression" && node.left?.type === "MemberExpression" &&
         !node.left.computed && node.left.property?.name === "title") {
+      visitDisplayExpression(node.right);
+    }
+    if (node.type === "AssignmentPattern" && node.left?.type === "Identifier" &&
+        humanDefaultName.test(node.left.name)) {
       visitDisplayExpression(node.right);
     }
     if (node.type === "JSXExpressionContainer" &&
