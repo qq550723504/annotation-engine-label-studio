@@ -18,16 +18,37 @@ type Fixture = {
 
 describe("collaboration language and immutable workflow", () => {
   let fixture: Fixture;
+  let activeEmail: string | null = null;
+  let originalPreference: "auto" | "en-US" | "zh-CN" = "auto";
 
   before(() => {
     cy.readFile(".enterprise-e2e.json").then((data) => { fixture = data as Fixture; });
   });
 
   const loginAndVisit = (email: string, path: string) => {
+    activeEmail = email;
     cy.loginAs(email, fixture.password, path);
+    cy.request("GET", "/api/current-user/locale/").its("body.preference").then((preference) => {
+      originalPreference = preference ?? "auto";
+    });
     cy.visit(path);
     cy.location("pathname", { timeout: 30000 }).should("eq", path.split("?")[0]);
   };
+
+  afterEach(() => {
+    if (!activeEmail) return;
+    const email = activeEmail;
+    activeEmail = null;
+    cy.loginAs(email, fixture.password, "/user/account/personal-info");
+    cy.visit("/user/account/personal-info");
+    cy.get('[data-testid="language-preference-select"]').then(($select) => {
+      if ($select.val() === originalPreference) return;
+      cy.intercept("PATCH", "**/api/current-user/locale*").as("restoreLocale");
+      cy.wrap($select).select(originalPreference);
+      cy.wait("@restoreLocale").its("response.statusCode").should("eq", 200);
+    });
+    cy.get('[data-testid="language-preference-select"]').should("have.value", originalPreference);
+  });
 
   const selectModalLocale = (value: "en-US" | "zh-CN") => {
     cy.intercept("PATCH", "**/api/current-user/locale*").as("saveLocale");
