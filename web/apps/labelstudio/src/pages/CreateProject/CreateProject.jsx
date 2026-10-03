@@ -17,9 +17,10 @@ import { Input, TextArea } from "../../components/Form";
 import { FF_LSDV_E_297, isFF } from "../../utils/feature-flags";
 import { createURL } from "../../components/HeidiTips/utils";
 import { useLocaleTranslation } from "@humansignal/i18n";
+import { localizedResponseErrorDetails } from "../../utils/localizedResponseError";
 
 const ProjectName = ({ name, setName, onSaveName, onSubmit, error, description, setDescription, show = true }) => {
-  const { t } = useLocaleTranslation("projects");
+  const { t, locale } = useLocaleTranslation("projects");
   return !show ? null : (
     <form
       className={cn("project-name").toClassName()}
@@ -40,7 +41,9 @@ const ProjectName = ({ name, setName, onSaveName, onSubmit, error, description, 
           onBlur={onSaveName}
           className="project-title w-full"
         />
-        {error && <span className="-mt-1 text-negative-content" role="alert">{t("nameSaveFailed")}</span>}
+        {error && <span className="-mt-1 text-negative-content" role="alert">
+          {localizedResponseErrorDetails(error, locale) ?? t("nameSaveFailed")}
+        </span>}
       </div>
       <div className="w-full flex flex-col gap-2">
         <label className="w-full" htmlFor="project_description">
@@ -179,7 +182,13 @@ export const CreateProject = ({ onClose }) => {
     });
 
     if (res.ok) return;
-    setError("nameSaveFailed");
+    let response;
+    try {
+      response = await res.json();
+    } catch {
+      // A non-JSON rejection uses the controlled local fallback.
+    }
+    setError({ response, $meta: { status: res.status, headers: res.headers } });
   };
 
   const onDelete = React.useCallback(() => {
