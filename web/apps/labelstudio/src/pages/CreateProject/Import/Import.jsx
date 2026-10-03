@@ -14,7 +14,7 @@ import { Button, CodeBlock, SimpleCard, Spinner, Tooltip, Typography, Badge } fr
 import truncate from "truncate-middle";
 import samples from "./samples.json";
 import { importFiles } from "./utils";
-import { localizedImportErrorDetails } from "./importErrorDisplay";
+import { localizedResponseErrorDetails } from "../../../utils/localizedResponseError";
 import { useLocaleTranslation } from "@humansignal/i18n";
 
 const importClass = cn("upload_page");
@@ -132,7 +132,7 @@ const ErrorMessage = ({ error }) => {
       {response.id && `[${response.id}] `}
       {error.i18nKey === "unsupportedFileType" ? t("unsupportedFileType", error.values)
         : error.i18nKey === "fileTooBig" ? t("fileTooBig")
-        : localizedImportErrorDetails(error, locale) ?? t("importFailed")}
+        : localizedResponseErrorDetails(error, locale) ?? t("importFailed")}
     </div>
   );
 };

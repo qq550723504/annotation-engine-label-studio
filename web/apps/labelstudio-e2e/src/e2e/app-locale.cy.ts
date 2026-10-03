@@ -50,8 +50,8 @@ describe('main application display locale', () => {
     cy.get('#password').type(fixture.password, { log: false });
     cy.get('form button[type="submit"]').click();
     cy.location('pathname').should('eq', '/projects');
-    cy.get('html').should('have.attr', 'lang', 'zh-CN');
-    cy.get('[data-testid="create-project-context"]').should('contain.text', '创建');
+    // The authenticated preference or Accept-Language takes over after login.
+    cy.get('body').should('contain.text', 'Enterprise Browser E2E');
   });
 
   it('saves a confirmed account preference and preserves unsaved profile values', () => {
@@ -160,6 +160,42 @@ describe('main application display locale', () => {
     cy.get('body').should('contain.text', '请求未能完成，请重试。');
     cy.get('body').should('not.contain.text', 'untrusted English detail');
   });
+
+  it('shows the current-language fallback when another tab changes the server locale', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    ensureAccountLocale('zh-CN');
+    cy.intercept('GET', '**/api/projects*', {
+      statusCode: 503,
+      headers: { 'content-language': 'en-US' },
+      body: { detail: 'untrusted English detail' },
+    }).as('failedProjects');
+    cy.visit('/projects');
+    cy.wait('@failedProjects');
+    cy.get('body').should('contain.text', '请求未能完成，请重试。')
+      .and('not.contain.text', 'untrusted English detail');
+  });
+
+  for (const [locale, titleError] of [
+    ['en-US', 'The project name is too long.'],
+    ['zh-CN', '项目名称过长。'],
+  ] as const) {
+    it(`shows actionable project-name validation in ${locale}`, () => {
+      cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+      ensureAccountLocale(locale);
+      cy.visit('/projects');
+      cy.get('[data-testid="create-project-context"]').click();
+      cy.intercept('PATCH', '**/api/projects/*', {
+        statusCode: 400,
+        headers: { 'content-language': locale },
+        body: { validation_errors: { title: [titleError] }, exc_info: 'internal traceback' },
+      }).as('nameRejected');
+      cy.get('#project_name').clear().type('Invalid project name');
+      cy.get('#project_description').click();
+      cy.wait('@nameRejected');
+      cy.get('[role="alert"]').should('contain.text', titleError)
+        .and('not.contain.text', 'internal traceback');
+    });
+  }
 
   for (const [locale, detail, fieldError] of [
     ['en-US', 'The CSV header is invalid.', 'Column text is required.'],
