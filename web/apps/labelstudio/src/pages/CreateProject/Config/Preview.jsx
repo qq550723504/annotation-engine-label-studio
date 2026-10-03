@@ -6,6 +6,7 @@ import { EMPTY_CONFIG } from "./Template";
 import { API_CONFIG } from "../../../config/ApiConfig";
 import { useAPI } from "../../../providers/ApiProvider";
 import { useLocaleTranslation } from "@humansignal/i18n";
+import { localizedResponseErrorDetails } from "../../../utils/localizedResponseError";
 
 const configClass = cn("configure");
 
@@ -20,7 +21,7 @@ const loadDependencies = async () => {
 };
 
 export const Preview = ({ config, data, error, loading, project }) => {
-  const { t } = useLocaleTranslation("projects");
+  const { t, locale } = useLocaleTranslation("projects");
   // @see comment about dependencies above
   loadDependencies();
 
@@ -147,15 +148,10 @@ export const Preview = ({ config, data, error, loading, project }) => {
       {error && (
         <div className={configClass.elem("preview-error").toClassName()}>
           <h2>
-            {error.localErrorKey ? t(error.localErrorKey) : error.detail} {error.id}
+            {error.localErrorKey ? t(error.localErrorKey)
+              : localizedResponseErrorDetails(error, locale) ?? t("configurationFailed")}
           </h2>
-          {error.validation_errors?.non_field_errors?.map?.((err) => (
-            <p key={err}>{err}</p>
-          ))}
-          {error.validation_errors?.label_config?.map?.((err) => (
-            <p key={err}>{err}</p>
-          ))}
-          {error.validation_errors?.map?.((err) => (
+          {error.localErrorKey && error.validation_errors?.map?.((err) => (
             <p key={err}>{err}</p>
           ))}
         </div>
