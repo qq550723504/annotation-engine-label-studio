@@ -69,7 +69,7 @@ const allowed = {
   ],
 };
 
-const humanAttribute = new Set(["aria-label", "ariaLabel", "title", "placeholder", "alt", "tooltip", "label", "body", "message", "okText"]);
+const humanAttribute = new Set(["aria-label", "ariaLabel", "title", "placeholder", "alt", "tooltip", "label", "body", "message", "okText", "cancelText"]);
 const humanDefaultName = /(?:label|title|placeholder|tooltip|message|text)$/i;
 const normalized = (text) => text.replace(/\s+/g, " ").trim();
 const humanText = (text) => /[A-Za-z\u4e00-\u9fff]{2,}/u.test(text);

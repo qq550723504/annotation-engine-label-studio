@@ -29,6 +29,7 @@ it("updates the reset confirmation with the locale without resetting before appr
     title: "将快捷键恢复为默认设置？",
     body: "确定将所有快捷键和设置恢复为默认值吗？此操作无法撤销。",
     okText: "恢复默认设置",
+    cancelText: "取消",
   }));
   expect(mockCallApi).not.toHaveBeenCalledWith("updateHotkeys", expect.anything());
 
@@ -37,6 +38,7 @@ it("updates the reset confirmation with the locale without resetting before appr
   expect(confirm).toHaveBeenLastCalledWith(expect.objectContaining({
     title: "Reset Hotkeys to Defaults?",
     okText: "Reset to Defaults",
+    cancelText: "Cancel",
   }));
   expect(mockCallApi).toHaveBeenCalledTimes(1);
 

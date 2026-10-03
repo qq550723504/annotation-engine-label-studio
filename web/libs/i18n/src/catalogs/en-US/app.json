@@ -250,6 +250,7 @@
   "hotkeyImport": "Import",
   "hotkeyExport": "Export",
   "hotkeyResetDefaults": "Reset to Defaults",
+  "cancel": "Cancel",
   "hotkeyResetConfirmTitle": "Reset Hotkeys to Defaults?",
   "hotkeyResetConfirmBody": "Reset all hotkeys and settings to their default values? This action cannot be undone.",
   "hotkeyResetSuccess": "All hotkeys and settings have been reset to defaults and saved.",

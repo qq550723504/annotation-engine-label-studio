@@ -214,6 +214,7 @@ export const useHotkeys = () => {
       title: t("hotkeyResetConfirmTitle"),
       body: t("hotkeyResetConfirmBody"),
       okText: t("hotkeyResetDefaults"),
+      cancelText: t("hotkeyCancel"),
       buttonLook: "negative",
       style: { width: 500 },
       onOk: async () => {

@@ -202,6 +202,7 @@ const invokeAction = (action, destructive, store, formRef, t) => {
       body: <DialogContent text={dialogText} form={form} formRef={formRef} store={store} action={action} />,
       buttonLook: destructive ? "negative" : "primary",
       okText: destructive ? okButtonText : undefined,
+      cancelText: t("cancel"),
       onOk() {
         const body = formRef.current?.assembleFormData({ asJSON: true });
 
