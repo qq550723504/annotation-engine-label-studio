@@ -167,12 +167,18 @@ describe('main application display locale', () => {
     cy.intercept('GET', '**/api/projects*', {
       statusCode: 503,
       headers: { 'content-language': 'en-US' },
-      body: { detail: 'untrusted English detail' },
+      body: {
+        detail: 'untrusted English detail',
+        exc_info: 'internal traceback',
+        validation_errors: { title: ['untrusted validation'] },
+      },
     }).as('failedProjects');
     cy.visit('/projects');
     cy.wait('@failedProjects');
     cy.get('body').should('contain.text', '请求未能完成，请重试。')
-      .and('not.contain.text', 'untrusted English detail');
+      .and('not.contain.text', 'untrusted English detail')
+      .and('not.contain.text', 'internal traceback')
+      .and('not.contain.text', 'untrusted validation');
   });
 
   for (const [locale, titleError] of [
