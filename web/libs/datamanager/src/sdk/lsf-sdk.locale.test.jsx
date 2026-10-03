@@ -66,3 +66,43 @@ it("releases loading after a notification preload has no task", async () => {
     window.APP_SETTINGS = previousSettings;
   }
 });
+
+it("does not read a removed Data Manager store after preload finishes", async () => {
+  const previousSettings = window.APP_SETTINGS;
+  window.APP_SETTINGS = {
+    ...previousSettings,
+    feature_flags: { ...previousSettings?.feature_flags, feat_front_dev_1752_notification_links_in_label_and_review_streams: true },
+  };
+  const init = jest.spyOn(LSFWrapper.prototype, "initLabelStudio").mockImplementation(() => {});
+
+  try {
+    const dm = {
+      store: {
+        project: { id: 7 },
+        taskStore: { selected: null, loadTaskHistory: jest.fn().mockResolvedValue([]) },
+        users: [],
+      },
+      hasInterface: jest.fn().mockReturnValue(false),
+      invoke: jest.fn(),
+      taskSelectionPromise: null,
+    };
+    const wrapper = new LSFWrapper(dm, document.createElement("div"), {
+      preload: { interaction: "notifications", task: 41 },
+    });
+    let finishPreload;
+    wrapper.preloadTask = jest.fn(() => new Promise((resolve) => { finishPreload = resolve; }));
+    const ls = { setFlags: jest.fn(), setTaskHistory: jest.fn() };
+    const loading = wrapper.onLabelStudioLoad(ls);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(wrapper.preloadTask).toHaveBeenCalledTimes(1);
+
+    wrapper.destroyed = true;
+    dm.store = null;
+    finishPreload(false);
+    await expect(loading).resolves.toBeUndefined();
+    expect(ls.setFlags.mock.calls.map(([flags]) => flags.isLoading)).toEqual([true]);
+  } finally {
+    init.mockRestore();
+    window.APP_SETTINGS = previousSettings;
+  }
+});

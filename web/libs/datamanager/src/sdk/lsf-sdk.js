@@ -753,6 +753,8 @@ export class LSFWrapper {
       await this.datamanager.startLabeling();
     }
 
+    if (this.destroyed) return;
+
     // An explorer task can arrive after the editor root. The taskSelected
     // event will release loading once startLabeling has selected it.
     if (this.labelStream || this.datamanager.store.taskStore.selected) {
