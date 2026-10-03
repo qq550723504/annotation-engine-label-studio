@@ -46,3 +46,15 @@ it("rejects a malformed successful users response", async () => {
     destroy(store);
   }
 });
+
+it("reports an API error when optional request params are omitted", async () => {
+  const error = { status: 401, error: "Unauthorized", response: { detail: "Authentication required" } };
+  const { store, invoke } = makeStore(error);
+
+  try {
+    await expect(store.apiCall("users")).resolves.toBe(error);
+    expect(invoke).toHaveBeenCalledWith("error", error);
+  } finally {
+    destroy(store);
+  }
+});
