@@ -498,6 +498,10 @@ export const AppStore = types
 
       try {
         const newProject = yield self.apiCall("project", params);
+        if (newProject?.error) {
+          self.projectFetch = false;
+          return false;
+        }
         const hasExistingProjectData = Object.entries(self.project ?? {}).length > 0;
         const hasNewProjectData = Object.entries(newProject ?? {}).length > 0;
 

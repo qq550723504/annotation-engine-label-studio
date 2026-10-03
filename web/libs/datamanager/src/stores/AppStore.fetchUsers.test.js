@@ -8,11 +8,14 @@ jest.mock("./Tabs", () => {
 window.APP_SETTINGS = { hostname: "http://localhost" };
 const { AppStore } = require("./AppStore");
 
-const makeStore = (usersResponse, users = []) => {
-  const store = AppStore.create({ toolbar: "", users });
+const makeStore = (usersResponse, users = [], project = {}) => {
+  const store = AppStore.create({ toolbar: "", users, project });
   const invoke = jest.fn();
   store._sdk = {
-    api: { users: jest.fn().mockResolvedValue(usersResponse) },
+    api: {
+      users: jest.fn().mockResolvedValue(usersResponse),
+      project: jest.fn().mockResolvedValue(usersResponse),
+    },
     invoke,
   };
   return { store, invoke };
@@ -54,6 +57,20 @@ it("reports an API error when optional request params are omitted", async () => 
   try {
     await expect(store.apiCall("users")).resolves.toBe(error);
     expect(invoke).toHaveBeenCalledWith("error", error);
+  } finally {
+    destroy(store);
+  }
+});
+
+it("keeps project data when its in-flight request returns 401", async () => {
+  const error = { status: 401, error: "Unauthorized" };
+  const project = { id: 7, title: "Existing project" };
+  const { store } = makeStore(error, [], project);
+
+  try {
+    await expect(store.fetchProject({ force: true })).resolves.toBe(false);
+    expect(store.project).toEqual(project);
+    expect(store.projectFetch).toBe(false);
   } finally {
     destroy(store);
   }
