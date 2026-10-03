@@ -478,7 +478,9 @@ export const TabStore = types
     fetchTabs: flow(function* (tab, taskID, labeling) {
       const tabId = Number.parseInt(tab);
       const response = yield getRoot(self).apiCall("tabs");
-      const tabs = response.tabs ?? response ?? [];
+      if (response?.error) return;
+      const tabs = response?.tabs ?? response ?? [];
+      if (!Array.isArray(tabs)) throw new TypeError("Tabs API must return an array");
 
       const snapshots = tabs.map((t) => {
         const { data, ...tab } = dataCleanup(t, self.columns ?? []);

@@ -498,6 +498,10 @@ export const AppStore = types
 
       try {
         const newProject = yield self.apiCall("project", params);
+        if (newProject?.error) {
+          self.projectFetch = false;
+          return false;
+        }
         const hasExistingProjectData = Object.entries(self.project ?? {}).length > 0;
         const hasNewProjectData = Object.entries(newProject ?? {}).length > 0;
 
@@ -566,6 +570,10 @@ export const AppStore = types
         },
       });
 
+      // apiCall reports HTTP failures through the SDK and returns an error
+      // object. A request can finish with 401 while this page is logging out.
+      if (list?.error) return;
+      if (!Array.isArray(list)) throw new TypeError("Users API must return an array");
       self.users.push(...list);
     }),
 
@@ -616,12 +624,10 @@ export const AppStore = types
       }
 
       const [projectFetched] = yield Promise.all(requests);
+      self.setLoading(false);
 
       if (projectFetched) {
         self.resolveURLParams();
-
-        self.setLoading(false);
-
         self.startPolling();
       }
     }),
@@ -669,7 +675,7 @@ export const AppStore = types
       // we will just allow it to try again later
       const resultStatusCode =
         result?.status ?? result?.$meta?.status ?? result?.response?.status ?? result?.response?.status_code;
-      if (result.error && resultStatusCode !== 404 && !signal.aborted && params.interaction !== "timer") {
+      if (result.error && resultStatusCode !== 404 && !signal.aborted && params?.interaction !== "timer") {
         if (options?.errorHandler?.(result)) {
           return result;
         }
