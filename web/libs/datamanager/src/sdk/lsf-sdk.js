@@ -322,11 +322,14 @@ export class LSFWrapper {
 
   /** @private */
   async loadTask(taskID, annotationID, fromHistory = false) {
+    if (this.destroyed) return;
     if (!this.lsf) {
       return console.error("Make sure that LSF was properly initialized");
     }
 
+    const lsf = this.lsf;
     const nextAction = async () => {
+      if (this.destroyed || this.lsf !== lsf || !this.datamanager.store) return;
       const tasks = this.datamanager.store.taskStore;
 
       const newTask = await this.withinLoadingState(async () => {
@@ -344,13 +347,16 @@ export class LSFWrapper {
          */
         const noTask = this.labelStream && !nextTask;
 
-        this.lsf.setFlags({ noTask });
+        if (this.destroyed || this.lsf !== lsf) return;
+        lsf.setFlags({ noTask });
 
         return nextTask;
       });
 
       // Add new data from received task
-      if (newTask) await this.selectTask(newTask, annotationID, fromHistory);
+      if (!this.destroyed && this.lsf === lsf && newTask) {
+        await this.selectTask(newTask, annotationID, fromHistory);
+      }
     };
 
     if (isFF(FF_DEV_2887) && this.lsf?.commentStore?.hasUnsaved) {
@@ -374,6 +380,7 @@ export class LSFWrapper {
   }
 
   async selectTask(task, annotationID, fromHistory = false) {
+    if (this.destroyed || !this.lsf) return;
     const needsAnnotationsMerge = task && this.task?.id === task.id;
     const annotations = needsAnnotationsMerge ? [...this.annotations] : [];
 
@@ -693,14 +700,15 @@ export class LSFWrapper {
   };
 
   async loadUserLabels() {
-    if (!this.lsf?.userLabels) return;
+    const lsf = this.lsf;
+    if (this.destroyed || !lsf?.userLabels) return;
 
     const userLabels = await this.datamanager.apiCall("userLabelsForProject", {
       project: this.project.id,
       expand: "label",
     });
 
-    if (!userLabels) return;
+    if (this.destroyed || this.lsf !== lsf || !userLabels) return;
 
     const controls = {};
 
@@ -714,7 +722,7 @@ export class LSFWrapper {
       controls[control].push(result.label.value);
     }
 
-    this.lsf.userLabels.init(controls);
+    lsf.userLabels.init(controls);
   }
 
   onLabelStudioLoad = async (ls) => {
@@ -804,6 +812,7 @@ export class LSFWrapper {
 
   /** @private */
   showOperationToast(status, successKey, errorKey, result) {
+    if (this.destroyed) return;
     const t = (key) => this.datamanager.localeRuntime.t(`datamanager:${key}`);
     if (status === 200 || status === 201) {
       this.datamanager.invoke("toast", { message: t(successKey), type: "info" });
@@ -822,7 +831,7 @@ export class LSFWrapper {
             result?.response?.detail ||
             t("overlapBlocked");
           // Set overlap state on LSF store - this will disable buttons with tooltips
-          this.lsf.setFlags({
+          this.lsf?.setFlags({
             overlapReached: true,
             overlapReachedMessage: this.overlapReachedMessage,
           });
@@ -1463,21 +1472,21 @@ export class LSFWrapper {
 
   /** @private */
   setLoading(isLoading, shouldReset = false) {
+    if (this.destroyed || !this.lsf) return;
     if (isFF(FF_LSDV_4620_3_ML) && shouldReset) this.lsf.clearApp();
     this.lsf.setFlags({ isLoading });
     if (isFF(FF_LSDV_4620_3_ML) && shouldReset) this.lsf.renderApp();
   }
 
   async withinLoadingState(callback) {
-    let result;
-
+    if (this.destroyed || !this.lsf) return;
+    const lsf = this.lsf;
     this.setLoading(true);
-    if (callback) {
-      result = await callback.call(this);
+    try {
+      return callback ? await callback.call(this) : undefined;
+    } finally {
+      if (!this.destroyed && this.lsf === lsf) this.setLoading(false);
     }
-    this.setLoading(false);
-
-    return result;
   }
 
   destroy() {

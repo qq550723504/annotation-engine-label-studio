@@ -14,8 +14,10 @@ Cypress.Commands.add('loginAs', (email: string, password: string, nextPath = '/'
   // restore its signed session cookie while the next actor is logging in.
   cy.session(['ui-login', email, nextPath], () => {
     const loginPath = `/user/login/?next=${encodeURIComponent(nextPath)}`;
-    // A second actor can log in during the same test, while the first actor's
-    // page is still mounted. Clear its cookie before opening the login route.
+    // Switching actors within one test must end the prior server session and
+    // unload its page before a new login. Clearing the cookie on a still-mounted
+    // page can race with a late authenticated response that restores it.
+    cy.visit('/logout/');
     cy.clearCookies();
     cy.visit(loginPath);
     cy.location('pathname', { timeout: 30000 }).should('eq', '/user/login/');
