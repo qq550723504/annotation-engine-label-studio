@@ -242,7 +242,8 @@ describe('main application display locale', () => {
     cy.get('#project_name').clear().type('Unsaved project name');
     cy.get('#project_description').click();
     cy.wait('@nameNetworkError');
-    cy.get('.project-name [role="alert"]').should('contain.text', 'Could not save project name');
+    cy.get('#project_name').closest('form').find('[role="alert"]')
+      .should('contain.text', 'Could not save the project name');
   });
 
   for (const [locale, detail, fieldError] of [
