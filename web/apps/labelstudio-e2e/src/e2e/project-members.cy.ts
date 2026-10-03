@@ -91,7 +91,7 @@ describe("project member and role management UI", () => {
     cy.contains("tr", fixture.users.candidate_reviewer.email).should("not.exist");
   });
 
-  it("shows real backend validation and never reports a failed mutation as success", () => {
+  it("preserves backend validation and never reports a failed mutation as success", () => {
     openAsManager();
 
     cy.get('[data-testid="member-user-select"]').select(String(fixture.users.candidate_annotator.id));
@@ -103,10 +103,15 @@ describe("project member and role management UI", () => {
     }).then((created) => {
       expect(created.status).to.eq(201);
 
+      cy.intercept("POST", `/api/projects/${fixture.project_id}/members/`).as("duplicateMember");
       cy.contains("button", "Add member").click();
+      cy.wait("@duplicateMember").then(({ response }) => {
+        expect(response?.statusCode).to.eq(400);
+        expect(response?.body.detail).to.contain("already a member");
+      });
       cy.get('[data-testid="members-error"]')
         .should("exist")
-        .and("contain.text", "already a member");
+        .and("contain.text", "The requested member change could not be completed.");
 
       // The failed duplicate mutation must not report success, but the roster
       // still reflects the authoritative server state created out-of-band.

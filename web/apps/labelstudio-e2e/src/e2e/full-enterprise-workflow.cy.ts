@@ -89,7 +89,7 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.get('[data-testid="assignment-submit"]').click();
     cy.contains('[data-testid^="assignment-row-"]', email)
       .should("exist")
-      .and("contain.text", "assigned");
+      .and("contain.text", "Assigned");
     cy.get('button[aria-label="Close modal"]').first().click();
     cy.get('[data-testid="assignment-manager"]').should("not.exist");
   };
@@ -325,7 +325,7 @@ describe("full enterprise collaboration browser workflow", () => {
     cy.get('[data-testid="review-reject"]').click();
     cy.then(() => {
       cy.get(`[data-testid="review-history-${revision1Id}"]`, { timeout: 30000 })
-        .should("contain.text", "rejected");
+        .should("contain.text", "Rejected");
     });
     closeModal();
 
@@ -366,7 +366,7 @@ describe("full enterprise collaboration browser workflow", () => {
     });
     cy.get('[data-testid="review-result-snapshot"]').should("contain.text", "Negative");
     cy.get('[data-testid="review-approve"]').click();
-    cy.get('[data-testid="review-status"]', { timeout: 30000 }).should("contain.text", "approved");
+    cy.get('[data-testid="review-status"]', { timeout: 30000 }).should("contain.text", "Approved");
     closeModal();
 
     // 21-24: Manager sees immutable history and releases approved revision 2.
@@ -376,14 +376,14 @@ describe("full enterprise collaboration browser workflow", () => {
 
     cy.then(() => {
       cy.get(`[data-testid="release-submission-${revision1Id}"]`)
-        .should("contain.text", "rejected")
+        .should("contain.text", "Rejected")
         .click();
     });
     cy.get('[data-testid="release-approved-submission"]').should("not.exist");
 
     cy.then(() => {
       cy.get(`[data-testid="release-submission-${revision2Id}"]`)
-        .should("contain.text", "approved")
+        .should("contain.text", "Approved")
         .click();
     });
     cy.then(() => {

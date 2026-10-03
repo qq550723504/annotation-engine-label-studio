@@ -43,9 +43,9 @@ describe("approved submission release workspace", () => {
 
     cy.get(`[data-testid="release-submission-${fixture.tasks.release.revision_1_submission_id}"]`)
       .should("contain.text", "Revision 1")
-      .and("contain.text", "rejected")
+      .and("contain.text", "Rejected")
       .click();
-    cy.get('[data-testid="release-status"]').should("contain.text", "rejected");
+    cy.get('[data-testid="release-status"]').should("contain.text", "Rejected");
     cy.get('[data-testid="release-result-snapshot"]').should("contain.text", "Positive");
     cy.get('[data-testid="release-approved-submission"]').should("not.exist");
 
@@ -59,9 +59,9 @@ describe("approved submission release workspace", () => {
 
     cy.get(`[data-testid="release-submission-${fixture.tasks.release.revision_3_submission_id}"]`)
       .should("contain.text", "Revision 3")
-      .and("contain.text", "pending")
+      .and("contain.text", "Pending")
       .click();
-    cy.get('[data-testid="release-status"]').should("contain.text", "pending");
+    cy.get('[data-testid="release-status"]').should("contain.text", "Pending");
     cy.get('[data-testid="release-approved-submission"]').should("not.exist");
 
     cy.request({
@@ -84,13 +84,13 @@ describe("approved submission release workspace", () => {
 
       cy.get(`[data-testid="release-submission-${fixture.tasks.release.revision_2_submission_id}"]`)
         .should("contain.text", "Revision 2")
-        .and("contain.text", "approved")
+        .and("contain.text", "Approved")
         .click();
 
-      cy.get('[data-testid="release-status"]').should("contain.text", "approved");
+      cy.get('[data-testid="release-status"]').should("contain.text", "Approved");
       cy.get('[data-testid="release-result-hash"]').should("contain.text", approvedResponse.body.result_hash);
       cy.get('[data-testid="release-review-metadata"]')
-        .should("contain.text", "approved")
+        .should("contain.text", "Approved")
         .and("contain.text", "e2e-reviewer@example.com");
 
       cy.get('[data-testid="release-approved-submission"]').click();
@@ -111,9 +111,9 @@ describe("approved submission release workspace", () => {
     });
 
     cy.get(`[data-testid="release-submission-${fixture.tasks.release.revision_1_submission_id}"]`)
-      .should("contain.text", "rejected");
+      .should("contain.text", "Rejected");
     cy.get(`[data-testid="release-submission-${fixture.tasks.release.revision_3_submission_id}"]`)
-      .should("contain.text", "pending");
+      .should("contain.text", "Pending");
   });
 
   it("does not expose release controls to an annotator", () => {
