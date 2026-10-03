@@ -124,11 +124,11 @@ export const Table = observer(
               // Always remember last clicked for shift-click range
               lastClickedId.current = rowData.id;
             }}
-            ariaLabel={`${isChecked ? "Unselect" : "Select"} Task ${rowData.id}`}
+            ariaLabel={t(isChecked ? "unselectTaskRow" : "selectTaskRow", { taskId: rowData.id })}
           />
         );
       },
-      [props.onSelectRow, selectedItems, data, onRangeSelect],
+      [props.onSelectRow, selectedItems, data, onRangeSelect, t],
     );
 
     const columns = prepareColumns(props.columns, props.hiddenColumns);

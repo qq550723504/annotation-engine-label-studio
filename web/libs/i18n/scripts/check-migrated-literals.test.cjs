@@ -7,6 +7,11 @@ test("finds a new visible literal and accessible name", () => {
   assert.deepEqual(found.map(({ text }) => text), ["Save item", "Save"]);
 });
 
+test("finds camel-case component accessibility labels", () => {
+  const found = scanSource('const Example = () => <Checkbox ariaLabel={`${checked ? "Unselect" : "Select"} Task ${row.id}`} />;');
+  assert.deepEqual(found.map(({ text }) => text), ["Task", "Unselect", "Select"]);
+});
+
 test("finds human text passed through component labels and tooltips", () => {
   const found = scanSource('const Example = () => <Control label="Review task" tooltip="View Task Source" />;');
   assert.deepEqual(found.map(({ text }) => text), ["Review task", "View Task Source"]);

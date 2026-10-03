@@ -36,7 +36,7 @@ const allowed = {
   ],
 };
 
-const humanAttribute = new Set(["aria-label", "title", "placeholder", "alt", "tooltip", "label"]);
+const humanAttribute = new Set(["aria-label", "ariaLabel", "title", "placeholder", "alt", "tooltip", "label"]);
 const normalized = (text) => text.replace(/\s+/g, " ").trim();
 const humanText = (text) => /[A-Za-z\u4e00-\u9fff]{2,}/u.test(text);
 
@@ -55,6 +55,7 @@ function scanSource(source) {
         break;
       case "TemplateLiteral":
         expression.quasis.forEach((quasi) => addLiteral(quasi.value.cooked ?? quasi.value.raw, quasi.loc.start.line));
+        expression.expressions.forEach(visitDisplayExpression);
         break;
       case "ConditionalExpression":
         visitDisplayExpression(expression.consequent);

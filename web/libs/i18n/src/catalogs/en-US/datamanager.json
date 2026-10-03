@@ -151,6 +151,8 @@
   "customizeColumns": "Customize Columns",
   "selectAllRows": "Select all rows",
   "unselectAllRows": "Unselect all rows",
+  "selectTaskRow": "Select Task {{taskId}}",
+  "unselectTaskRow": "Unselect Task {{taskId}}",
   "noContentToCopy": "No content to copy",
   "content": "content",
   "copiedColumnForTask": "Copied \"{{column}}\" for Task {{taskId}} to clipboard",

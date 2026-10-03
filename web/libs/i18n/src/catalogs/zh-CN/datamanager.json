@@ -151,6 +151,8 @@
   "customizeColumns": "自定义列",
   "selectAllRows": "选择所有行",
   "unselectAllRows": "取消选择所有行",
+  "selectTaskRow": "选择任务 {{taskId}}",
+  "unselectTaskRow": "取消选择任务 {{taskId}}",
   "noContentToCopy": "没有可复制的内容",
   "content": "内容",
   "copiedColumnForTask": "已复制任务 {{taskId}} 的“{{column}}”到剪贴板",
