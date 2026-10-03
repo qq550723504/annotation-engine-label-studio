@@ -7,6 +7,9 @@ const { parse } = require("@babel/parser");
 const scopedFiles = require("./migrated-files.json");
 
 const allowed = {
+  "apps/labelstudio/src/pages/Settings/index.jsx": [
+    { text: "Settings", reason: "Static route metadata; RoutesProvider translates the settings breadcrumb by route path." },
+  ],
   "apps/labelstudio/src/components/Menubar/Menubar.jsx": [
     { text: "API", reason: "Public documentation product name and link label." },
     { text: "GitHub", reason: "External service brand name." },
@@ -33,6 +36,14 @@ const allowed = {
   "libs/app-common/src/pages/AccountSettings/sections/LanguagePreferences.tsx": [
     { text: "English", reason: "Language names are self-identifying choices." },
     { text: "简体中文", reason: "Language names are self-identifying choices." },
+  ],
+  "libs/datamanager/src/components/Filters/types/Number.jsx": [
+    { text: "is between", reason: "Operator metadata is translated by key in FilterOperation before rendering." },
+    { text: "not between", reason: "Operator metadata is translated by key in FilterOperation before rendering." },
+  ],
+  "libs/editor/src/components/BottomBar/buttons.tsx": [
+    { text: "Reject", reason: "The built-in Reject control translates its title at render time in ControlButton." },
+    { text: "Reject annotation: [ Ctrl+Space ]", reason: "The built-in Reject control translates its tooltip at render time in ControlButton." },
   ],
 };
 
@@ -96,6 +107,9 @@ function scanSource(source) {
     if (node.type === "JSXAttribute" && humanAttribute.has(node.name?.name)) {
       if (node.value?.type === "StringLiteral") addLiteral(node.value.value, node.loc.start.line);
       else if (node.value?.type === "JSXExpressionContainer") visitDisplayExpression(node.value.expression);
+    }
+    if (node.type === "ObjectProperty" && humanAttribute.has(node.key?.name ?? node.key?.value)) {
+      visitDisplayExpression(node.value);
     }
     if (node.type === "JSXExpressionContainer" &&
         ["JSXElement", "JSXFragment"].includes(parent?.type) &&

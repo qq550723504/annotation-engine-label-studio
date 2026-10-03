@@ -87,7 +87,7 @@ export const RejectButtonDefinition = {
   title: "Reject",
   variant: "negative",
   look: "outlined",
-  ariaLabel: "reject-annotation",
+  ariaLabel: "",
   tooltip: "Reject annotation: [ Ctrl+Space ]",
   // @todo we need this for types compatibility, but better to fix CustomButtonType
   disabled: false,

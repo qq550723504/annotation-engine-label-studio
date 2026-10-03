@@ -12,6 +12,11 @@ test("finds camel-case component accessibility labels", () => {
   assert.deepEqual(found.map(({ text }) => text), ["Task", "Unselect", "Select"]);
 });
 
+test("finds display labels in configuration objects without treating IDs as copy", () => {
+  const found = scanSource('const filters = [{ id: "annotations", label: "Annotations" }, { id: "data", label: ready ? "Show Data" : t("data") }];');
+  assert.deepEqual(found.map(({ text }) => text), ["Annotations", "Show Data"]);
+});
+
 test("finds human text passed through component labels and tooltips", () => {
   const found = scanSource('const Example = () => <Control label="Review task" tooltip="View Task Source" />;');
   assert.deepEqual(found.map(({ text }) => text), ["Review task", "View Task Source"]);

@@ -4,7 +4,7 @@ import { JsonEditor, defaultTheme, matchNode } from "json-edit-react";
 import { IconSearch, IconReset, IconClose, IconCopyOutline } from "@humansignal/icons";
 import { Button } from "../button/button";
 import { Tooltip } from "../Tooltip/Tooltip";
-import type { JsonViewerProps } from "./types";
+import type { JsonViewerLabels, JsonViewerProps } from "./types";
 import { ReaderViewButton } from "./reader-view-button";
 import styles from "./json-viewer.module.scss";
 
@@ -62,6 +62,16 @@ const fallbackNodeMatch = (nodeData: any, searchTerm: string): boolean => {
  * - Custom filters
  * - Copy to clipboard
  */
+const defaultLabels: JsonViewerLabels = {
+  all: "All",
+  searchPlaceholder: "Search keys or values",
+  searchJson: "Search JSON",
+  clearSearch: "Clear Search",
+  resetFilters: "Reset filters",
+  copyJson: "Copy JSON",
+  copied: "Copied!",
+};
+
 export const JsonViewer: FC<JsonViewerProps> = ({
   // Core data
   data,
@@ -73,6 +83,7 @@ export const JsonViewer: FC<JsonViewerProps> = ({
   showCopyButton = true,
   // Features
   customFilters = [],
+  labels,
   readerViewThreshold = 100,
   storageKey,
   toolbarExtra,
@@ -88,6 +99,7 @@ export const JsonViewer: FC<JsonViewerProps> = ({
   // Callbacks
   onCopy,
 }) => {
+  const copy = { ...defaultLabels, ...labels };
   // Initialize state from localStorage if storageKey is provided
   const [searchText, setSearchText] = useState(() =>
     storageKey ? localStorage.getItem(`${storageKey}:search`) || "" : "",
@@ -107,12 +119,12 @@ export const JsonViewer: FC<JsonViewerProps> = ({
     () => [
       {
         id: "all",
-        label: "All",
+        label: copy.all,
         filterFn: () => true,
       },
       ...customFilters,
     ],
-    [customFilters],
+    [customFilters, copy.all],
   );
 
   // Format JSON for copying
@@ -231,14 +243,14 @@ export const JsonViewer: FC<JsonViewerProps> = ({
                   <IconSearch className={styles.searchIcon} />
                   <input
                     type="text"
-                    placeholder="Search keys or values"
+                    placeholder={copy.searchPlaceholder}
                     value={searchText}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
                     className={styles.searchInput}
-                    aria-label="Search JSON"
+                    aria-label={copy.searchJson}
                   />
                   {searchText && (
-                    <Tooltip title="Clear Search">
+                    <Tooltip title={copy.clearSearch}>
                       <Button
                         look="string"
                         variant="primary"
@@ -246,7 +258,7 @@ export const JsonViewer: FC<JsonViewerProps> = ({
                         onClick={() => setSearchText("")}
                         className={styles.searchClear}
                         leading={<IconClose width={20} height={20} />}
-                        aria-label="Clear Search"
+                        aria-label={copy.clearSearch}
                       />
                     </Tooltip>
                   )}
@@ -266,7 +278,7 @@ export const JsonViewer: FC<JsonViewerProps> = ({
                     </Button>
                   ))}
                   {activeFilter && (
-                    <Tooltip title="Reset filters">
+                    <Tooltip title={copy.resetFilters}>
                       <Button
                         look="outlined"
                         variant="neutral"
@@ -284,7 +296,7 @@ export const JsonViewer: FC<JsonViewerProps> = ({
         )}
         <div className={clsx(styles.jsonEditorContainer, inset && styles.inset)} style={{ minHeight, maxHeight }}>
           {showCopyButton && (
-            <Tooltip title={copied ? "Copied!" : "Copy JSON"}>
+            <Tooltip title={copied ? copy.copied : copy.copyJson}>
               <Button
                 look="outlined"
                 variant="neutral"
