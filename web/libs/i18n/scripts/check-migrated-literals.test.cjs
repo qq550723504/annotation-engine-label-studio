@@ -22,6 +22,11 @@ test("finds static route titles assigned after component definitions", () => {
   assert.deepEqual(found.map(({ text }) => text), ["Danger Zone"]);
 });
 
+test("finds logical and template fallbacks rendered as JSX children", () => {
+  const found = scanSource('const Example = () => <option>{user.email || `User ${user.id}`}</option>;');
+  assert.deepEqual(found.map(({ text }) => text), ["User"]);
+});
+
 test("finds human text passed through component labels and tooltips", () => {
   const found = scanSource('const Example = () => <Control label="Review task" tooltip="View Task Source" />;');
   assert.deepEqual(found.map(({ text }) => text), ["Review task", "View Task Source"]);

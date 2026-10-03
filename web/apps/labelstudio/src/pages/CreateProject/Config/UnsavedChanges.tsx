@@ -7,10 +7,10 @@ import { useLocaleTranslation } from "@humansignal/i18n";
 
 type SaveAndLeaveButtonProps = {
   onSave: () => Promise<void>;
-  text?: string;
-  ariaLabel?: string;
+  text: string;
+  ariaLabel: string;
 };
-const SaveAndLeaveButton = ({ onSave, text = "Save and Leave", ariaLabel = "Save changes" }: SaveAndLeaveButtonProps) => {
+const SaveAndLeaveButton = ({ onSave, text, ariaLabel }: SaveAndLeaveButtonProps) => {
   const [saving, setSaving] = useState(false);
   const saveHandler = useCallback(async () => {
     setSaving(true);
@@ -28,12 +28,12 @@ type UnsavedChangesModalProps = {
   onSave: () => void;
   onCancel?: () => void;
   onDiscard?: () => void;
-  cancelText?: string;
-  discardText?: string;
-  okText?: string;
-  saveChangesLabel?: string;
-  title?: string;
-  body?: string;
+  cancelText: string;
+  discardText: string;
+  okText: string;
+  saveChangesLabel: string;
+  title: string;
+  body: string;
 };
 
 export const unsavedChangesModal = ({
@@ -44,8 +44,8 @@ export const unsavedChangesModal = ({
   discardText,
   okText,
   saveChangesLabel,
-  title = "You have unsaved changes.",
-  body = "Would you like to save them before leaving?",
+  title,
+  body,
   ...props
 }: UnsavedChangesModalProps) => {
   let modalInstance: any;
@@ -69,7 +69,7 @@ export const unsavedChangesModal = ({
           }}
           autoFocus
         >
-          {cancelText ?? "Cancel"}
+          {cancelText}
         </Button>
 
         {onDiscard && (
@@ -82,7 +82,7 @@ export const unsavedChangesModal = ({
             }}
             size="small"
           >
-            {discardText ?? "Discard and leave"}
+            {discardText}
           </Button>
         )}
 

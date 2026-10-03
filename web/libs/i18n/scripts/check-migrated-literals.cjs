@@ -131,10 +131,8 @@ function scanSource(source) {
       visitDisplayExpression(node.right);
     }
     if (node.type === "JSXExpressionContainer" &&
-        ["JSXElement", "JSXFragment"].includes(parent?.type) &&
-        node.expression?.type === "StringLiteral") {
-      const text = normalized(node.expression.value);
-      if (humanText(text)) literals.push({ text, line: node.loc.start.line });
+        ["JSXElement", "JSXFragment"].includes(parent?.type)) {
+      visitDisplayExpression(node.expression);
     }
     for (const [key, value] of Object.entries(node)) {
       if (["loc", "start", "end", "extra", "tokens", "comments"].includes(key)) continue;

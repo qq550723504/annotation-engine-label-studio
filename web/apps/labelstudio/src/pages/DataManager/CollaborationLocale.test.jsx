@@ -90,6 +90,25 @@ describe("collaboration locale projections", () => {
     runtime.destroy();
   });
 
+  it("localizes user ID fallbacks when assignment identities lack names and email", async () => {
+    mockCallApi.mockImplementation((method) => {
+      if (method === "taskAssignments") return Promise.resolve({ results: [{ id: 12, assignee: 8, status: "in_progress", version: 4 }] });
+      if (method === "eligibleTaskAssignees") return Promise.resolve({ results: [{ id: 9, email: "", first_name: "", last_name: "" }] });
+      throw new Error(`unexpected ${method}`);
+    });
+    const { runtime, unmount } = mount(<AssignmentManager projectId={4} taskId={9} />);
+    await screen.findByRole("option", { name: "User 9" });
+    expect(screen.getByTestId("assignment-row-12").textContent).toContain("User 8");
+    const count = mockCallApi.mock.calls.length;
+
+    act(() => runtime.updateLocale("zh-CN"));
+    expect(screen.getByRole("option", { name: "用户 9" })).not.toBeNull();
+    expect(screen.getByTestId("assignment-row-12").textContent).toContain("用户 8");
+    expect(mockCallApi).toHaveBeenCalledTimes(count);
+    unmount();
+    runtime.destroy();
+  });
+
   it("preserves typed rejection reason and immutable revision/hash on switch", async () => {
     mockCallApi.mockImplementation((method) => {
       if (method === "reviewableSubmissions") return Promise.resolve({ results: [submission] });
