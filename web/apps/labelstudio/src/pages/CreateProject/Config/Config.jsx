@@ -523,7 +523,7 @@ const Configurator = ({
       });
 
       if (validation?.error) {
-        setError(validation.response);
+        setError(validation);
         setLoading(false);
         return;
       }
@@ -546,7 +546,7 @@ const Configurator = ({
       } else {
         // @todo validation can be done in this place,
         // @todo but for now it's extremely slow in /sample-task endpoint
-        setError(sample?.response);
+        setError(sample ?? { error: true });
       }
     };
     validate();
