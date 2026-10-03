@@ -9,15 +9,12 @@ declare global {
 }
 
 Cypress.Commands.add('loginAs', (email: string, password: string, nextPath = '/') => {
-  // With testIsolation enabled, Cypress unloads the previous application before
-  // clearing/restoring session data. Late responses from that page must not
-  // restore its signed session cookie while the next actor is logging in.
+  // cy.session clears browser cookies before its setup callback. Log out while
+  // the current actor's cookie is still present so Django invalidates that
+  // server session before a different actor signs in.
+  cy.visit('/logout/');
   cy.session(['ui-login', email, nextPath], () => {
     const loginPath = `/user/login/?next=${encodeURIComponent(nextPath)}`;
-    // Switching actors within one test must end the prior server session and
-    // unload its page before a new login. Clearing the cookie on a still-mounted
-    // page can race with a late authenticated response that restores it.
-    cy.visit('/logout/');
     cy.clearCookies();
     cy.visit(loginPath);
     cy.location('pathname', { timeout: 30000 }).should('eq', '/user/login/');
