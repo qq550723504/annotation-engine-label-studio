@@ -6,6 +6,7 @@ import { ErrorMessage } from "../ErrorMessage/ErrorMessage";
 import { useLocaleTranslation } from "@humansignal/i18n";
 import DefaultMessages from "../../utils/messages";
 import { validationDisplay } from "./validationDisplay";
+import { renderGeneralValidation } from "./renderGeneralValidation";
 
 export const TreeValidation = inject("store")(
   observer(({ store, errors }) => {
@@ -15,11 +16,13 @@ export const TreeValidation = inject("store")(
       <div className="lsf-errors">
         {errors.map((error, index) => {
           const resolver = messages[error.error];
-          // Respect host-provided message overrides. Built-in errors are rendered
-          // as React text so config values cannot become translated HTML.
+          // Respect host-provided message overrides. Translated errors remain
+          // React text; the upstream general-error markup uses a narrow parser.
           const text = resolver && resolver !== DefaultMessages[error.error]
             ? resolver(error)
-            : <>{validationDisplay(error, t)}</>;
+            : error.error === "ERR_GENERAL"
+              ? renderGeneralValidation(error.value)
+              : <>{validationDisplay(error, t)}</>;
           return <ErrorMessage key={`error-${index}`} error={text} />;
         })}
       </div>
