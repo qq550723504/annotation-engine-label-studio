@@ -17,6 +17,11 @@ test("finds display labels in configuration objects without treating IDs as copy
   assert.deepEqual(found.map(({ text }) => text), ["Annotations", "Show Data"]);
 });
 
+test("finds static route titles assigned after component definitions", () => {
+  const found = scanSource('DangerZone.title = "Danger Zone"; DangerZone.path = "/danger-zone";');
+  assert.deepEqual(found.map(({ text }) => text), ["Danger Zone"]);
+});
+
 test("finds human text passed through component labels and tooltips", () => {
   const found = scanSource('const Example = () => <Control label="Review task" tooltip="View Task Source" />;');
   assert.deepEqual(found.map(({ text }) => text), ["Review task", "View Task Source"]);

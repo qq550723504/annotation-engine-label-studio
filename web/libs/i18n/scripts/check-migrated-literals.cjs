@@ -7,6 +7,18 @@ const { parse } = require("@babel/parser");
 const scopedFiles = require("./migrated-files.json");
 
 const allowed = {
+  "apps/labelstudio/src/pages/Home/HomePage.tsx": [
+    { text: "Home", reason: "Static route metadata; RoutesProvider translates the root breadcrumb." },
+  ],
+  "apps/labelstudio/src/pages/Projects/Projects.jsx": [
+    { text: "Projects", reason: "Static route metadata; RoutesProvider translates the projects breadcrumb." },
+  ],
+  "apps/labelstudio/src/pages/Settings/DangerZone.jsx": [
+    { text: "Danger Zone", reason: "Static route metadata; settings menu and breadcrumb translate by fixed child path." },
+  ],
+  "apps/labelstudio/src/pages/Settings/MembersSettings.jsx": [
+    { text: "Members", reason: "Static route metadata; settings menu and breadcrumb translate by fixed child path." },
+  ],
   "apps/labelstudio/src/pages/Settings/index.jsx": [
     { text: "Settings", reason: "Static route metadata; RoutesProvider translates the settings breadcrumb by route path." },
   ],
@@ -36,6 +48,9 @@ const allowed = {
   "libs/app-common/src/pages/AccountSettings/sections/LanguagePreferences.tsx": [
     { text: "English", reason: "Language names are self-identifying choices." },
     { text: "简体中文", reason: "Language names are self-identifying choices." },
+  ],
+  "libs/app-common/src/pages/AccountSettings/AccountSettings.tsx": [
+    { text: "My Account", reason: "Static route metadata; RoutesProvider translates account breadcrumbs by path." },
   ],
   "libs/datamanager/src/components/Filters/types/Number.jsx": [
     { text: "is between", reason: "Operator metadata is translated by key in FilterOperation before rendering." },
@@ -110,6 +125,10 @@ function scanSource(source) {
     }
     if (node.type === "ObjectProperty" && humanAttribute.has(node.key?.name ?? node.key?.value)) {
       visitDisplayExpression(node.value);
+    }
+    if (node.type === "AssignmentExpression" && node.left?.type === "MemberExpression" &&
+        !node.left.computed && node.left.property?.name === "title") {
+      visitDisplayExpression(node.right);
     }
     if (node.type === "JSXExpressionContainer" &&
         ["JSXElement", "JSXFragment"].includes(parent?.type) &&

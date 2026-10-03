@@ -6,6 +6,7 @@ import { pageSetToRoutes } from "../utils/routeHelpers";
 import { useAppStore } from "./AppStoreProvider";
 import { useConfig } from "./ConfigProvider";
 import { useLocaleTranslation } from "@humansignal/i18n";
+import { settingsSectionTitleKeyForRoute } from "../pages/Settings/routeTitleKeys";
 
 export const RoutesContext = createContext();
 
@@ -40,6 +41,7 @@ const findMacthingComponents = (path, routesMap, parentPath = "") => {
 
 export const RoutesProvider = ({ children }) => {
   const { locale, t } = useLocaleTranslation("app");
+  const { t: tProjects } = useLocaleTranslation("projects");
   const history = useHistory();
   const location = useFixedLocation();
   const config = useConfig();
@@ -91,9 +93,11 @@ export const RoutesProvider = ({ children }) => {
           const path = generatePath(route.path, params.params);
           const rawTitle = route.title instanceof Function ? route.title() : route.title;
           // Only localize known route metadata. A project title is user data.
+          const settingsSectionKey = settingsSectionTitleKeyForRoute(route.path);
           const title = route.path === "/" && rawTitle === "Home" ? t("home")
             : route.path === "/projects" ? t("projects")
             : route.path.endsWith("/settings") && rawTitle === "Settings" ? t("settings")
+            : settingsSectionKey ? tProjects(settingsSectionKey)
             : route.path.startsWith("/user/account") && rawTitle === "My Account" ? t("myAccount")
             : rawTitle;
           const key = route.component?.displayName ?? route.key ?? path;

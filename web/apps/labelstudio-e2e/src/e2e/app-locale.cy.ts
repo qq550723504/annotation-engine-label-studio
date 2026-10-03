@@ -211,6 +211,14 @@ describe('main application display locale', () => {
       .and('not.contain.text', 'untrusted English validation');
   });
 
+  it('localizes fixed project settings breadcrumbs without changing the project title', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    ensureAccountLocale('zh-CN');
+    cy.visit(`/projects/${fixture.project_id}/settings/danger-zone`);
+    cy.get('.breadcrumbs').should('contain.text', '危险操作').and('not.contain.text', 'Danger Zone');
+    cy.get('.breadcrumbs').should('contain.text', 'Enterprise Browser E2E');
+  });
+
   for (const [locale, titleError] of [
     ['en-US', 'The project name is too long.'],
     ['zh-CN', '项目名称过长。'],

@@ -13,6 +13,7 @@ import { PredictionsSettings } from "./PredictionsSettings/PredictionsSettings";
 import { StorageSettings } from "./StorageSettings/StorageSettings";
 import "./settings.scss";
 import { useLocaleTranslation } from "@humansignal/i18n";
+import { settingsSectionTitleKeys } from "./routeTitleKeys";
 
 export const MenuLayout = ({ children, ...routeProps }) => {
   const { t } = useLocaleTranslation("projects");
@@ -66,17 +67,7 @@ export const MenuLayout = ({ children, ...routeProps }) => {
         DangerZone,
       ].filter(Boolean).map((page) => ({
         ...page,
-        title: ({
-          "/": t("general"),
-          "/labeling": t("labelingInterface"),
-          "/annotation": t("annotation"),
-          "/members": t("members"),
-          "/ml": t("model"),
-          "/predictions": t("predictions"),
-          "/storage": t("cloudStorage"),
-          "/webhooks": t("webhooks"),
-          "/danger-zone": t("dangerZone"),
-        })[page.path] ?? page.title,
+        title: settingsSectionTitleKeys[page.path] ? t(settingsSectionTitleKeys[page.path]) : page.title,
       }))}
       path={routeProps.match.url}
       children={children}
