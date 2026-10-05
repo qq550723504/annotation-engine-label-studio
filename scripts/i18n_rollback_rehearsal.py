@@ -13,7 +13,10 @@ import sys
 from pathlib import Path
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("phase", choices=("prepare", "rollback", "artifact", "restore"))
+parser.add_argument(
+    "phase",
+    choices=("prepare", "rollback", "artifact", "restore", "browser-checkpoint", "browser-verify", "browser-revoke"),
+)
 phase = parser.parse_args().phase
 if not __debug__:
     raise SystemExit("This assertion-based rehearsal must run without Python optimization.")
@@ -32,7 +35,7 @@ django.setup()
 from django.conf import settings
 from django.db import connection
 from django.test import Client
-from tasks.models import Annotation, ReviewDecision, Submission, Task, TaskAssignment
+from tasks.models import Annotation, AnnotationDraft, ReviewDecision, Submission, Task, TaskAssignment
 from users.models import User, UserSessionVersion
 from users.session_security import revoke_all_sessions
 
@@ -214,6 +217,28 @@ elif phase == "restore":
             }
         )
     )
+elif phase in ("browser-checkpoint", "browser-verify", "browser-revoke"):
+    checkpoint = data_dir / "browser-rollback-checkpoint.json"
+    state = {
+        "business": invariant(),
+        "drafts": list(
+            AnnotationDraft.objects.order_by("pk").values(
+                "id", "task_id", "user_id", "assignment_id", "annotation_id", "result"
+            )
+        ),
+    }
+    if phase == "browser-checkpoint":
+        # Browser assertions establish the intended writes before taking this
+        # checkpoint; the next installed version must preserve those exact rows.
+        checkpoint.write_text(json.dumps(state))
+        (data_dir / "before-rollback.json").write_text(json.dumps(state["business"]))
+    else:
+        assert state == json.loads(checkpoint.read_text()), "Business state or saved drafts changed across versions"
+        if phase == "browser-revoke":
+            for role in ("manager", "annotator_a"):
+                user = User.objects.get(email=fixture["users"][role]["email"])
+                revoke_all_sessions(user, reason="logout_all_devices", actor=user)
+    print(json.dumps({"phase": phase, "invariants": state["business"], "draft_count": len(state["drafts"]), "status": "PASS"}))
 elif phase == "artifact":
     anonymous = Client(HTTP_ACCEPT_LANGUAGE="zh-CN")
     anonymous.cookies["ls_ui_locale"] = "zh-CN"
