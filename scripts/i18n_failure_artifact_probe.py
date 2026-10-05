@@ -8,7 +8,7 @@ from pathlib import Path
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--synthetic-only', action='store_true', required=True)
-    parser.add_argument('--kind', choices=('http', 'token'), required=True)
+    parser.add_argument('--kind', choices=('http', 'token', 'invite'), required=True)
     parser.add_argument('--fixture', required=True)
     parser.add_argument('--secrets', required=True)
     parser.add_argument('--output', type=Path, required=True)
@@ -29,6 +29,33 @@ describe('real authenticated HTTP failure artifact probe', () => {
       cy.then(() => cy.writeFile(SECRETS, secrets, { log: false }));
       // The real backend denies another annotator's task. Default cy.request must fail.
       cy.request(`/api/tasks/${fixture.tasks.b.id}/`);
+    });
+  });
+});
+export {};
+""".replace('FIXTURE', fixture_path).replace('SECRETS', secret_path)
+    elif args.kind == 'invite':
+        probe = """/// <reference types="cypress" />
+describe('real invite failure artifact probe', () => {
+  it('redacts the invite API token in failure JSON, URL and server logs', () => {
+    cy.readFile(FIXTURE, { log: false }).then((fixture) => {
+      cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+      const secrets: Record<string, string> = { fixturePassword: fixture.password };
+      cy.getCookie('sessionid', { log: false }).then((cookie) => { secrets.session = cookie!.value; });
+      cy.getCookie('csrftoken', { log: false }).then((cookie) => {
+        secrets.csrf = cookie!.value;
+        cy.request({ method: 'POST', url: '/api/invite/reset-token', log: false, failOnStatusCode: false,
+          headers: { 'X-CSRFToken': cookie!.value } }).then((response) => {
+          expect(response.status, 'real synthetic owner invite reset').to.eq(201);
+          expect(typeof response.body.token === 'string' && response.body.token.length === 40,
+            'real invite token returned').to.eq(true);
+          expect(response.body.invite_url.includes(`token=${response.body.token}`),
+            'invite URL uses the real token').to.eq(true);
+          secrets.inviteToken = response.body.token;
+          cy.writeFile(SECRETS, secrets, { log: false });
+          cy.then(() => { throw new Error('I18N_INVITE_ARTIFACT_PROBE_EXPECTED_FAILURE ' + JSON.stringify(response.body)); });
+        });
+      });
     });
   });
 });

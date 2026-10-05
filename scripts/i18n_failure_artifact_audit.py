@@ -87,6 +87,7 @@ def main():
     patterns = (
         re.compile(rb'(?i)(?:sessionid|csrftoken)\s*[=:]\s*["\x27]?[A-Za-z0-9_-]{16,}'),
         re.compile(rb'(?i)\b(?:Bearer|Token)\s+[A-Za-z0-9_.=-]{16,}'),
+        re.compile(rb'(?i)\btoken["\x27]?\s*[=:]\s*["\x27]?[A-Za-z0-9_.=-]{16,}'),
     )
     files, known_hits, pattern_hits = [], [], []
     for path in args.artifacts.rglob('*'):

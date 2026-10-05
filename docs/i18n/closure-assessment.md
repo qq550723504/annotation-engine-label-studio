@@ -16,7 +16,7 @@ upstream page, every annotation tag or a deployed host-platform product.
 | Real run URL, commit/merge SHA and success/failure evidence for each language | Exact-main runs in the integration ledger, separately seeded full enterprise workflows in en-US/zh-CN, named scenario groups; historical failures remain recorded | PASS for the recorded integrated SHA. Re-read the final repair's actual merge SHA and its separate main run before closure |
 | All required V1 coverage rows pass, with explicit long-tail exclusions | Owner #52–#56 module/API checks, integrated App/DM/editor and collaboration browser groups, real legacy login flag path, Token invariance, standalone editor 440 active cases; scope and remaining gaps are enumerated in the matrix | PASS for the named V1 paths. Two existing editor pending cases and deferred rows are not converted into passes |
 | Destructive resource checks fail correctly; bilingual core and existing security gates pass | Missing-key/placeholder/plural catalog tests, all 13 migrated-literal guard tests, both language flows and unchanged `Authorization foundation tests` / `Current enterprise UI validation` contexts | PASS on the recorded checks; the final candidate must pass both required contexts, without a skip or altered context name |
-| Failures remain diagnosable without raw session/token disclosure | Earlier HTTP reporter counterexample; shared failure redaction and four regressions; two real intentional failures still exit 1; clean known-secret text audits, every decoded frame of both final videos, both failure screenshots and private detector controls | Local PASS for these bounded failure paths. The reporter repair must complete current-head review, both PR gates and a separate exact-merge main run |
+| Failures remain diagnosable without raw session/token disclosure | Earlier HTTP reporter counterexample; shared failure redaction and five regressions; real intentional HTTP/Token failures still exit 1; clean known-secret text audits, every decoded frame of both recordings and private detector controls; reviewed invite JSON/URL formats and real DEBUG API log regression | Local PASS for the named bounded paths. The reporter/logging repair must complete current-head review, both PR gates and a separate exact-merge main run |
 | Packaged resources, database upgrade, safe English rollback and upstream maintenance are verified/documented | Network-disabled installed wheel with both catalogs and Django resources; existing-user migration retaining session version; same upgraded SQLite database through current → safe English → current browser stages, preserved draft/snapshot and revoked old-session rejection; extraction/build/maintenance commands | PASS for the actual packaged/SQLite paths. PostgreSQL, deployment and host-platform delivery remain NOT RUN |
 
 ## Items outside this V1 closeout
@@ -37,7 +37,7 @@ upstream page, every annotation tag or a deployed host-platform product.
   run is 440 passed / 0 failed / 2 pending, not 442 passed.
 - **Artifact limits:** the new forced failures are local artifacts. No forced
   failure was uploaded to GitHub; OCR covered every decoded frame, while human
-  inspection covered the two failure PNGs. Other encodings and future failures
+  inspection covered the three failure PNGs. Other encodings and future failures
   are not a universal absence proof. The older GitHub packs retain their
   documented text scan and sampled-frame scope.
 

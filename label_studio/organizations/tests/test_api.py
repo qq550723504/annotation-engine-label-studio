@@ -8,6 +8,22 @@ from tasks.tests.factories import AnnotationFactory
 from users.tests.factories import UserFactory
 
 
+class TestOrganizationInviteLoggingAPI(APITestCase):
+    def test_reset_retains_diagnostic_without_logging_invite_credential(self):
+        organization = OrganizationFactory()
+        self.client.force_authenticate(user=organization.created_by)
+        with self.assertLogs('organizations.api', level='DEBUG') as captured:
+            response = self.client.post('/api/invite/reset-token')
+
+        self.assertEqual(response.status_code, 201)
+        token = response.json()['token']
+        self.assertTrue(bool(token))
+        self.assertTrue(response.json()['invite_url'].endswith(f'?token={token}'))
+        messages = '\n'.join(captured.output)
+        self.assertFalse(token in messages)
+        self.assertIn(f'Reset invite token for organization {organization.pk}', messages)
+
+
 class TestOrganizationMemberListAPI(APITestCase):
     @classmethod
     def setUpTestData(cls):

@@ -77,7 +77,8 @@ jobs:
             projects/tests/test_project_write_surface_hardening.py \
             tasks/tests/test_task_assignment_authorization.py \
             tasks/tests/test_enterprise_collaboration_acceptance.py \
-            tasks/tests/test_submission_review_workflow.py
+            tasks/tests/test_submission_review_workflow.py \
+            organizations/tests/test_api.py::TestOrganizationInviteLoggingAPI
 
       - name: Run annotation/task API smoke tests
         working-directory: label_studio

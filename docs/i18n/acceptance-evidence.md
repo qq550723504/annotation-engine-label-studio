@@ -1,7 +1,7 @@
 # Integrated main evidence (#57)
 
 Updated on 2026-10-06. The current integrated application source is
-[`e78460c4a64be0fa2ed7242962e9659441b036f4`](https://github.com/qq550723504/annotation-engine-label-studio/tree/e78460c4a64be0fa2ed7242962e9659441b036f4).
+[`3124f02c992cd94119cbbd0714f59167a5b51357`](https://github.com/qq550723504/annotation-engine-label-studio/tree/3124f02c992cd94119cbbd0714f59167a5b51357).
 The local checks use isolated localhost/SQLite synthetic data.
 
 ## GitHub integration evidence
@@ -13,7 +13,8 @@ thumbs-up, no unresolved threads and both required checks passed:
 [authorization CI](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37360509330)
 and [browser CI](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37360509365).
 Its separate [exact-main browser run](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37363462298)
-is recorded separately from these PR results. PR #69 adds the guarded offline
+used exact merge SHA `3124f02c9` and passed **54/54**, with zero failed, pending
+or skipped cases. PR #69 adds the guarded offline
 three-stage English browser rollback harness and evidence, without application
 code changes. The detailed rollback results remain in
 [rollback-rehearsal.md](rollback-rehearsal.md).
@@ -303,8 +304,8 @@ keeps its synthetic session file inside the disposable volume.
 The follow-up [controlled failure rehearsal](failure-artifact-rehearsal.md)
 addresses a different actual diagnostic: a default authenticated `cy.request`
 failure serialized raw Cookie/Set-Cookie values. The shared Cypress `fail` hook
-now redacts message/stack credentials and rethrows the same error. Four Node
-regressions passed. A real cross-task HTTP 404 and a forced failure after the
+now redacts message/stack credentials and rethrows the same error. Five Node
+regressions passed, including the invite API's keyed/URL token formats. A real cross-task HTTP 404 and a forced failure after the
 real Token en-US → zh-CN → en-US journey each still exited 1 with one intended
 failure. The final candidate's logs had zero exact known-credential/pattern
 matches. The checked-in auditor inspected all **136 + 290 decoded frames**
@@ -315,6 +316,16 @@ synthetic SQLite volumes and the repaired shared support file. Their receipts,
 reproduction commands and OCR limitations are in the linked record; there is
 no forced-failure GitHub-upload receipt. The repair's PR/current-head review
 and exact-merge main gates remain separate from these local checks.
+
+The review follow-up also exercised the real organization invite-reset API.
+With DEBUG logging, the old installed wheel leaked the known invite token into
+the Django log even after the Cypress diagnostic was redacted. The narrow
+backend repair logs the organization ID; its API logging regression passed.
+The rebuilt wheel differs only in that API logging line, its regression file
+and the wheel record, preserving all frontend/catalog bytes. The same DEBUG
+reset and intentional JSON/URL failure on the repaired wheel have zero known
+credentials in runner/Django logs. The linked rehearsal records this additional
+probe and its artifact audit, with original failure evidence preserved.
 
 ## Remaining evidence and scope
 

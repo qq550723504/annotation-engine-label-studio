@@ -45,6 +45,16 @@ test('preserves the original error and diagnostic location for rethrow', () => {
   assert.equal(result.stack.includes('failure-probe.cy.ts:19:8'), true);
 });
 
+test('redacts the real invite API JSON and URL token formats without hiding other fields', () => {
+  const diagnostic = JSON.stringify({ invite_url: `/user/signup/?token=${token}&next=/projects`, token, status: 201 });
+  const result = redactDiagnostic(diagnostic);
+  assert.equal(result.includes(token), false);
+  assert.equal(result.includes('/user/signup/?token=[REDACTED]&next=/projects'), true);
+  assert.equal(result.includes('"token":"[REDACTED]"'), true);
+  assert.equal(result.includes('"status":201'), true);
+  assert.equal(redactDiagnostic(result), result);
+});
+
 test('leaves ordinary failures and errors without a stack diagnosable', () => {
   const error = new Error('Expected annotation revision 2, got 1');
   error.stack = undefined;

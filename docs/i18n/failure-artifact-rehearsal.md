@@ -3,9 +3,13 @@
 ## Scope and repair
 
 Recorded on 2026-10-06 against a test-support candidate based on
-`3124f02c992cd94119cbbd0714f59167a5b51357`. Application code is unchanged from
-`e78460c4`; the installed production wheel SHA-256 is
+`3124f02c992cd94119cbbd0714f59167a5b51357`. The initial HTTP/Token probes use
+unchanged application code from `e78460c4`; their installed wheel SHA-256 is
 `999e37590df86c4cb947b5aaa63af7398022acbfff421a1e7c90cf28f0bcf297`.
+The review follow-up invite probe uses a rebuilt wheel with SHA-256
+`638fe5bb3bd6d86f090bf6415f8afc49ae00a9c8df8a821c3635ae9248215a25`.
+Comparing both wheels found changes only in `organizations/api.py`, its API
+regression file and the wheel RECORD; all frontend and catalog bytes match.
 Each probe used a fresh synthetic SQLite volume and a fresh offline container,
 real Django authentication/authorization, Chrome 154 and Cypress 14.5.0.
 
@@ -14,10 +18,11 @@ Cypress's default `cy.request` failure diagnostic. Hiding credential fields or
 disabling command logging did not cover that shared diagnostic boundary.
 The shared support file now uses the upstream
 [Cypress `fail` event](https://docs.cypress.io/api/cypress-api/catalog-of-events)
-to redact credential header values, cookie fragments and Bearer/Token values
+to redact credential header values, cookie fragments, Bearer/Token values
+and keyed/URL `token` values
 in the original error's message and stack, then throws that same error.
 Method, route, status, location, request behavior and test failure are retained.
-Four Node regression cases run in the existing required browser job. No
+Five Node regression cases run in the existing required browser job. No
 exception suppression, global retry or timeout increase was added.
 
 ## Executed negative probes
@@ -30,6 +35,26 @@ they are not successful application tests and do not replace the normal suite.
 | --- | --- | --- | --- |
 | Authenticated HTTP | Annotator A's default `cy.request` to B's task receives real 404; headers become `[REDACTED]` while the route/status remain | Runner and Django logs: zero exact known-credential or generic cookie/Bearer/Token pattern matches | 136/136 decoded frames and one failure PNG: zero known-credential matches |
 | Token page | Reuses the existing real en-US → zh-CN → en-US journey; unchanged token/curl DOM values, one token GET, zero token mutations; both fields have computed hidden visibility before `I18N_TOKEN_ARTIFACT_PROBE_EXPECTED_FAILURE` | Runner and Django logs: zero exact known session, CSRF, token or fixture-password matches; zero generic pattern matches | 290/290 decoded frames and one failure PNG: zero known-credential matches |
+
+The current-head review identified a missing format: organization invite APIs
+return a real 40-character `token` JSON value and a signup URL containing
+`token=`. The follow-up redaction regression covers both while preserving the
+URL path, other query parameters and status. An actual synthetic owner reset
+then deliberately fails with the returned JSON, retaining the marker
+`I18N_INVITE_ARTIFACT_PROBE_EXPECTED_FAILURE` and redacting both values.
+
+At `LOG_LEVEL=DEBUG`, the old installed backend logged the new invite token.
+The known-secret audit failed with one `inviteToken` match in `django.log`,
+while the updated Cypress reporter already passed its CLI audit. The API now
+logs the organization ID only; its real endpoint regression passes and runs
+in the existing authorization job. On the rebuilt installed wheel, the same
+DEBUG reset plus intended failure exits **1**, with zero known credential or
+pattern matches in runner/Django logs. All **98/98 decoded video frames** and
+its failure PNG also have zero known-credential matches with a passing private
+control. The PNG was visually inspected. The reset is limited to a fresh
+disposable synthetic organization; no real invite token is changed. Across
+the three final recordings, **524/524 frames and three failure PNGs** were
+audited. The earlier DEBUG leak remains a failed counterexample.
 
 The Token test's existing `afterEach` restored the synthetic organization's
 captured legacy-token setting after the intentional failure. The generated
@@ -65,7 +90,7 @@ explicitly if its insertion point changes.
 python scripts/i18n_failure_artifact_probe.py --synthetic-only --kind token \
   --fixture /data/fixture.json --secrets /data/artifact-probe-secrets.json \
   --output /tmp/token-artifact-probe.cy.ts
-# Repeat with --kind http and a fresh HTTP probe output.
+# Repeat with --kind http or --kind invite and a fresh output.
 ```
 
 In the isolated test container, mount that generated file read-only over
@@ -82,7 +107,9 @@ yarn cypress run --browser chrome --headless --project apps/labelstudio-e2e \
 ```
 
 Require exit 1 and the single intended failure: HTTP 404 with the original task
-route, or the Token marker above. Any earlier assertion, second failure, missing
+route, the Token marker above, or the invite marker with both values redacted.
+Run the invite probe with `LOG_LEVEL=DEBUG` to exercise the backend diagnostic.
+Any earlier assertion, second failure, missing
 marker or cleanup failure invalidates the rehearsal. The Nx Cypress preset
 writes screenshots/videos under `web/dist/cypress/apps/labelstudio-e2e`;
 copy those directories and the Django log into `/results` before audit.
@@ -120,6 +147,10 @@ failures. Their raw known-secret files remain in the private Docker volumes.
 | Token django.log | 28051 | `ee85e23c94acb880bc9bf085ca8b4b1fd8f6d4d40389acc591d5ff20e9726280` |
 | Token failure PNG | 108016 | `fc611c771676d386d0a65b01f15147a083eee8ccc9374b987edf7432878e4148` |
 | Token MP4 | 1965096 | `957f9d8ddf425feb6c0da5602956965f28b6ef1a151957d7ed7f7e8ff66e5b8d` |
+| Invite runner.log | 101455 | `a9c331a8a10406b88610cc2db43061841062003bcd226d3e9664a28255d720d5` |
+| Invite django.log | 18224 | `5c840b0319a23df48973f0ae45c4595822d87ca012f7ef24d919ae8bbd928e03` |
+| Invite failure PNG | 111806 | `e5de7c1e0f1884eafd0e68171616121952019377e649e92ae42c43e664ad2230` |
+| Invite MP4 | 371805 | `2bf2d062ac946a420bb476edabdd962d9ae8b755ccd7aa0d2579d9b6727ffaf2` |
 
 Required PR checks, current-head review and a separate exact-merge main run
 remain delivery gates for this test-support repair. The local intentional
