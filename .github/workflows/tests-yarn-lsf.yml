@@ -152,7 +152,7 @@ jobs:
         working-directory: ${{ env.FRONTEND_MONOREPO_DIR }}
         run: |
           set -xeuo pipefail
-          npx serve dist/libs/editor -l 3000 &
+          node node_modules/http-server/bin/http-server dist/libs/editor -p 3000 -c-1 &
           pid=$!
           echo "pid=${pid}" >> $GITHUB_OUTPUT
           while ! curl -s -o /dev/null -L "http://localhost:3000"; do
@@ -169,6 +169,21 @@ jobs:
             test "$css_code" = "200" || (echo "CSS URL $css_url returned $css_code" && exit 1)
             echo "Root and CSS are served correctly."
           fi
+          # Native media duration and seek tests require byte-range responses.
+          range_probe=$(mktemp -d)
+          trap 'rm -rf "$range_probe"' EXIT
+          for media in barradeen-emotional.mp3 fps_24_frames_24_video.webm opossum_intro.webm; do
+            media_file="dist/libs/editor/public/files/$media"
+            media_size=$(wc -c < "$media_file" | tr -d '[:space:]')
+            curl --fail --silent --show-error \
+              -D "$range_probe/headers" -o "$range_probe/body" \
+              -H 'Range: bytes=0-63' "http://localhost:3000/public/files/$media"
+            grep -qiE '^HTTP/[^ ]+ 206 ' "$range_probe/headers"
+            tr -d '\r' < "$range_probe/headers" | grep -qix "Content-Range: bytes 0-63/$media_size"
+            test "$(wc -c < "$range_probe/body")" -eq 64
+            head -c 64 "$media_file" | cmp - "$range_probe/body"
+          done
+          echo "Audio and video byte-range responses match the fixtures."
 
       - name: Run Cypress (chunk ${{ matrix.chunk }})
         working-directory: ${{ env.FRONTEND_MONOREPO_DIR }}
