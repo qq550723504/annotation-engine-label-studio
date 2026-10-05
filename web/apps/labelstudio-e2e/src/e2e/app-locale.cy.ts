@@ -11,6 +11,7 @@ type Fixture = {
 
 describe('main application display locale', () => {
   let fixture: Fixture;
+  let legacyTokenSettingToRestore: boolean | undefined;
 
   before(() => {
     cy.readFile('.enterprise-e2e.json').then((data) => { fixture = data as Fixture; });
@@ -26,6 +27,29 @@ describe('main application display locale', () => {
     });
     cy.get('[data-testid="language-preference-select"]').should('have.value', value);
   };
+
+  const setLegacyTokensEnabled = (enabled: boolean) => {
+    cy.getCookie('csrftoken', { log: false }).then((cookie) => {
+      cy.request({
+        method: 'POST', url: '/api/jwt/settings', log: false, failOnStatusCode: false,
+        headers: { 'X-CSRFToken': cookie?.value ?? '' },
+        body: { legacy_api_tokens_enabled: enabled },
+      }).then((response) => {
+        expect(response.status, 'synthetic organization token setting').to.eq(200);
+        expect(response.body.legacy_api_tokens_enabled, 'confirmed token setting').to.eq(enabled);
+      });
+    });
+  };
+
+  afterEach(() => {
+    const originalSetting = legacyTokenSettingToRestore;
+    if (originalSetting === undefined) return;
+    // A failed assertion aborts the test's remaining commands. Re-establish the
+    // real owner session and restore the captured setting even on that path.
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    setLegacyTokensEnabled(originalSetting);
+    cy.then(() => { legacyTokenSettingToRestore = undefined; });
+  });
 
   it('switches anonymous login copy without clearing entered credentials', () => {
     cy.visit('/user/login/');
@@ -98,23 +122,14 @@ describe('main application display locale', () => {
   it('preserves the real token and curl example while switching account display language', () => {
     cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
     ensureAccountLocale('en-US');
-    const setLegacyTokensEnabled = (enabled: boolean) => {
-      cy.getCookie('csrftoken', { log: false }).then((cookie) => {
-        cy.request({
-          method: 'POST', url: '/api/jwt/settings', log: false,
-          headers: { 'X-CSRFToken': cookie?.value ?? '' },
-          body: { legacy_api_tokens_enabled: enabled },
-        }).then((response) => {
-          expect(response.status, 'synthetic organization token setting').to.eq(200);
-          expect(response.body.legacy_api_tokens_enabled, 'confirmed token setting').to.eq(enabled);
-        });
-      });
-    };
     let legacyTokensEnabled: boolean;
-    cy.request({ url: '/api/jwt/settings', log: false }).then((response) => {
+    cy.request({ url: '/api/jwt/settings', log: false, failOnStatusCode: false }).then((response) => {
+      expect(response.status, 'read synthetic organization token setting').to.eq(200);
+      expect(typeof response.body.legacy_api_tokens_enabled, 'boolean token setting').to.eq('boolean');
       legacyTokensEnabled = response.body.legacy_api_tokens_enabled;
+      legacyTokenSettingToRestore = legacyTokensEnabled;
       // The synthetic organization owner enables this optional page through
-      // its real settings API. Restore the initial setting after the assertion.
+      // its real settings API. afterEach also restores it after failed assertions.
       if (!legacyTokensEnabled) setLegacyTokensEnabled(true);
     });
     let tokenReads = 0;

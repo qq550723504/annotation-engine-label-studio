@@ -117,6 +117,12 @@ required PR checks and a matching-main browser run must still verify delivery.
 
 The synthetic organization owner temporarily enabled the optional legacy Token
 page through `/api/jwt/settings` and restored its original disabled setting.
+The original setting is captured outside the test. An `afterEach` hook
+re-establishes the owner's real session and restores that setting even if an
+assertion aborts the test's command queue. A temporary failure probe threw
+immediately after enabling legacy tokens: that suite intentionally returned
+22 passed / 1 failed, the cleanup POST succeeded and a separate SQLite read
+confirmed the original disabled setting. The temporary probe was removed.
 The test delayed the real `whoami` response to reproduce organization settings
 resolving before actor permissions. The original application redirected the
 permitted deep link to Personal Info (22 passed, the new case failed). The
