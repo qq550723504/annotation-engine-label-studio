@@ -330,7 +330,7 @@ probe and its artifact audit, with original failure evidence preserved.
 
 The review follow-up also removes partial redaction of valid opaque Bearer
 characters and rejects missing, empty, media-only or empty-log text audits.
-Seven Node diagnostic regressions and eight Python audit guards pass. The
+Seven Node diagnostic regressions and nine Python audit guards pass. The
 updated auditor again passes the real three probe logs; the media detector
 and the earlier all-frame receipts remain unchanged.
 

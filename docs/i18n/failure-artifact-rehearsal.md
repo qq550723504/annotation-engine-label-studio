@@ -31,9 +31,10 @@ The opaque Bearer regression covers the complete
 [RFC 6750 character set](https://www.rfc-editor.org/rfc/rfc6750#section-2.1),
 including `+`, `/`, `~`, padding and short Bearer values, instead of leaving an
 unmatched suffix behind. Keyed/query values also cover those characters and
-percent-encoded query values. Eight Python auditor regressions run in the
+percent-encoded query values. Nine Python auditor regressions run in the
 existing authorization job: missing/empty/media-only directories, empty logs,
-private credentials inside uploads, known leaks, opaque-token patterns and a
+private credentials inside uploads, known leaks, opaque-token patterns, a short
+unexpected Bearer value absent from the known-secret map, and a
 real nonempty clean log. Missing evidence fails explicitly before a clean
 result can be reported. The three actual probe logs were re-audited with the
 updated patterns and guards, with zero matches.

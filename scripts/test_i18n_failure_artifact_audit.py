@@ -73,6 +73,12 @@ class FailureArtifactAuditTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual(json.loads(result.stdout)['generic_pattern_matching_files'], ['runner.log'])
 
+    def test_short_unknown_bearer_is_detected(self):
+        (self.artifacts / 'runner.log').write_text('Authorization: Bearer abc+/~==', encoding='utf-8')
+        result = self.scan()
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(json.loads(result.stdout)['generic_pattern_matching_files'], ['runner.log'])
+
 
 if __name__ == '__main__':
     unittest.main()

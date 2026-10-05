@@ -88,7 +88,8 @@ def main():
         parser.error('Expected nonempty known synthetic credentials of at least 8 characters')
     patterns = (
         re.compile(rb'(?i)(?:sessionid|csrftoken)\s*[=:]\s*["\x27]?[A-Za-z0-9_-]{16,}'),
-        re.compile(rb'(?i)\b(?:Bearer|Token)\s+[A-Za-z0-9._~+/=-]{16,}'),
+        re.compile(rb'(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+'),
+        re.compile(rb'(?i)\bToken\s+[A-Za-z0-9._~+/=-]{16,}'),
         re.compile(rb'(?i)\b(?:token|access|refresh)["\x27]?\s*[=:]\s*["\x27]?[A-Za-z0-9._~+/%=-]{16,}'),
     )
     files, known_hits, pattern_hits = [], [], []
