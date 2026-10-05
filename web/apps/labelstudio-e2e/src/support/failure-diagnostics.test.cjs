@@ -71,3 +71,15 @@ test('redacts the existing JWT refresh/rotate request and response credential ke
   assert.equal(result.includes('"refresh":"[REDACTED]"'), true);
   assert.equal(result.includes('"status":401'), true);
 });
+
+test('consumes complete opaque bearer credentials with RFC 6750 characters', () => {
+  assert.equal(redactDiagnostic('Bearer abc+/~=='), 'Bearer [REDACTED]');
+  for (const value of ['abc+def/ghi~jklmnop==', 'abcdefghijklmnop+SECRET/tail~==']) {
+    for (const scheme of ['Bearer', 'Token']) {
+      assert.equal(redactDiagnostic(`${scheme} ${value}`), `${scheme} [REDACTED]`);
+    }
+    assert.equal(redactDiagnostic(JSON.stringify({ token: value })), '{"token":"[REDACTED]"}');
+    assert.equal(redactDiagnostic(`?token=${encodeURIComponent(value)}&next=/projects`),
+      '?token=[REDACTED]&next=/projects');
+  }
+});

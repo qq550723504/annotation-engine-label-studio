@@ -304,7 +304,7 @@ keeps its synthetic session file inside the disposable volume.
 The follow-up [controlled failure rehearsal](failure-artifact-rehearsal.md)
 addresses a different actual diagnostic: a default authenticated `cy.request`
 failure serialized raw Cookie/Set-Cookie values. The shared Cypress `fail` hook
-now redacts message/stack credentials and rethrows the same error. Six Node
+now redacts message/stack credentials and rethrows the same error. Seven Node
 regressions passed, including the invite API's keyed/URL token formats and
 existing JWT `access`/`refresh` credential fields. A real cross-task HTTP 404 and a forced failure after the
 real Token en-US → zh-CN → en-US journey each still exited 1 with one intended
@@ -327,6 +327,12 @@ and the wheel record, preserving all frontend/catalog bytes. The same DEBUG
 reset and intentional JSON/URL failure on the repaired wheel have zero known
 credentials in runner/Django logs. The linked rehearsal records this additional
 probe and its artifact audit, with original failure evidence preserved.
+
+The review follow-up also removes partial redaction of valid opaque Bearer
+characters and rejects missing, empty, media-only or empty-log text audits.
+Seven Node diagnostic regressions and eight Python audit guards pass. The
+updated auditor again passes the real three probe logs; the media detector
+and the earlier all-frame receipts remain unchanged.
 
 ## Remaining evidence and scope
 

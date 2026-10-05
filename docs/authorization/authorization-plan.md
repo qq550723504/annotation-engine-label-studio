@@ -290,3 +290,7 @@ their logs/screenshots/videos, and retain a passing known-credential detector
 control before publishing evidence. See the
 [failure artifact rehearsal](../i18n/failure-artifact-rehearsal.md) for guarded
 synthetic-data commands, receipts and inspection limits.
+
+Retain complete opaque-token matching, including RFC 6750 `+`, `/` and `~`
+characters. The artifact auditor must reject missing/empty directories,
+media-only text inputs and empty logs; an empty scan is not accepted evidence.

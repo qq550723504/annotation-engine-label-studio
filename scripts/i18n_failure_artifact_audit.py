@@ -79,6 +79,8 @@ def main():
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--frames', type=Path)
     args = parser.parse_args()
+    if not args.artifacts.is_dir():
+        parser.error('Expected an existing artifact directory')
     if args.secrets.resolve().is_relative_to(args.artifacts.resolve()):
         parser.error('The private credential file must remain outside artifact uploads')
     secrets = json.loads(args.secrets.read_text(encoding='utf-8'))
@@ -86,8 +88,8 @@ def main():
         parser.error('Expected nonempty known synthetic credentials of at least 8 characters')
     patterns = (
         re.compile(rb'(?i)(?:sessionid|csrftoken)\s*[=:]\s*["\x27]?[A-Za-z0-9_-]{16,}'),
-        re.compile(rb'(?i)\b(?:Bearer|Token)\s+[A-Za-z0-9_.=-]{16,}'),
-        re.compile(rb'(?i)\b(?:token|access|refresh)["\x27]?\s*[=:]\s*["\x27]?[A-Za-z0-9_.=-]{16,}'),
+        re.compile(rb'(?i)\b(?:Bearer|Token)\s+[A-Za-z0-9._~+/=-]{16,}'),
+        re.compile(rb'(?i)\b(?:token|access|refresh)["\x27]?\s*[=:]\s*["\x27]?[A-Za-z0-9._~+/%=-]{16,}'),
     )
     files, known_hits, pattern_hits = [], [], []
     for path in args.artifacts.rglob('*'):
@@ -102,6 +104,8 @@ def main():
         if any(pattern.search(clean) for pattern in patterns):
             pattern_hits.append(relative)
         files.append({'file': relative, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()})
+    if not files or not any(item['bytes'] for item in files):
+        parser.error('Expected at least one eligible non-media artifact; no text scan was performed')
     report = {'files': files, 'known_credential_matches': known_hits, 'generic_pattern_matching_files': pattern_hits}
     failed = bool(known_hits or pattern_hits)
     if args.frames:

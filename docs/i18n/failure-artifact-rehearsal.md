@@ -22,10 +22,21 @@ to redact credential header values, cookie fragments, Bearer/Token values
 and keyed/URL `token`, `access` and `refresh` values
 in the original error's message and stack, then throws that same error.
 Method, route, status, location, request behavior and test failure are retained.
-Six Node regression cases run in the existing required browser job. The
+Seven Node regression cases run in the existing required browser job. The
 keyed JWT regression uses the existing refresh/rotate serializer field names
 and synthetic diagnostic text; it does not issue or mutate an actual JWT. No
 exception suppression, global retry or timeout increase was added.
+
+The opaque Bearer regression covers the complete
+[RFC 6750 character set](https://www.rfc-editor.org/rfc/rfc6750#section-2.1),
+including `+`, `/`, `~`, padding and short Bearer values, instead of leaving an
+unmatched suffix behind. Keyed/query values also cover those characters and
+percent-encoded query values. Eight Python auditor regressions run in the
+existing authorization job: missing/empty/media-only directories, empty logs,
+private credentials inside uploads, known leaks, opaque-token patterns and a
+real nonempty clean log. Missing evidence fails explicitly before a clean
+result can be reported. The three actual probe logs were re-audited with the
+updated patterns and guards, with zero matches.
 
 ## Executed negative probes
 
