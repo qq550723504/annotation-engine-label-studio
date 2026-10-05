@@ -1,10 +1,23 @@
 # Integrated main evidence (#57)
 
 Updated on 2026-10-06. The current integrated application source is
-[`f8c627ab51856d4b2ec95c23d147863d89aefaa1`](https://github.com/qq550723504/annotation-engine-label-studio/tree/f8c627ab51856d4b2ec95c23d147863d89aefaa1).
+[`e78460c4a64be0fa2ed7242962e9659441b036f4`](https://github.com/qq550723504/annotation-engine-label-studio/tree/e78460c4a64be0fa2ed7242962e9659441b036f4).
 The local checks use isolated localhost/SQLite synthetic data.
 
 ## GitHub integration evidence
+
+[PR #68](https://github.com/qq550723504/annotation-engine-label-studio/pull/68)
+merged head `95c361f6c089a382e2c25280f2b40d892261b2f2` as `e78460c4`
+after an actual current-head Codex thumbs-up, no unresolved review threads and
+both required merge-ref checks passed:
+[Authorization foundation tests](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37348377413)
+and [Current enterprise UI validation](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37348377319).
+The separate [matching-main browser run](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37350449911)
+ran on exact merge SHA `e78460c4` and passed 54/54 with no failed, pending or
+skipped cases. The 440/440 active standalone-editor cases below are local
+evidence; they are separate from these 54 remote enterprise browser cases.
+PR #68 changes test infrastructure and documentation, with no application-code
+change from `f8c627ab`.
 
 [PR #67](https://github.com/qq550723504/annotation-engine-label-studio/pull/67)
 merged head `6d450acabc28c95d010159a707cf52e448aa93b8` as `f8c627ab`
@@ -71,6 +84,18 @@ The 2026-10-05 `1b6842d3` [installed-wheel English rollback and re-upgrade
 rehearsal](rollback-rehearsal.md) passed without network access. It preserved the
 upgraded schema, saved preferences and business-record digest while confirming
 cross-version sessions, task isolation and stale-cookie rejection.
+
+On 2026-10-06 the checked-in browser runner completed
+`e78460c4` → safe English `31c7c78` → `e78460c4` on the same fresh upgraded
+SQLite volume, with networking disabled: prepare 1/1, English rollback 1/1 and
+restore 1/1. Real browser sessions and a saved draft crossed the rollback;
+English UI completed submission, rejection, revision 2 approval and the selected
+immutable release read. An already-open pending Update returned 401 after
+server-side session revocation without changing the business/draft checkpoint.
+Restoring the current wheel retained zh-CN preferences and the exact approved
+revision/hash/snapshot; old cookies stayed rejected. The
+[full record and reproducible command](rollback-rehearsal.md) distinguishes
+authorized browser writes from unchanged state across version switches.
 
 The final `f8c627ab` source and production App output were also packaged and
 installed in a network-disabled container. Both en_US/zh_Hans `.po` and `.mo`
@@ -265,6 +290,12 @@ keeps its synthetic session file inside the disposable volume.
 
 ## Remaining evidence and scope
 
+- A local rollback harness setup failure exercised Cypress's default HTTP-error
+  diagnostic. Its CLI headers contained 2 session-value and 1 CSRF-value pattern
+  matches. The final browser rehearsal reports guarded-read statuses; the shared
+  failure-reporting path and controlled Token failure artifacts still require
+  a separate redaction negative check. The older zero-match packs above cover
+  their specific recorded failures.
 - Full local editor integration is `PASS`: 440 passed, 0 failed, 2 existing
   pending across 69 specs. The follow-up's remote delivery checks remain
   separate; original failures and their corrected diagnosis remain recorded.
@@ -274,8 +305,9 @@ keeps its synthetic session file inside the disposable volume.
   inspection remains `NOT RUN`.
 - The repository-wide TypeScript gate remains a pre-existing failure; the
   production build and named tests do not make that gate pass.
-- The English rollback frontend browser workflow, PostgreSQL rehearsal,
-  deployed runtime and host-platform product acceptance remain `NOT RUN`.
+- The English rollback frontend browser workflow is local `PASS` 3/3 on the
+  installed `e78460c4`/safe English wheels. PostgreSQL rehearsal, deployed runtime
+  and host-platform product acceptance remain `NOT RUN`.
 - Specialist tag help, global organization/model management, advanced project
   settings and JSON Reader View remain the explicit V1 `GAP` rows.
 
