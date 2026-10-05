@@ -3,6 +3,7 @@
   "missingTask": "The task you are trying to access does not exist or is no longer available.",
   "missingProject": "The project you are trying to access does not exist or is no longer available.",
   "projectUnavailable": "Project was deleted or not yet created",
+  "workspaceLoadFailed": "Could not load the task workspace. Try again or return to projects.",
   "backToProjects": "Back to projects",
   "settings": "Settings",
   "labeling": "Labeling",

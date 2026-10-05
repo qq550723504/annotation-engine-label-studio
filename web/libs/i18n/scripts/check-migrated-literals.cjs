@@ -58,7 +58,7 @@ const allowed = {
     { text: "简体中文", line: 27, reason: "Language names are self-identifying choices." },
   ],
   "libs/app-common/src/pages/AccountSettings/AccountSettings.tsx": [
-    { text: "My Account", line: 126, reason: "Static route metadata; RoutesProvider translates account breadcrumbs by path." },
+    { text: "My Account", line: 128, reason: "Static route metadata; RoutesProvider translates account breadcrumbs by path." },
   ],
   "libs/app-common/src/pages/AccountSettings/sections/Hotkeys/Help.tsx": [
     { text: "default", line: 91, reason: "Stable hotkey subgroup identifier; display labels are resolved separately." },

@@ -41,19 +41,8 @@ describe("full enterprise collaboration browser workflow", () => {
     closeModal: "Close modal",
   };
   let fixture: Fixture;
-  let actorSwitchInProgress = false;
 
   before(() => {
-    Cypress.on("uncaught:exception", (error) => {
-      if (
-        actorSwitchInProgress &&
-        error.message.includes("Unauthorized") &&
-        error.message.includes("LS API not available")
-      ) {
-        return false;
-      }
-    });
-
     cy.readFile(".enterprise-e2e.json").then((data) => {
       fixture = data as Fixture;
     });
@@ -65,9 +54,6 @@ describe("full enterprise collaboration browser workflow", () => {
   const membersPage = () => `/projects/${projectId()}/settings/members`;
 
   const loginActor = (email: string, nextPath: string) => {
-    cy.then(() => {
-      actorSwitchInProgress = true;
-    });
     cy.loginAs(email, fixture.password, nextPath);
     cy.get('[data-testid="user-menu-trigger"]', { timeout: 30000 }).click();
     cy.get('[data-testid="menu-language-select"]').then(($select) => {
@@ -75,9 +61,6 @@ describe("full enterprise collaboration browser workflow", () => {
     });
     cy.get("html").should("have.attr", "lang", locale);
     cy.get('[data-testid="user-menu-trigger"]').click();
-    cy.then(() => {
-      actorSwitchInProgress = false;
-    });
   };
 
   const loginAndVisit = (email: string, path: string) => {

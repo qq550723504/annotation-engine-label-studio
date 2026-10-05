@@ -52,7 +52,9 @@ const AccountSettingsSection = () => {
 
   useUpdatePageTitle(pageTitleText);
 
-  if (!currentSection && resolvedSections.length > 0) {
+  // Permission-dependent sections are incomplete until the actor query resolves.
+  // Keep a permitted deep link while that authenticated identity is loading.
+  if (!currentSection && resolvedSections.length > 0 && user) {
     return <Redirect to={`${AccountSettingsPage.path}/${resolvedSections[0].id}`} />;
   }
 

@@ -11,6 +11,7 @@ type Fixture = {
 
 describe('main application display locale', () => {
   let fixture: Fixture;
+  let legacyTokenSettingToRestore: boolean | undefined;
 
   before(() => {
     cy.readFile('.enterprise-e2e.json').then((data) => { fixture = data as Fixture; });
@@ -26,6 +27,29 @@ describe('main application display locale', () => {
     });
     cy.get('[data-testid="language-preference-select"]').should('have.value', value);
   };
+
+  const setLegacyTokensEnabled = (enabled: boolean) => {
+    cy.getCookie('csrftoken', { log: false }).then((cookie) => {
+      cy.request({
+        method: 'POST', url: '/api/jwt/settings', log: false, failOnStatusCode: false,
+        headers: { 'X-CSRFToken': cookie?.value ?? '' },
+        body: { legacy_api_tokens_enabled: enabled },
+      }).then((response) => {
+        expect(response.status, 'synthetic organization token setting').to.eq(200);
+        expect(response.body.legacy_api_tokens_enabled, 'confirmed token setting').to.eq(enabled);
+      });
+    });
+  };
+
+  afterEach(() => {
+    const originalSetting = legacyTokenSettingToRestore;
+    if (originalSetting === undefined) return;
+    // A failed assertion aborts the test's remaining commands. Re-establish the
+    // real owner session and restore the captured setting even on that path.
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    setLegacyTokensEnabled(originalSetting);
+    cy.then(() => { legacyTokenSettingToRestore = undefined; });
+  });
 
   it('switches anonymous login copy without clearing entered credentials', () => {
     cy.visit('/user/login/');
@@ -93,6 +117,83 @@ describe('main application display locale', () => {
     cy.get('[data-testid="language-preference-select"]').should('have.value', 'auto');
     cy.loginAs(fixture.users.manager_b.email, fixture.password, '/user/account/personal-info');
     cy.get('[data-testid="language-preference-select"]').should('have.value', 'auto');
+  });
+
+  it('preserves the real token and curl example while switching account display language', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    ensureAccountLocale('en-US');
+    let legacyTokensEnabled: boolean;
+    cy.request({ url: '/api/jwt/settings', log: false, failOnStatusCode: false }).then((response) => {
+      expect(response.status, 'read synthetic organization token setting').to.eq(200);
+      expect(typeof response.body.legacy_api_tokens_enabled, 'boolean token setting').to.eq('boolean');
+      legacyTokensEnabled = response.body.legacy_api_tokens_enabled;
+      legacyTokenSettingToRestore = legacyTokensEnabled;
+      // The synthetic organization owner enables this optional page through
+      // its real settings API. afterEach also restores it after failed assertions.
+      if (!legacyTokensEnabled) setLegacyTokensEnabled(true);
+    });
+    let tokenReads = 0;
+    let tokenWrites = 0;
+    cy.intercept({ pathname: /^\/api\/current-user\/(?:reset-)?token\/?$/ }, (request) => {
+      if (request.method === 'GET') tokenReads += 1;
+      else tokenWrites += 1;
+    });
+    // Reproduce settings resolving before the real authenticated actor. This
+    // schedule must retain a permitted deep link, rather than redirecting it.
+    cy.intercept('GET', '**/api/current-user/whoami', (request) => {
+      request.continue((response) => { response.setDelay(1000); });
+    });
+    const tokenPageOptions: Partial<Cypress.VisitOptions> = {
+      onBeforeLoad(window) {
+        // Mask both credential-bearing fields before render, including failure
+        // screenshots/videos. Their real DOM values remain available to assertions.
+        const mask = window.document.createElement('style');
+        mask.textContent = '#personal-access-token input[name="token"], '
+          + '#personal-access-token textarea[name="example-curl"] '
+          + '{ visibility: hidden !important; }';
+        window.document.documentElement.appendChild(mask);
+      },
+    };
+    cy.visit('/user/account/legacy-token', tokenPageOptions);
+    const tokenField = '#personal-access-token input[name="token"]';
+    const curlField = '#personal-access-token textarea[name="example-curl"]';
+    let token: string;
+    let curl: string;
+    cy.location('pathname').should('eq', '/user/account/legacy-token');
+    // Assert booleans only: assertion diagnostics must never print raw tokens.
+    cy.get(tokenField, { log: false }).should(($input) => {
+      expect(Boolean($input.val()), 'real token loaded').to.eq(true);
+    }).then(($input) => { token = String($input.val()); });
+    cy.get(curlField, { log: false }).then(($input) => {
+      curl = String($input.val());
+      expect(curl.includes(token), 'curl uses the real token').to.eq(true);
+    });
+    for (const [locale, label] of [['zh-CN', '访问令牌'], ['en-US', 'Access Token']] as const) {
+      cy.get('[data-testid="user-menu-trigger"]').click();
+      cy.get('[data-testid="menu-language-select"]').select(locale);
+      cy.get('html').should('have.attr', 'lang', locale);
+      cy.get('[data-testid="user-menu-trigger"]').click();
+      cy.get('#personal-access-token').should('contain.text', label);
+      cy.get(tokenField, { log: false }).should(($input) => {
+        expect($input.val() === token, 'token unchanged').to.eq(true);
+      });
+      cy.get(curlField, { log: false }).should(($input) => {
+        expect($input.val() === curl, 'curl example unchanged').to.eq(true);
+      });
+    }
+    cy.then(() => {
+      expect(tokenReads, 'token page stays mounted').to.eq(1);
+      expect(tokenWrites, 'locale switch must not reset the token').to.eq(0);
+    });
+    cy.then(() => {
+      if (!legacyTokensEnabled) {
+        setLegacyTokensEnabled(false);
+        cy.visit('/user/account/legacy-token', tokenPageOptions);
+        cy.location('pathname').should('eq', '/user/account/personal-info');
+        cy.get('#personal-access-token').should('not.exist');
+        cy.then(() => expect(tokenReads, 'disabled token page must not fetch the token').to.eq(1));
+      }
+    });
   });
 
   for (const [locale, copy] of [
