@@ -249,6 +249,12 @@ it does not override a saved user preference or a browser language and is not
 a global kill switch. Repair the catalogs/runtime and redeploy after the
 required checks pass.
 
+The isolated installed-wheel [rollback rehearsal](rollback-rehearsal.md) records
+the tested English baseline, current artifact, database/session invariants and
+offline asset checks. Revalidate a selected rollback artifact after later
+security or schema changes; the recorded English SHA is not an unconditional
+future rollback target.
+
 Keep the existing required `Authorization foundation tests` and `Current
 enterprise UI validation` contexts on every main pull request. The browser
 job must reseed isolated synthetic data, run the prior enterprise specs with

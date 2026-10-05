@@ -1,6 +1,6 @@
 # V1 UI coverage and evidence matrix
 
-Inventory from [`main@796abf5a98f42f141e2b303a228932d1e6b6628a`](https://github.com/qq550723504/annotation-engine-label-studio/tree/796abf5a98f42f141e2b303a228932d1e6b6628a), not from pending PRs. `Required` means the named Issue owns en-US and zh-CN product strings and its own tests. The inventory table is the #51 baseline; its `NOT RUN` cells describe the state when the contract was written. The executed evidence ledger below is the current status for candidate branches. `GAP` is deliberately deferred. `User data` means the rendered surface can contain user or business content that must remain verbatim.
+Inventory from [`main@796abf5a98f42f141e2b303a228932d1e6b6628a`](https://github.com/qq550723504/annotation-engine-label-studio/tree/796abf5a98f42f141e2b303a228932d1e6b6628a), not from pending PRs. `Required` means the named Issue owns en-US and zh-CN product strings and its own tests. The inventory table is the #51 baseline; its `NOT RUN` cells describe the state when the contract was written. The current integrated-main record below takes precedence over the historical candidate ledger. `GAP` is deliberately deferred. `User data` means the rendered surface can contain user or business content that must remain verbatim.
 
 | Entry / baseline code | String owner | User data | Namespace | V1 | Issue | Evidence target at #51 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -51,6 +51,23 @@ Inventory from [`main@796abf5a98f42f141e2b303a228932d1e6b6628a`](https://github.
 | [Existing unit/integration targets](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/web/package.json) | Each owner | Test data | All | Required per owner: `ls:unit`, `dm:unit`, `lsf:unit`, `lsf:integration`, relevant Python API tests | #52–#56 | Real commands/results attached to each PR; NOT RUN |
 | [Full enterprise browser flow](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/web/apps/labelstudio-e2e/src/e2e/full-enterprise-workflow.cy.ts) and [required CI](https://github.com/qq550723504/annotation-engine-label-studio/blob/796abf5a98f42f141e2b303a228932d1e6b6628a/.github/workflows/enterprise-browser-e2e.yml) | Combined acceptance | Synthetic users/tasks | All | Required: parameterize whole journey for each locale after owner tests | #57 | Cypress real backend en-US/zh-CN + build artifact check; NOT RUN |
 | Upstream docs, marketing, example templates and user-authored `label_config` | Upstream/content owners | Yes | None in V1 | GAP: not core product UI and may encode user content | Later | Not tested; NOT RUN |
+
+## Current integrated-main evidence (2026-10-05)
+
+Application source: [`main@1b6842d322420d6ff29e554810cbf5da2b659b9a`](https://github.com/qq550723504/annotation-engine-label-studio/tree/1b6842d322420d6ff29e554810cbf5da2b659b9a), the merge of [PR #66](https://github.com/qq550723504/annotation-engine-label-studio/pull/66). Detailed scope and limitations are in [acceptance-evidence.md](acceptance-evidence.md).
+
+| Scope | Evidence | Result |
+| --- | --- | --- |
+| Final PR candidate | Head `a24b1ba0049ae2a273771be03e67a59f8371cb0f`; required merge-ref jobs [Authorization foundation tests](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37128403372) and [Current enterprise UI validation](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37128403387) | PASS; PR merged as `1b6842d3` |
+| Matching main browser run | [Run 37129633478](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37129633478), `workflow_dispatch`, exact merge SHA `1b6842d3`: existing enterprise 17/17; App locale 22/22; integrated DM/editor 1/1; import/export 6/6; collaboration 4/4; full enterprise workflow en-US 1/1 and zh-CN 1/1 after separate seeds | PASS for these isolated synthetic CI paths |
+| Independent local backend/resources | Same application SHA: locale/migration/template/session pytest 42/42; seven-namespace catalogs; 95-file literal scan and 13 guards; i18n unit 20/20; production App build; wheel catalogs and App bundles | PASS for the named checks; 44 existing build warnings |
+| English rollback and re-upgrade | Installed current and English-baseline `31c7c78` wheels in fresh containers with networking disabled against the same synthetic upgraded SQLite volume; [rehearsal record and commands](rollback-rehearsal.md) | PASS: preferences/migrations/business records preserved; own task 200, other task 404, revoked session and logged-out cookie replay 401; Chinese preference restored on re-upgrade |
+| Local browser smoke | In-app browser with synthetic manager and annotator: project membership, assignment, task isolation, Chinese editor, live switch retaining checked text choice and Undo | PASS for this limited interactive scope; local Windows full Cypress attempts did not execute |
+| Full standalone editor integration | Same application SHA; Chrome 154, Cypress 14.5.0; all 69 specs executed: 429 passed, 11 failed, 2 existing pending. Nine selected specs on English baseline `31c7c78`: 21 passed, 11 failed, 1 existing pending | FAIL; baseline reproduces all eleven errors (invalid media time, video screenshot dimensions and buffering indicators) |
+| Follow-up Account Center candidate | Production App build, App Common unit 11/11, 95-file literal scan + 13 guards and real-backend App locale 23/23 in isolated Chrome; delayed actor response, permitted/disabled Token deep links, en→zh→en token/curl invariance, one token read and zero mutations | Local PASS; matching PR/main results still required |
+| Remaining evidence | Legacy login feature-flag browser, complete failure-video audit, deployment and host-platform product acceptance | See the current record; do not infer PASS from the historical rows |
+
+The earlier main failure at `aada4fa8` is preserved below as a diagnostic. Its application/session-helper repairs are integrated in `1b6842d3`, and the separate matching-main browser run above passed. The old paragraphs' pending/FAIL statements describe their historical candidates.
 
 ## Executed candidate evidence (2026-09-30 to 2026-10-03)
 
