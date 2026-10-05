@@ -304,8 +304,9 @@ keeps its synthetic session file inside the disposable volume.
 The follow-up [controlled failure rehearsal](failure-artifact-rehearsal.md)
 addresses a different actual diagnostic: a default authenticated `cy.request`
 failure serialized raw Cookie/Set-Cookie values. The shared Cypress `fail` hook
-now redacts message/stack credentials and rethrows the same error. Five Node
-regressions passed, including the invite API's keyed/URL token formats. A real cross-task HTTP 404 and a forced failure after the
+now redacts message/stack credentials and rethrows the same error. Six Node
+regressions passed, including the invite API's keyed/URL token formats and
+existing JWT `access`/`refresh` credential fields. A real cross-task HTTP 404 and a forced failure after the
 real Token en-US → zh-CN → en-US journey each still exited 1 with one intended
 failure. The final candidate's logs had zero exact known-credential/pattern
 matches. The checked-in auditor inspected all **136 + 290 decoded frames**

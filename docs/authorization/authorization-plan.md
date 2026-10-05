@@ -283,7 +283,8 @@ capture and checks that the returned token is absent from diagnostics.
 
 Preserve the shared Cypress failure hook's message/stack redaction for credential
 headers, session/CSRF cookie fragments, Bearer/Token values, and keyed or URL
-`token` values. It rethrows the original error, retaining failing request status
+`token` values and the existing JWT `access`/`refresh` credential fields.
+It rethrows the original error, retaining failing request status
 and route. Re-run the actual HTTP, Token and invite negative probes, inspect
 their logs/screenshots/videos, and retain a passing known-credential detector
 control before publishing evidence. See the

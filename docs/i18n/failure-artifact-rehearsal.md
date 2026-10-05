@@ -19,10 +19,12 @@ disabling command logging did not cover that shared diagnostic boundary.
 The shared support file now uses the upstream
 [Cypress `fail` event](https://docs.cypress.io/api/cypress-api/catalog-of-events)
 to redact credential header values, cookie fragments, Bearer/Token values
-and keyed/URL `token` values
+and keyed/URL `token`, `access` and `refresh` values
 in the original error's message and stack, then throws that same error.
 Method, route, status, location, request behavior and test failure are retained.
-Five Node regression cases run in the existing required browser job. No
+Six Node regression cases run in the existing required browser job. The
+keyed JWT regression uses the existing refresh/rotate serializer field names
+and synthetic diagnostic text; it does not issue or mutate an actual JWT. No
 exception suppression, global retry or timeout increase was added.
 
 ## Executed negative probes

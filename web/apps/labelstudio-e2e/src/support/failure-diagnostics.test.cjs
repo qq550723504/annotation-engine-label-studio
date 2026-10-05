@@ -60,3 +60,14 @@ test('leaves ordinary failures and errors without a stack diagnosable', () => {
   error.stack = undefined;
   assert.equal(redactFailure(error).message, 'Expected annotation revision 2, got 1');
 });
+
+test('redacts the existing JWT refresh/rotate request and response credential keys', () => {
+  // jwt_auth/serializers.py declares access and refresh credential fields.
+  const jwt = `${'h'.repeat(24)}.${'p'.repeat(64)}.${'s'.repeat(43)}`;
+  const diagnostic = JSON.stringify({ access: jwt, refresh: jwt, status: 401 });
+  const result = redactDiagnostic(diagnostic);
+  assert.equal(result.includes(jwt), false);
+  assert.equal(result.includes('"access":"[REDACTED]"'), true);
+  assert.equal(result.includes('"refresh":"[REDACTED]"'), true);
+  assert.equal(result.includes('"status":401'), true);
+});

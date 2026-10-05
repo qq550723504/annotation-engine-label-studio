@@ -3,7 +3,7 @@
 const redactDiagnostic = (text) => text
   .replace(/(\b(?:cookie|set-cookie|authorization|x-csrftoken)["']?\s*:\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n]+)/gi, '$1"[REDACTED]"')
   .replace(/(\b(?:sessionid|csrftoken)\s*[=:]\s*["']?)[A-Za-z0-9_-]{16,}/gi, '$1[REDACTED]')
-  .replace(/(\btoken["']?\s*[=:]\s*["']?)[A-Za-z0-9_.=-]{16,}/gi, '$1[REDACTED]')
+  .replace(/(\b(?:token|access|refresh)["']?\s*[=:]\s*["']?)[A-Za-z0-9_.=-]{16,}/gi, '$1[REDACTED]')
   .replace(/(\b(?:Bearer|Token)\s+)[A-Za-z0-9_.=-]{16,}/gi, '$1[REDACTED]');
 
 const redactFailure = (error) => {
