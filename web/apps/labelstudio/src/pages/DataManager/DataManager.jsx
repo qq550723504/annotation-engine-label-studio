@@ -146,6 +146,10 @@ export const DataManagerPage = ({ ...props }) => {
     Object.assign(window, { dataManager });
 
     dataManager.on("crash", (details) => {
+      if (details?.phase === "initialization") {
+        setCrashed(true);
+        return;
+      }
       const error = details?.error;
       const isMissingTaskError = error?.startsWith("Task ID:");
       const isMissingProjectError = error?.startsWith("Project ID:");
@@ -267,11 +271,11 @@ export const DataManagerPage = ({ ...props }) => {
 
   return crashed ? (
     <div className={cn("crash").toClassName()}>
-      <div className={cn("crash").elem("info").toClassName()}>{t("projectUnavailable")}</div>
+      <div className={cn("crash").elem("info").toClassName()}>{t("workspaceLoadFailed")}</div>
 
-      <Button to="/projects" aria-label={t("backToProjects")}>
+      <Link to="/projects" className={buttonVariant()} aria-label={t("backToProjects")}>
         {t("backToProjects")}
-      </Button>
+      </Link>
     </div>
   ) : (
     <>

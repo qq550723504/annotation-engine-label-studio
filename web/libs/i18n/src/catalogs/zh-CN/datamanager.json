@@ -3,6 +3,7 @@
   "missingTask": "你要访问的任务不存在或已不可用。",
   "missingProject": "你要访问的项目不存在或已不可用。",
   "projectUnavailable": "项目已删除或尚未创建",
+  "workspaceLoadFailed": "无法加载任务工作区，请重试或返回项目列表。",
   "backToProjects": "返回项目列表",
   "settings": "设置",
   "labeling": "标注",

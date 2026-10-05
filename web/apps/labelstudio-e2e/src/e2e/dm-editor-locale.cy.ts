@@ -14,6 +14,29 @@ describe("Data Manager and editor display locale", () => {
     cy.readFile(".enterprise-e2e.json").then((data) => { fixture = data as Fixture; });
   });
 
+  it("reports an interrupted bootstrap in the active language and allows returning to projects", () => {
+    cy.loginAs(fixture.users.annotator_a.email, fixture.password, "/user/account/personal-info");
+    cy.get('[data-testid="language-preference-select"]').select("zh-CN");
+    cy.get("html").should("have.attr", "lang", "zh-CN");
+    // Django returns an HTML 400 if an in-flight session save loses a race
+    // with logout. No exception handler or fake successful columns are used.
+    cy.intercept("GET", "**/api/dm/columns*", {
+      statusCode: 400,
+      headers: { "content-type": "text/html" },
+      body: "<html>synthetic interrupted session</html>",
+    }).as("interruptedColumns");
+    cy.visit(`/projects/${fixture.project_id}/data`);
+    cy.wait("@interruptedColumns");
+    cy.get("body").should("contain.text", "无法加载任务工作区，请重试或返回项目列表。")
+      .and("not.contain.text", "API_GATEWAY")
+      .and("not.contain.text", "synthetic interrupted session");
+    cy.window().should((win: any) => {
+      expect(win.dataManager?.store, "no store published after failed bootstrap").to.be.null;
+    });
+    cy.get('a[aria-label="返回项目列表"]').should("be.visible").click();
+    cy.location("pathname").should("eq", "/projects");
+  });
+
   it("updates three mounted roots without replacing the task or issuing an annotation write", () => {
     const path = `/projects/${fixture.project_id}/data?task=${fixture.tasks.a.id}`;
     cy.loginAs(fixture.users.annotator_a.email, fixture.password, "/user/account/personal-info");

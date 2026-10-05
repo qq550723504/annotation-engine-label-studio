@@ -137,6 +137,39 @@ before rendering, and assertions compare booleans without logging raw values.
 Four sampled video frames included the Token page and confirmed its value
 fields were hidden; this sampled review is not a full-video audit.
 
+## Interrupted workspace initialization
+
+The follow-up [PR #67](https://github.com/qq550723504/annotation-engine-label-studio/pull/67)
+browser run on `f1eb3d716b660531642abf4567f7ebb622ffe0d5`
+([37323143614](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37323143614))
+failed the full Chinese workflow while logging out an annotator. All preceding
+groups and the full English workflow passed, but that does not make this run
+pass. The Django log showed `SessionInterrupted`: a request tried to save a
+session after logout deleted it, returning an HTML 400 response. Data Manager
+converted the reported API error into a thrown environment-configuration error
+inside an initialization promise started without a caller awaiting it.
+
+The repair reports the original API failure through the existing error event,
+then reports an initialization crash and returns without creating models,
+publishing a store or rendering an empty workspace. The App shows a localized
+recovery message. Its return control now uses the existing route Link; the UI
+Button's `to` property did not navigate. Server-side session invalidation and
+the 400 response are preserved. The full-workflow spec's earlier Unauthorized
+exception suppression has been removed.
+
+The Data Manager unit suite passed **672/672** across 20 suites, including
+400/401/403/500 failure responses, obsolete-instance handling and malformed
+success data. Seven-namespace catalogs and the 95-file literal scan with all
+13 guards passed. A synthetic HTML 400 browser case verifies the Chinese
+recovery message, no internal error/body disclosure, no store publication and
+the return route. It passed together with the existing mounted-root/editor
+case (**2/2**) against the installed synthetic backend and repaired production
+App assets. App locale remained **23/23**. The initial recovery attempt passed
+the message/store assertions but failed the return control; the route Link
+repair and 2/2 result address that failure. The final production build passed
+with 44 existing warnings. Exact-head PR and matching-main browser runs remain
+required; the failed prior run above remains historical failure evidence.
+
 ## Failure artifact audit
 
 The previous failed main run

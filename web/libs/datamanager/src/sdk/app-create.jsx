@@ -46,7 +46,13 @@ export const createApp = async (rootNode, datamanager, isCurrent = () => true) =
   // The API request can outlive a destroyed or reloaded Data Manager instance.
   if (!isCurrent()) return null;
 
-  if (!response || response.error) {
+  if (response?.error) {
+    datamanager.invoke("error", response);
+    datamanager.invoke("crash", { ...response, phase: "initialization" });
+    return null;
+  }
+
+  if (!response) {
     const message = `
       ${response?.error ?? ""}
       LS API not available; check \`API_GATEWAY\` and \`LS_ACCESS_TOKEN\` env vars;
@@ -56,7 +62,8 @@ export const createApp = async (rootNode, datamanager, isCurrent = () => true) =
     throw new Error(message);
   }
 
-  const columns = response.columns ?? (Array.isArray(response) ? response : []);
+  const columns = response.columns ?? response;
+  if (!Array.isArray(columns)) throw new TypeError("Invalid Data Manager columns response");
 
   createDynamicModels(columns);
 
