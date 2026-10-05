@@ -85,6 +85,7 @@ jobs:
         run: |
           yarn i18n:catalogs
           yarn i18n:literals
+          node --test apps/labelstudio-e2e/src/support/failure-diagnostics.test.cjs
           yarn nx run i18n:unit
           yarn ls:unit
           yarn nx run app-common:unit

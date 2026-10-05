@@ -1,0 +1,52 @@
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const { redactDiagnostic, redactFailure } = require('./failure-diagnostics.cjs');
+
+const session = 's'.repeat(32);
+const csrf = 'c'.repeat(32);
+const token = 't'.repeat(40);
+
+test('redacts default HTTP failure headers while retaining route, method and status', () => {
+  const diagnostic = [
+    'cy.request() failed on GET http://localhost:8080/api/tasks/2/',
+    '404: Not Found',
+    `Cookie: sessionid=${session}; csrftoken=${csrf}`,
+    `Set-Cookie: ["sessionid=${session}; HttpOnly",`,
+    `  "csrftoken=${csrf}; SameSite=Lax"]`,
+    `"Authorization": "Bearer ${token}", "status": 404`,
+    `'X-CSRFToken': '${csrf}'`,
+  ].join('\n');
+  const result = redactDiagnostic(diagnostic);
+  for (const value of [session, csrf, token]) assert.equal(result.includes(value), false);
+  for (const value of ['GET http://localhost:8080/api/tasks/2/', '404: Not Found', '"status": 404']) {
+    assert.equal(result.includes(value), true);
+  }
+  assert.equal(result.includes('[REDACTED]'), true);
+});
+
+test('redacts cookie and token fragments without requiring a complete header', () => {
+  const diagnostic = `sessionid: '${session}'\ncsrftoken=${csrf}\nToken ${token}\nBearer ${token}`;
+  const result = redactDiagnostic(diagnostic);
+  for (const value of [session, csrf, token]) assert.equal(result.includes(value), false);
+  assert.equal(redactDiagnostic(result), result);
+});
+
+test('preserves the original error and diagnostic location for rethrow', () => {
+  const error = new Error(`GET /api/tasks/2/ returned 404\nCookie: sessionid=${session}`);
+  error.name = 'CypressError';
+  error.stack = `${error.name}: ${error.message}\n  at failure-probe.cy.ts:19:8`;
+  error.status = 404;
+  const result = redactFailure(error);
+  assert.equal(result, error);
+  assert.equal(result.name, 'CypressError');
+  assert.equal(result.status, 404);
+  assert.equal(result.message.includes(session), false);
+  assert.equal(result.stack.includes(session), false);
+  assert.equal(result.stack.includes('failure-probe.cy.ts:19:8'), true);
+});
+
+test('leaves ordinary failures and errors without a stack diagnosable', () => {
+  const error = new Error('Expected annotation revision 2, got 1');
+  error.stack = undefined;
+  assert.equal(redactFailure(error).message, 'Expected annotation revision 2, got 1');
+});

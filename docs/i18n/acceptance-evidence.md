@@ -6,6 +6,18 @@ The local checks use isolated localhost/SQLite synthetic data.
 
 ## GitHub integration evidence
 
+[PR #69](https://github.com/qq550723504/annotation-engine-label-studio/pull/69)
+merged head `627d1d094bb0210c9ea40b3ae80f8d703b03b3a4` as
+`3124f02c992cd94119cbbd0714f59167a5b51357` after an actual current-head Codex
+thumbs-up, no unresolved threads and both required checks passed:
+[authorization CI](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37360509330)
+and [browser CI](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37360509365).
+Its separate [exact-main browser run](https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37363462298)
+is recorded separately from these PR results. PR #69 adds the guarded offline
+three-stage English browser rollback harness and evidence, without application
+code changes. The detailed rollback results remain in
+[rollback-rehearsal.md](rollback-rehearsal.md).
+
 [PR #68](https://github.com/qq550723504/annotation-engine-label-studio/pull/68)
 merged head `95c361f6c089a382e2c25280f2b40d892261b2f2` as `e78460c4`
 after an actual current-head Codex thumbs-up, no unresolved review threads and
@@ -288,21 +300,36 @@ artifact scope and auth-operation logging under review when adding tests that
 display token values. The rollback helper prints no cookies or credentials and
 keeps its synthetic session file inside the disposable volume.
 
+The follow-up [controlled failure rehearsal](failure-artifact-rehearsal.md)
+addresses a different actual diagnostic: a default authenticated `cy.request`
+failure serialized raw Cookie/Set-Cookie values. The shared Cypress `fail` hook
+now redacts message/stack credentials and rethrows the same error. Four Node
+regressions passed. A real cross-task HTTP 404 and a forced failure after the
+real Token en-US → zh-CN → en-US journey each still exited 1 with one intended
+failure. The final candidate's logs had zero exact known-credential/pattern
+matches. The checked-in auditor inspected all **136 + 290 decoded frames**
+and both failure PNGs, with zero known-credential matches and a passing private
+credential control for each audit. Both PNGs were also visually inspected.
+These local probes use the unchanged installed production application on fresh
+synthetic SQLite volumes and the repaired shared support file. Their receipts,
+reproduction commands and OCR limitations are in the linked record; there is
+no forced-failure GitHub-upload receipt. The repair's PR/current-head review
+and exact-merge main gates remain separate from these local checks.
+
 ## Remaining evidence and scope
 
-- A local rollback harness setup failure exercised Cypress's default HTTP-error
-  diagnostic. Its CLI headers contained 2 session-value and 1 CSRF-value pattern
-  matches. The final browser rehearsal reports guarded-read statuses; the shared
-  failure-reporting path and controlled Token failure artifacts still require
-  a separate redaction negative check. The older zero-match packs above cover
-  their specific recorded failures.
+- The previous default HTTP diagnostic contained 2 session-value and 1 CSRF-value
+  pattern matches. The shared reporter repair and actual Token/HTTP negative
+  checks now have the local results above; remote delivery of that repair must
+  pass its own gates. The older packs remain bounded historical evidence.
 - Full local editor integration is `PASS`: 440 passed, 0 failed, 2 existing
   pending across 69 specs. The follow-up's remote delivery checks remain
   separate; original failures and their corrected diagnosis remain recorded.
 - Legacy login feature-flag browser is local `PASS` 23/23. The Token and HTTP
   400 recovery paths also have passing PR #67 and matching-main CI evidence.
-- Failure artifact inspection has the bounded scope above; every-frame video
-  inspection remains `NOT RUN`.
+- Failure artifact inspection has the bounded scope above. Every decoded frame
+  of the two new forced failures was OCR scanned; manual every-frame review and
+  forced-failure GitHub upload remain `NOT RUN`.
 - The repository-wide TypeScript gate remains a pre-existing failure; the
   production build and named tests do not make that gate pass.
 - The English rollback frontend browser workflow is local `PASS` 3/3 on the
@@ -310,6 +337,10 @@ keeps its synthetic session file inside the disposable volume.
   and host-platform product acceptance remain `NOT RUN`.
 - Specialist tag help, global organization/model management, advanced project
   settings and JSON Reader View remain the explicit V1 `GAP` rows.
+
+The five issue closeout conditions and remaining scope are mapped in
+[closure-assessment.md](closure-assessment.md). The final reporter repair must
+complete its separate delivery gates before proposing V1 closure.
 
 The fork's `/release/` assertions read an approved immutable snapshot. Dataset
 publication/delivery belongs to the host platform. No deployment or Issue
