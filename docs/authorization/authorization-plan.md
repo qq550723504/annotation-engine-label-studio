@@ -272,3 +272,25 @@ preference in its separate `UserLocalePreference` table, never in session
 security state. Preserve the existing token enablement and revocation checks
 before applying a token user's locale, and re-run the negative authorization,
 CSRF, and copied-cookie tests after upstream middleware/authenticator upgrades.
+
+## Credentials in diagnostic logs
+
+During upstream upgrades, preserve the organization invite-reset diagnostic as
+an organization ID only; logging the newly issued invite token exposes a usable
+credential at DEBUG level. Keep the API's authorized response intact. The
+organization logging regression exercises the real reset endpoint under DEBUG
+capture and checks that the returned token is absent from diagnostics.
+
+Preserve the shared Cypress failure hook's message/stack redaction for credential
+headers, session/CSRF cookie fragments, Bearer/Token values, and keyed or URL
+`token` values and the existing JWT `access`/`refresh` credential fields.
+It rethrows the original error, retaining failing request status
+and route. Re-run the actual HTTP, Token and invite negative probes, inspect
+their logs/screenshots/videos, and retain a passing known-credential detector
+control before publishing evidence. See the
+[failure artifact rehearsal](../i18n/failure-artifact-rehearsal.md) for guarded
+synthetic-data commands, receipts and inspection limits.
+
+Retain complete opaque-token matching, including RFC 6750 `+`, `/` and `~`
+characters. The artifact auditor must reject missing/empty directories,
+media-only text inputs and empty logs; an empty scan is not accepted evidence.

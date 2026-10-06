@@ -77,7 +77,8 @@ jobs:
             projects/tests/test_project_write_surface_hardening.py \
             tasks/tests/test_task_assignment_authorization.py \
             tasks/tests/test_enterprise_collaboration_acceptance.py \
-            tasks/tests/test_submission_review_workflow.py
+            tasks/tests/test_submission_review_workflow.py \
+            organizations/tests/test_api.py::TestOrganizationInviteLoggingAPI
 
       - name: Run annotation/task API smoke tests
         working-directory: label_studio
@@ -86,3 +87,6 @@ jobs:
       - name: Run request locale and translated template regressions
         working-directory: label_studio
         run: poetry run pytest -q users/tests/test_locale.py users/tests/test_locale_templates.py users/tests/test_locale_migration.py
+
+      - name: Reject missing or unsafe failure artifacts
+        run: poetry run python -m unittest discover -s scripts -p test_i18n_failure_artifact_audit.py
