@@ -246,6 +246,74 @@ def test_stale_authorized_profile_save_preserves_account_disable(path, administr
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize('path', ['save', 'update', 'bulk_update'])
+@pytest.mark.parametrize('actor_present', [False, True])
+def test_direct_active_field_writes_cannot_reactivate_accounts(path, actor_present, administrator, client):
+    user = UserFactory(first_name='Original profile')
+    user.set_password('direct-reactivation-test-only')
+    user.save(update_fields=['password'])
+    stale = User.objects.get(pk=user.pk)
+    disable(user, 'update', administrator)
+    event_id = SessionRevocationEvent.objects.get(target_user_id=user.pk).pk
+    actor = administrator if actor_present else None
+    stale.first_name = 'Uncommitted profile'
+    with pytest.raises(PermissionDenied, match='explicit reactivation service'):
+        if path == 'save':
+            stale.save(update_fields=['first_name', 'is_active'], session_actor=actor)
+        elif path == 'update':
+            User.objects.filter(pk=user.pk).update(is_active=True, first_name=stale.first_name, session_actor=actor)
+        else:
+            User.objects.bulk_update([stale], ['first_name', 'is_active'], session_actor=actor)
+    user.refresh_from_db()
+    assert not user.is_active and user.first_name == 'Original profile'
+    assert UserSessionVersion.objects.get(user=user).version == 1
+    assert UserSessionRevocationBoundary.objects.get(user=user).version == 1
+    assert SessionRevocationEvent.objects.get(target_user_id=user.pk).pk == event_id
+    assert not client.login(email=user.email, password='direct-reactivation-test-only')
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('path', ['update', 'bulk_update'])
+def test_batch_reactivation_rejection_rolls_back_all_fields_and_disables(path, administrator):
+    active, inactive = UserFactory(first_name='Active profile'), UserFactory(
+        is_active=False, first_name='Inactive profile'
+    )
+    with pytest.raises(PermissionDenied, match='explicit reactivation service'):
+        if path == 'update':
+            User.objects.filter(pk__in=[active.pk, inactive.pk]).update(
+                is_active=True, first_name='Uncommitted batch', session_actor=administrator
+            )
+        else:
+            active.is_active, inactive.is_active = False, True
+            active.first_name = inactive.first_name = 'Uncommitted batch'
+            User.objects.bulk_update([active, inactive], ['first_name', 'is_active'], session_actor=administrator)
+    active.refresh_from_db()
+    inactive.refresh_from_db()
+    assert active.is_active and active.first_name == 'Active profile'
+    assert not inactive.is_active and inactive.first_name == 'Inactive profile'
+    assert not UserSessionVersion.objects.exclude(version=0).exists()
+    assert not UserSessionRevocationBoundary.objects.exclude(version=0).exists()
+    assert SessionRevocationEvent.objects.count() == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('path', ['save', 'update', 'bulk_update'])
+def test_active_field_noop_does_not_require_reactivation(path):
+    user = UserFactory(first_name='Original profile')
+    user.first_name = 'Updated active profile'
+    if path == 'save':
+        user.save(update_fields=['first_name', 'is_active'])
+    elif path == 'update':
+        assert User.objects.filter(pk=user.pk).update(is_active=True, first_name=user.first_name) == 1
+    else:
+        assert User.objects.bulk_update([user], ['first_name', 'is_active']) == 1
+    user.refresh_from_db()
+    assert user.is_active and user.first_name == 'Updated active profile'
+    assert UserSessionVersion.objects.get(user=user).version == 0
+    assert SessionRevocationEvent.objects.count() == 0
+
+
+@pytest.mark.django_db
 def test_explicit_admin_reactivation_keeps_old_sessions_revoked(administrator, client):
     from django.conf import settings
     from django.contrib.admin import AdminSite
@@ -300,6 +368,28 @@ def test_admin_reactivation_rejects_untrusted_or_stale_actor(kind, administrator
     assert not user.is_active
     assert UserSessionVersion.objects.get(user=user).version == 0
     assert SessionRevocationEvent.objects.count() == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('kind', ['stale_permission', 'stale_disabled'])
+def test_reactivation_service_reloads_stale_authority(kind):
+    from users.session_security import reactivate_accounts
+
+    actor = UserFactory(is_staff=True)
+    permission = Permission.objects.get(content_type__app_label='users', codename='change_user')
+    actor.user_permissions.add(permission)
+    assert actor.has_perm('users.change_user')
+    user = UserFactory(is_active=False)
+    if kind == 'stale_permission':
+        actor.user_permissions.remove(permission)
+    else:
+        disable(actor, 'update', UserFactory(is_staff=True, is_superuser=True))
+    assert actor.is_active and actor.has_perm('users.change_user')
+    with pytest.raises(PermissionDenied):
+        reactivate_accounts(User.objects.filter(pk=user.pk), actor=actor)
+    assert not User.objects.get(pk=user.pk).is_active
+    assert UserSessionVersion.objects.get(user=user).version == 0
+    assert not SessionRevocationEvent.objects.filter(target_user_id=user.pk).exists()
 
 
 @pytest.mark.django_db

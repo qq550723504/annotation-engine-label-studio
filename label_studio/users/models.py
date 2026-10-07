@@ -46,6 +46,8 @@ class UserQuerySet(models.QuerySet):
             if kwargs['is_active'] is False:
                 actor = require_session_administrator(session_actor, using=self.db)
             targets = list(self.order_by('pk').select_for_update().values_list('pk', 'is_active'))
+            if kwargs['is_active'] is True and any(not was_active for _, was_active in targets):
+                raise PermissionDenied('Account reactivation requires the explicit reactivation service.')
             # Keep the locked target set; do not rediscover new matching rows after discovery.
             locked = self.model._default_manager.using(self.db).filter(pk__in=[pk for pk, _ in targets])
             count = models.QuerySet.update(locked, **kwargs)
@@ -245,10 +247,11 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
             previous = None
             if self.pk and writes_active:
                 previous = type(self).objects.using(using).select_for_update().filter(pk=self.pk).first()
-            if previous is not None and not previous.is_active and self.is_active and update_fields is None:
-                # A stale profile save must not implicitly undo a concurrent disable.
-                # An authenticated actor is not an explicit reactivation intent.
-                # Account re-enabling remains a separate administration operation.
+            if previous is not None and not previous.is_active and self.is_active:
+                if update_fields is not None:
+                    raise PermissionDenied('Account reactivation requires the explicit reactivation service.')
+                # Full profile saves preserve a concurrent disable, even for administrators.
+                # Only the explicit reactivation service may perform the opposite transition.
                 self.is_active = False
             disables = previous is not None and previous.is_active and self.is_active is False
             actor = None

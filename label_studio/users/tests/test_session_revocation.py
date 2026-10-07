@@ -178,7 +178,11 @@ class TestSessionRevocation(TestCase):
         disable()
         # No request is made while the account is inactive: reactivation must
         # not restore an untouched pre-disable session.
-        type(self.user).objects.filter(pk=self.user.pk).update(is_active=True)
+        from users.session_security import reactivate_accounts
+
+        reactivate_accounts(
+            type(self.user).objects.filter(pk=self.user.pk), actor=UserFactory(is_staff=True, is_superuser=True)
+        )
         replay = self.replay_client(cookie).get('/api/current-user/whoami')
         assert replay.status_code == 401
         self.login_client()

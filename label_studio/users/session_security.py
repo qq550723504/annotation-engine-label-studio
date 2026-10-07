@@ -5,7 +5,7 @@ import uuid
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, QuerySet
 from users.models import SessionRevocationEvent, User, UserSessionRevocationBoundary, UserSessionVersion
 
 logger = logging.getLogger(__name__)
@@ -74,8 +74,11 @@ def reactivate_accounts(queryset, *, actor):
             queryset.filter(is_active=False).order_by('pk').select_for_update().values_list('pk', flat=True)
         )
         require_session_administrator(actor, using=using)
+        # This is the sole trusted reactivation write: targets are locked and the
+        # actor was freshly authorized. Ordinary ORM entry points reject it.
         # Preserve both revocation versions and the accepted audit history.
-        return User.objects.using(using).filter(pk__in=targets).update(is_active=True)
+        locked = User.objects.using(using).filter(pk__in=targets)
+        return QuerySet.update(locked, is_active=True)
 
 
 def revoke_all_sessions(user, *, reason, actor, request_id=None):

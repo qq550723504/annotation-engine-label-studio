@@ -83,6 +83,14 @@ corrected guard preserves disabled state even when the save has a trusted actor;
 the explicit native admin reactivation action checks fresh authority and keeps
 pre-disable sessions revoked.
 
+A later direct active-field regression failed on all six variants (save/update/
+bulk update, with and without an administrator actor). Those entry points now
+reject inactive-to-active transitions outside the trusted reactivation service;
+full profile saves retain the disabled flag. Rejected mixed batches roll back
+unrelated fields and any earlier disable/version/audit effects. Same-state active
+writes retain normal profile behavior. The service reloads stale permission and
+disabled-actor state before its sole locked base-QuerySet write.
+
 Additional tests cover both security-row provisioning failures, successful
 paired provisioning, and fail-closed request/login/cutover verification for a
 missing primary, missing boundary, or mismatch. A controlled Django
