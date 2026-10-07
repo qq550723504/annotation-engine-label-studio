@@ -80,8 +80,13 @@ and context-free disables fail closed. Each path locks/reloads its targets and
 advances the counter only for a real active-to-inactive transition. Repeated disables
 are no-ops for counter/audit state. A batch, its counter changes and its audit records
 commit or roll back together. `session_request_id`, if supplied, must be a
-server-generated UUID. Profile writes and account re-enabling remain separate operations.
-Re-enabling an account cannot restore its untouched pre-disable browser sessions.
+server-generated UUID. A full profile save preserves an authoritative disabled
+state even when an authenticated administrator submits an older active checkbox.
+Administrator authority alone does not express reactivation intent. Use the Django
+user admin's **Reactivate selected accounts** action for that separate operation;
+the service reloads the actor's active staff/`users.change_user` authority and locks
+the selected inactive accounts. It preserves both revocation versions and the audit
+history, so a new login succeeds but pre-disable browser sessions stay revoked.
 Raw SQL and `save_base()` bypass application hooks and are not supported account
 security operations.
 
@@ -159,16 +164,28 @@ Apply this cutover after installing the #71 implementation and its migrations.
    user-wide revocation against more than one deployed worker.
 
 Rollback must preserve a server-revocable backend. Before restoring an older
-database snapshot, preserve the complete durable audit ledger and both security
-tables through a current backup/WAL archive or an operator-controlled export.
+database snapshot, preserve the complete durable audit ledger, both security
+tables, and the authoritative current `User.is_active` state through a current
+backup/WAL archive or an operator-controlled export. Reconcile the account flags
+as well as the counters before opening traffic: a disable committed after the
+backup must remain disabled, including for a fresh password login. Clearing old
+cookies or restoring counters alone does not prevent that account from logging in.
+Do not infer current active flags solely from disable audit events: explicit
+reactivation is outside #48's revoke-all/account-disable audit scope. If current
+account flags cannot be recovered, keep affected accounts denied and require
+explicit administrator revalidation; keep traffic drained wherever their scope
+cannot be established.
 Reconcile accepted events by stable UUID and target/version identity; an existing
 ID with different content is an incident, never an overwrite. Retain the compatible
 audit schema and its read path when rolling back application code.
 
 A restore can resurrect deleted session rows as well as old counters. Keep all
 workers drained, clear **all** restored `django_session` rows using Django's Session
-model (not just expired rows), rotate the cookie boundary as needed, then verify
-security state before resuming only the supported writers. If committed audit data
+model (not just expired rows), rotate the cookie boundary as needed, then compare
+the restored account flags with the retained authoritative checkpoint and run
+`verify_session_security_state` before resuming only the supported writers. That
+command checks the two security-version tables; it does not verify account flags
+against an older backup. If committed audit data
 cannot be preserved/reconciled, report an audit-loss incident. A successful DB
 restore alone does not satisfy session or audit acceptance. Production rollout is
 an operator action, not a consequence of local tests or merging the patch.

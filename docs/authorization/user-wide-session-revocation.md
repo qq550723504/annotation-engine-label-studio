@@ -19,6 +19,10 @@ Conceptually:
 UserSessionVersion
   user_id   unique / indexed
   version   monotonically increasing integer
+
+UserSessionRevocationBoundary
+  user_id   unique / indexed
+  version   independent monotonic recovery high-water mark
 ```
 
 Each successful browser login captures the current version into the authenticated
@@ -26,18 +30,20 @@ session.
 
 ### Provisioning and migration
 
-The security-version row is mandatory state, not something authentication may
-silently recreate on demand.
+Both rows are mandatory state, not something authentication may silently recreate
+on demand. Normal authentication requires them to exist and agree.
 
-- the schema/data migration must backfill one row for every existing user before
+- the schema/data migration must backfill both rows for every existing user before
   fail-closed enforcement is enabled;
+- backfill the independent boundary from the existing primary version, preserving
+  nonzero versions; never reset an existing primary or boundary;
 - the backfill should use bounded batches suitable for production-sized user tables;
 - rollout must establish a **write quiescence/barrier** before the final backfill
   verification: pre-#47 workers that can create users must be drained or account
   creation/user writes must be paused;
 - after that barrier, run a final catch-up verification/backfill and prove there is
-  no user without a security-version row before enabling fail-closed enforcement;
-- creation of a new user must provision its security-version row atomically with
+  no user without either row or with inconsistent values before enforcement;
+- creation of a new user must provision both security rows atomically with
   the supported user-creation transaction/path;
 - if provisioning fails, user creation must fail rather than leave an account that
   cannot authenticate;
@@ -50,10 +56,10 @@ Do not derive user-wide revocation by enumerating serialized Django sessions.
 
 For each authenticated browser-session request:
 
-1. load the authoritative current version;
+1. load the authoritative current version and independent recovery boundary;
 2. compare it with the version bound to the session;
 3. on mismatch, flush the session and treat the request as unauthenticated;
-4. fail closed when the required security-version record is unexpectedly missing.
+4. fail closed when either record is missing or their versions disagree.
 
 The check must not turn stateless API-token/JWT reads into browser sessions.
 
@@ -72,6 +78,10 @@ become valid again. The supported recovery path must either:
 
 Never recreate a missing row with a default such as `0`, `1`, or a guessed
 historical value. Recovery must be an explicit transactional security operation.
+The selected online recovery uses the surviving independent high-water mark and
+advances above it and every surviving projection. A missing recovery boundary is
+not recoverable online from a guessed primary value; require maintenance restore
+and the global reauthentication barrier, with access denied until completion.
 
 Only an authenticated active human Django staff administrator with the concrete
 `users.change_user` permission may perform recovery, including recovery of their
@@ -96,7 +106,8 @@ Expose one server-side operation:
 revoke_all_sessions(user, *, reason, actor)
 ```
 
-The operation must atomically increment the user's version.
+The operation must atomically increment both the primary version and independent
+recovery boundary, rejecting missing or inconsistent pairs.
 
 The public API/admin layer must derive `actor` from trusted authenticated context;
 it must never accept an arbitrary actor ID from a client payload.
@@ -223,10 +234,11 @@ unknown code.
 
 ## Required tests
 
-- migration/backfill creates a security-version row for every pre-existing user and those users can authenticate after cutover;
-- rollout drains/pauses pre-#47 user-creation writers before the final catch-up barrier, then verifies zero users are missing the row before enforcement;
+- migration/backfill creates both rows for every pre-existing user, copies existing nonzero primary versions into new boundaries without resetting them, and those users can authenticate after cutover;
+- rollout drains/pauses pre-#47 user-creation writers before the final catch-up barrier, then verifies zero users have a missing or inconsistent pair before enforcement;
 - a negative transition regression creates a user during the backfill-to-enforcement window using an old/pre-provisioning path and proves the rollout barrier/catch-up detects and backfills it before enforcement can be enabled;
-- every newly created user receives its security-version row through the supported creation path, and provisioning failure cannot leave a partially usable account;
+- every newly created user receives both rows through the supported creation path; inject failure on each insert separately and verify that no user or partial security pair commits;
+- after draining old writers, verification rejects either missing row and mismatched values before enforcement; authentication and fresh login fail closed for either missing row or mismatch, without request-time repairs;
 - two independent sessions for one user are valid before revoke;
 - one atomic version increment invalidates both on their next request;
 - a new login after revoke succeeds;
@@ -243,6 +255,21 @@ unknown code.
 - inject a failure after at least one target in a multi-user `QuerySet.update()` and `bulk_update()` batch has been processed; the entire batch must roll back, with no partially disabled users and no partially advanced session versions;
 - inject revocation/version-write failure for ordinary model `save()`; the disable mutation rolls back and no partial disabled-without-revocation state commits;
 - stale ordinary user saves cannot overwrite the counter;
+- a stale full profile save through both ordinary model `save()` with an
+  authenticated administrator actor and the native Django user admin preserves
+  the current disabled flag, applies unrelated profile edits, and rejects a fresh
+  password login; administrator authority does not imply reactivation intent;
+- explicit administrator reactivation reloads current authority, preserves both
+  security versions and prior audit history, permits a new login, and still rejects
+  every retained pre-disable cookie; unauthorized, inactive, anonymous, missing,
+  and stale actors cannot reactivate accounts by submitting actor/active fields;
+- restore a backup taken before an account disable while preserving a current
+  authoritative checkpoint for account active flags, both security tables and
+  the complete audit ledger; reconcile all of them and clear restored sessions
+  before traffic resumes, then reject fresh login for the disabled account;
+- if the current account flags cannot be recovered, deny affected accounts until
+  explicit administrator revalidation; counter verification and cookie clearing
+  alone cannot satisfy this restore acceptance;
 - deleting/missing the security-version record causes an already-authenticated browser session to fail closed on its next request;
 - deleting/missing the security-version record also prevents a new browser login from silently recreating a default version or authenticating;
 - after explicit missing-state recovery, replay of a cookie issued before the row was deleted remains rejected; recovery uses a never-before-issued version or forces reauthentication/session invalidation before establishing fresh state;

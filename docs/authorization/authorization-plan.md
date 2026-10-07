@@ -248,11 +248,27 @@ for the desired ruleset, application procedure, and acceptance boundaries.
 ## Server-authoritative browser session revocation
 
 Preserve the database-only browser session backend, the independent per-user
-security counter, and its inclusion in Django's auth-session hash during upstream
+security counter, its independent recovery-boundary record, and inclusion in
+Django's auth-session hash during upstream
 upgrades. Current-session logout deletes the authoritative DB session; user-wide
 revocation advances the counter without scanning sessions. Account disablement
 must advance the counter transactionally even for QuerySet/bulk writes, and a
 stale User save must never reduce it. Missing security state must fail closed.
+Full profile saves also preserve the authoritative disabled flag, including stale
+administrator forms. Keep reactivation as an explicit administrator operation with
+fresh server-side authority checks; it must preserve the existing revocation
+boundary. Backup recovery must preserve/reconcile current account active flags,
+both security tables and the complete audit ledger before traffic resumes.
+Retain regressions for stale authorized profile saves, unauthorized reactivation,
+pre-disable cookie replay after reactivation, and fresh-login denial after restoring
+a backup that predates account disablement. Version verification and cookie clearing
+alone do not establish account-state recovery.
+Provision both security records atomically with new users. Bounded backfill copies
+existing primary versions into new boundaries without resetting them; drain old
+writers and verify zero missing/inconsistent pairs before enforcement. Preserve
+negative provisioning-failure, nonzero-version migration, missing-boundary and
+mismatched-pair regressions. Authentication never repairs either record, and
+online recovery requires a surviving authoritative recovery boundary.
 
 Retain Django password-change and secret-key fallback behavior, existing session
 expiry policy, and project/member/assignment authorization as distinct controls.

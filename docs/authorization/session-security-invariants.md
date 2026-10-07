@@ -15,6 +15,7 @@ Browser authentication is valid only when all of the following hold:
 server-side session exists
 AND session is unexpired
 AND Django auth/session hash is valid
+AND primary security version and independent recovery boundary both exist and agree
 AND session.security_version == authoritative user.security_version
 AND user is active
 AND request-specific authorization succeeds
@@ -46,8 +47,15 @@ Therefore:
 - stale user objects cannot overwrite the current version;
 - missing-version recovery cannot reuse a previously issued version;
 - re-enabling an account cannot resurrect pre-disable sessions;
+- a full profile save, including an authenticated administrator's stale form,
+  preserves an authoritative disabled state; reactivation requires separate
+  explicit intent and freshly checked administrator authority;
 - restoring an older database snapshot must not restore any previously revoked
   browser credential, including a DB session deleted by logout;
+- restoring an older active flag must not undo a subsequent account disable or
+  permit a fresh login: preserve/reconcile authoritative current account flags
+  alongside security versions; if that state is unavailable, deny affected
+  accounts pending explicit administrator revalidation;
 - any rollback/restore that can reintroduce historical `django_session` rows or
   older security-version state requires a forced global browser reauthentication
   barrier before traffic resumes (for example, clear restored browser sessions
@@ -55,6 +63,12 @@ Therefore:
 
 This is the root invariant behind the replay, recovery, disable/re-enable, and
 missing-row review findings.
+
+The global reauthentication barrier protects historical browser credentials; it
+does not replace reconciliation of account flags. Revoke/disable audit history
+alone cannot establish the latest active flag when reactivation is outside the
+audited event scope. Keep traffic drained if the affected account scope cannot
+be established.
 
 ## 3. Authoritative transition invariant
 
@@ -168,13 +182,23 @@ schema available
 -> bounded backfill
 -> drain/pause legacy writers
 -> final catch-up/backfill
--> prove zero missing security-version rows
+-> prove zero missing or inconsistent primary/recovery-boundary pairs
 -> enable fail-closed enforcement
 -> resume only writers that provision security state atomically
 ```
 
 No mixed deployment may continue creating users through a path that cannot create
 the required security state.
+
+The selected #47 topology requires both `UserSessionVersion` and the independent
+`UserSessionRevocationBoundary`. Provision both atomically with a new account;
+failure of either insert rolls back account creation. Bounded migration/backfill
+must initialize the recovery boundary from each existing primary version without
+resetting it. Catch-up verification checks both records and their agreement after
+legacy writers are drained. Authentication fails closed for either missing record
+or a mismatch; it must never initialize or repair them. Require new-user,
+provisioning-failure, nonzero-version migration, and missing/mismatched-boundary
+regressions. Normal revocation advances both in the same transaction.
 
 Legacy signed-cookie authentication is not accepted during or after cutover.
 
@@ -199,6 +223,10 @@ authoritative recovery boundary unchanged. Require direct-service negative tests
 stale-privilege/disable tests, and API/admin actor-substitution tests.
 
 A cookie issued before state loss must remain invalid after recovery.
+Online projection recovery uses a surviving independent recovery high-water mark
+and advances above every retained value. A missing recovery boundary cannot be
+recreated online from a guessed primary value; deny access and use the maintenance
+restore/global reauthentication procedure.
 
 ## 8. Audit durability invariant
 

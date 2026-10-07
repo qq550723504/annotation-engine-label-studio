@@ -173,6 +173,15 @@ includes:
 - historical `django_session` rows that were deleted by logout after the backup
   was taken.
 
+The #47 restore procedure must also preserve/reconcile authoritative current
+`User.is_active` flags. An older active flag must not undo a post-backup disable
+and permit a fresh login. Keep affected accounts denied pending explicit
+administrator revalidation if their current flags cannot be recovered; keep
+traffic drained if their scope is unknown. Neither a global cookie barrier nor
+counter verification proves that account-state requirement. Disable events alone
+cannot reconstruct the latest flag because explicit reactivation is outside
+#48's audited scope.
+
 If a database restore can reintroduce historical session rows or older revocation
 state, keep traffic drained after restore and force global browser
 reauthentication before reopening service. The rollback procedure must also
