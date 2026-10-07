@@ -257,8 +257,12 @@ stale User save must never reduce it. Missing security state must fail closed.
 Full profile saves also preserve the authoritative disabled flag, including stale
 administrator forms. Keep reactivation as an explicit administrator operation with
 fresh server-side authority checks; it must preserve the existing revocation
-boundary. Backup recovery must preserve/reconcile current account active flags,
-both security tables and the complete audit ledger before traffic resumes.
+boundary.
+Ordinary explicit active-field saves, QuerySet updates and bulk updates must reject
+inactive-to-active transitions outside that service, even with an administrator
+actor. Preserve direct bypass, mixed-batch rollback and fresh-login denial tests.
+Backup recovery must preserve/reconcile current account active flags, both security
+tables and the complete audit ledger before traffic resumes.
 Retain regressions for stale authorized profile saves, unauthorized reactivation,
 pre-disable cookie replay after reactivation, and fresh-login denial after restoring
 a backup that predates account disablement. Version verification and cookie clearing

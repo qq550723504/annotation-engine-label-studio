@@ -263,6 +263,17 @@ unknown code.
   security versions and prior audit history, permits a new login, and still rejects
   every retained pre-disable cookie; unauthorized, inactive, anonymous, missing,
   and stale actors cannot reactivate accounts by submitting actor/active fields;
+- directly attempt inactive-to-active writes through model
+  `save(update_fields=[..., 'is_active'])`, `QuerySet.update(is_active=True)`, and
+  `bulk_update(..., ['is_active'])`, both without actor context and with an
+  authorized administrator actor; all attempts outside the trusted reactivation
+  service must fail, preserve the inactive flag/version/audit, and reject fresh
+  login. Actor authority alone is not explicit service intent;
+- reject mixed batch reactivation atomically, including unrelated field changes
+  and any earlier disable/version/audit effects; successful trusted reactivation
+  must reload cached-permission revocation and stale-disabled actor state;
+- an already-active same-state field write may update unrelated profile fields
+  without reactivation authority and must not advance security state;
 - restore a backup taken before an account disable while preserving a current
   authoritative checkpoint for account active flags, both security tables and
   the complete audit ledger; reconcile all of them and clear restored sessions

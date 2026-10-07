@@ -89,6 +89,12 @@ Examples:
 Precomputed target sets, stale ORM objects, client payloads, and cached privileges
 are not authoritative transition evidence.
 
+Inactive-to-active writes are owned by the explicit trusted reactivation service.
+Ordinary model field saves, QuerySet updates and bulk updates must reject that
+transition even when supplied an administrator actor; actor authority alone does
+not express the operation's intent. Full profile saves preserve an existing
+disable. Rejected mixed batches roll back every field and security side effect.
+
 ## 4. Atomicity invariant
 
 A security transition and all state required to make that transition durable and

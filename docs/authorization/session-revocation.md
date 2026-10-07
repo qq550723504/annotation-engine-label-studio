@@ -87,8 +87,15 @@ user admin's **Reactivate selected accounts** action for that separate operation
 the service reloads the actor's active staff/`users.change_user` authority and locks
 the selected inactive accounts. It preserves both revocation versions and the audit
 history, so a new login succeeds but pre-disable browser sessions stay revoked.
-Raw SQL and `save_base()` bypass application hooks and are not supported account
-security operations.
+Direct inactive-to-active writes through `save(update_fields=[..., 'is_active'])`,
+QuerySet `update(is_active=True)` and `bulk_update(..., ['is_active'])` are rejected,
+even with an administrator actor; an actor alone does not express service intent.
+A rejected mixed batch rolls back profile edits, disable transitions, versions and
+audit events together. A same-state active write remains a no-op for security state.
+The trusted reactivation service alone performs the locked, freshly authorized
+write through Django's base QuerySet implementation. Raw SQL, `save_base()` and
+direct calls to base QuerySet writers bypass application hooks and are not
+supported caller-side account security operations.
 
 The counter has its own one-to-one table, `htx_user_session_version`, so a stale
 ordinary User instance's profile/password/last-activity save cannot overwrite a
