@@ -259,17 +259,24 @@ def test_recovery_uses_an_independent_monotonic_boundary(administrator):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize('kind', ['ordinary', 'underprivileged', 'anonymous', 'missing', 'stale'])
+@pytest.mark.parametrize(
+    'kind', ['ordinary', 'self', 'underprivileged', 'inactive', 'anonymous', 'missing', 'stale', 'stale_inactive']
+)
 def test_recovery_rejects_unauthorized_or_stale_actors(kind, administrator):
     user = UserFactory()
     UserSessionVersion.objects.filter(user=user).delete()
     if kind == 'stale':
         User.objects.filter(pk=administrator.pk).update(is_staff=False, is_superuser=False)
         actor = administrator
+    elif kind == 'stale_inactive':
+        User.objects.filter(pk=administrator.pk).update(is_active=False, session_actor=administrator)
+        actor = administrator
     else:
         actor = {
             'ordinary': lambda: UserFactory(),
+            'self': lambda: user,
             'underprivileged': lambda: UserFactory(is_staff=True),
+            'inactive': lambda: UserFactory(is_active=False, is_staff=True, is_superuser=True),
             'anonymous': AnonymousUser,
             'missing': lambda: None,
         }[kind]()
