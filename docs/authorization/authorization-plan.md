@@ -254,6 +254,21 @@ revocation advances the counter without scanning sessions. Account disablement
 must advance the counter transactionally even for QuerySet/bulk writes, and a
 stale User save must never reduce it. Missing security state must fail closed.
 
+Disable entry points must receive the trusted authenticated `session_actor`, reload
+its active staff/`users.change_user` authority, lock authoritative targets and
+apply side effects only to real active-to-inactive transitions. Preserve the
+independent monotonic recovery boundary and require matching state on authentication.
+Online recovery is administrator-only; loss of that boundary requires the documented
+maintenance reauthentication barrier, never a guessed default version.
+
+Revoke-all and real account-disable operations commit a durable
+`SessionRevocationEvent` in the same transaction. The local DB audit ledger is the
+supported receiver, with stable UUID and unique target/version identity, no TTL and
+read-only administrative access. Log callbacks are optional projections. External
+SIEM delivery is a separately configured topology and must prove receipt/dedup,
+retry/redrive and restore semantics before use. Rollback/restore must preserve the
+ledger and reject restored browser credentials before traffic resumes.
+
 Retain Django password-change and secret-key fallback behavior, existing session
 expiry policy, and project/member/assignment authorization as distinct controls.
 The user admin revocation action derives its actor from the authenticated server

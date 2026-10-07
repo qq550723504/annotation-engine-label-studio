@@ -1,5 +1,7 @@
 """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license.
 """
+import uuid
+
 from core.models import AsyncMigrationStatus
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
@@ -8,20 +10,37 @@ from ml.models import MLBackend, MLBackendTrainJob
 from organizations.models import Organization, OrganizationMember
 from projects.models import Project
 from tasks.models import Annotation, Prediction, Task
-from users.models import User
-from users.session_security import revoke_all_sessions
+from users.models import SessionRevocationEvent, User
+from users.session_security import recover_session_state, revoke_all_sessions
 
 
 class UserAdminShort(UserAdmin):
 
     add_fieldsets = ((None, {'fields': ('email', 'password1', 'password2')}),)
-    actions = ['revoke_browser_sessions']
+    actions = ['revoke_browser_sessions', 'recover_browser_session_state']
+
+    def save_model(self, request, obj, form, change):
+        # Actor identity comes from the authenticated admin request, never form data.
+        obj.save(session_actor=request.user, session_request_id=uuid.uuid4())
 
     @admin.action(description='Revoke all browser sessions', permissions=['change'])
     def revoke_browser_sessions(self, request, queryset):
+        request_id = uuid.uuid4()
         for user in queryset.iterator():
-            revoke_all_sessions(user, reason='administrator', actor=request.user)
+            revoke_all_sessions(user, reason='administrator', actor=request.user, request_id=request_id)
         self.message_user(request, 'Selected users must log in again. API tokens are unchanged.')
+
+    @admin.action(description='Recover missing browser session security state', permissions=['change'])
+    def recover_browser_session_state(self, request, queryset):
+        recovered = 0
+        for user in queryset.iterator():
+            try:
+                recover_session_state(user, actor=request.user)
+            except ValueError:
+                # Selecting an already healthy row requires no recovery.
+                continue
+            recovered += 1
+        self.message_user(request, f'{recovered} user states recovered; those users must log in again.')
 
     def __init__(self, *args, **kwargs):
         super(UserAdminShort, self).__init__(*args, **kwargs)
@@ -165,7 +184,27 @@ class OrganizationMemberAdmin(admin.ModelAdmin):
         self.ordering = ('id',)
 
 
+class SessionRevocationEventAdmin(admin.ModelAdmin):
+    list_display = ('id', 'occurred_at', 'actor_user_id', 'target_user_id', 'reason_code', 'correlation_id')
+    list_filter = ('reason_code',)
+    search_fields = ('target_user_id', 'actor_user_id', 'correlation_id')
+    readonly_fields = tuple(field.name for field in SessionRevocationEvent._meta.fields)
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_active and request.user.is_staff and request.user.has_perm('users.change_user')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 admin.site.register(User, UserAdminShort)
+admin.site.register(SessionRevocationEvent, SessionRevocationEventAdmin)
 admin.site.register(Project)
 admin.site.register(MLBackend)
 admin.site.register(MLBackendTrainJob)

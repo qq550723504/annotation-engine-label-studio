@@ -115,7 +115,7 @@ class TestSessionRevocation(TestCase):
         client = self.login_client()
         client.credentials(HTTP_AUTHORIZATION=f'Token {self.user.get_token().key}')
         assert client.get('/api/current-user/whoami').status_code == 200
-        revoke_all_sessions(self.user, reason='credential_compromise', actor=self.user)
+        revoke_all_sessions(self.user, reason='logout_all_devices', actor=self.user)
         assert client.get('/api/current-user/whoami').status_code == 200
 
     def test_another_regular_user_cannot_revoke_sessions(self):
@@ -130,7 +130,8 @@ class TestSessionRevocation(TestCase):
         from users.session_security import revoke_all_sessions
 
         actor = UserFactory(is_staff=True, is_superuser=True)
-        type(actor).objects.filter(pk=actor.pk).update(is_active=False)
+        administrator = UserFactory(is_staff=True, is_superuser=True)
+        type(actor).objects.filter(pk=actor.pk).update(is_active=False, session_actor=administrator)
         with self.assertRaises(PermissionDenied):
             revoke_all_sessions(self.user, reason='administrator', actor=actor)
 
@@ -185,19 +186,28 @@ class TestSessionRevocation(TestCase):
     def test_model_save_disable_revokes_sessions_before_reactivation(self):
         def disable():
             self.user.is_active = False
-            self.user.save(update_fields=['is_active'])
+            self.user.save(update_fields=['is_active'], session_actor=UserFactory(is_staff=True, is_superuser=True))
 
         self.assert_disable_then_reactivate_rejects_old_cookie(disable)
 
     def test_queryset_disable_revokes_sessions_before_reactivation(self):
         self.assert_disable_then_reactivate_rejects_old_cookie(
-            lambda: type(self.user).objects.filter(pk=self.user.pk).update(is_active=False)
+            lambda: type(self.user)
+            .objects.filter(pk=self.user.pk)
+            .update(
+                is_active=False,
+                session_actor=UserFactory(is_staff=True, is_superuser=True),
+            )
         )
 
     def test_bulk_disable_revokes_sessions_before_reactivation(self):
         def disable():
             self.user.is_active = False
-            type(self.user).objects.bulk_update([self.user], ['is_active'])
+            type(self.user).objects.bulk_update(
+                [self.user],
+                ['is_active'],
+                session_actor=UserFactory(is_staff=True, is_superuser=True),
+            )
 
         self.assert_disable_then_reactivate_rejects_old_cookie(disable)
 
@@ -236,6 +246,27 @@ class TestSessionRevocation(TestCase):
         assert client.get('/api/current-user/whoami').status_code == 401
         response = client.post('/user/login/', {'email': self.user.email, 'password': 'session-test-password'})
         assert response.status_code == 403
+
+    def test_recovery_rejects_an_untouched_pre_loss_cookie_and_allows_fresh_login(self):
+        from users.models import UserSessionVersion
+        from users.session_security import recover_session_state
+
+        client = self.login_client()
+        cookie = client.cookies[settings.SESSION_COOKIE_NAME].value
+        UserSessionVersion.objects.filter(user=self.user).delete()
+        actor = UserFactory(is_staff=True, is_superuser=True)
+        recover_session_state(self.user, actor=actor)
+        assert self.replay_client(cookie).get('/api/current-user/whoami').status_code == 401
+        self.login_client()
+
+    def test_a_real_legacy_signed_cookie_is_rejected_without_conversion(self):
+        with override_settings(SESSION_ENGINE='django.contrib.sessions.backends.signed_cookies'):
+            legacy = self.login_client()
+            cookie = legacy.cookies[settings.SESSION_COOKIE_NAME].value
+        assert Session.objects.count() == 0
+        for path in ('/api/current-user/whoami', '/api/projects/'):
+            assert self.replay_client(cookie).get(path).status_code == 401
+        assert Session.objects.count() == 0
 
     @override_settings(SESSION_COOKIE_SECURE=True, SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax')
     def test_login_sets_hardened_cookie_attributes(self):

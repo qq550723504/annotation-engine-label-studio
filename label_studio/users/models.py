@@ -1,6 +1,7 @@
 """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license.
 """
 import datetime
+import uuid
 from typing import Optional
 
 from core.feature_flags import flag_set
@@ -33,18 +34,70 @@ year = models.IntegerField(_('year'), choices=YEAR_CHOICES, default=datetime.dat
 
 
 class UserQuerySet(models.QuerySet):
-    def update(self, **kwargs):
+    def update(self, *, session_actor=None, session_request_id=None, **kwargs):
         if 'is_active' not in kwargs:
             return super().update(**kwargs)
-        from users.session_security import _advance_session_version
+        from users.session_security import _advance_session_version, require_session_administrator
 
+        if not isinstance(kwargs['is_active'], bool):
+            raise PermissionDenied('Account state changes require an explicit boolean value.')
         with transaction.atomic(using=self.db):
-            user_ids = list(self.values_list('pk', flat=True))
-            count = super().update(**kwargs)
-            disabled = self.model.objects.using(self.db).filter(pk__in=user_ids, is_active=False)
-            for user_id in disabled.values_list('pk', flat=True):
-                _advance_session_version(user_id, reason='account_disabled', actor_id=None, using=self.db)
+            actor = None
+            if kwargs['is_active'] is False:
+                actor = require_session_administrator(session_actor, using=self.db)
+            targets = list(self.order_by('pk').select_for_update().values_list('pk', 'is_active'))
+            # Keep the locked target set; do not rediscover new matching rows after discovery.
+            locked = self.filter(pk__in=[pk for pk, _ in targets])
+            count = models.QuerySet.update(locked, **kwargs)
+            if actor is not None:
+                for user_id, was_active in targets:
+                    if was_active:
+                        _advance_session_version(
+                            user_id,
+                            reason='account_disabled',
+                            actor_id=actor.pk,
+                            using=self.db,
+                            request_id=session_request_id,
+                        )
             return count
+
+    def bulk_update(self, objs, fields, batch_size=None, *, session_actor=None, session_request_id=None):
+        fields = tuple(fields)
+        if 'is_active' not in fields:
+            return super().bulk_update(objs, fields, batch_size=batch_size)
+        from users.session_security import require_session_administrator
+
+        objs = tuple(objs)
+        if batch_size is not None and batch_size <= 0:
+            raise ValueError('Batch size must be positive.')
+        if any(obj.pk is None for obj in objs):
+            raise ValueError('All bulk_update() objects must have a primary key set.')
+        if any(not isinstance(obj.is_active, bool) for obj in objs):
+            raise PermissionDenied('Account state changes require an explicit boolean value.')
+        if len({obj.pk for obj in objs}) != len(objs):
+            raise ValueError('Account state batches must not contain duplicate users.')
+        remaining_fields = [field for field in fields if field != 'is_active']
+        with transaction.atomic(using=self.db):
+            if any(not obj.is_active for obj in objs):
+                require_session_administrator(session_actor, using=self.db)
+            locked_ids = list(
+                self.filter(pk__in=[obj.pk for obj in objs])
+                .order_by('pk')
+                .select_for_update()
+                .values_list('pk', flat=True)
+            )
+            locked = self.filter(pk__in=locked_ids)
+            if remaining_fields:
+                models.QuerySet.bulk_update(locked, objs, remaining_fields, batch_size=batch_size)
+            for active in (False, True):
+                ids = [obj.pk for obj in objs if obj.is_active is active]
+                if ids:
+                    locked.filter(pk__in=ids).update(
+                        is_active=active,
+                        session_actor=session_actor,
+                        session_request_id=session_request_id,
+                    )
+            return len(locked_ids)
 
 
 class UserManager(BaseUserManager.from_queryset(UserQuerySet)):
@@ -175,21 +228,68 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ()
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, session_actor=None, session_request_id=None, **kwargs):
         # Provisioning/security signals and account state must commit together.
-        using = kwargs.get('using') or router.db_for_write(type(self), instance=self)
+        using = (
+            kwargs.get('using')
+            or (args[2] if len(args) > 2 else None)
+            or router.db_for_write(type(self), instance=self)
+        )
+        update_fields = kwargs.get('update_fields', args[3] if len(args) > 3 else None)
+        writes_active = update_fields is None or 'is_active' in update_fields
+        if writes_active and not isinstance(self.is_active, bool):
+            raise PermissionDenied('Account state changes require an explicit boolean value.')
         with transaction.atomic(using=using):
-            return super().save(*args, **kwargs)
+            previous = None
+            if self.pk and writes_active:
+                previous = type(self).objects.using(using).select_for_update().filter(pk=self.pk).first()
+            if (
+                previous is not None
+                and not previous.is_active
+                and self.is_active
+                and update_fields is None
+                and session_actor is None
+            ):
+                # A stale profile save must not implicitly undo a concurrent disable.
+                # Explicit account re-enabling remains a separate administration operation.
+                self.is_active = False
+            disables = previous is not None and previous.is_active and self.is_active is False
+            actor = None
+            if disables:
+                from users.session_security import require_session_administrator
+
+                actor = require_session_administrator(session_actor, using=using)
+            result = super().save(*args, **kwargs)
+            if disables:
+                from users.session_security import _advance_session_version
+
+                _advance_session_version(
+                    self.pk,
+                    reason='account_disabled',
+                    actor_id=actor.pk,
+                    using=using,
+                    request_id=session_request_id,
+                )
+            return result
 
     def _get_session_auth_hash(self, secret=None):
         # Django checks this on every session-authenticated request, including
         # SECRET_KEY fallback verification. Never use a cached related object.
         using = self._state.db or router.db_for_write(UserSessionVersion)
         try:
-            version = UserSessionVersion.objects.using(using).values_list('version', flat=True).get(user_id=self.pk)
+            version, boundary = (
+                UserSessionVersion.objects.using(using)
+                .values_list(
+                    'version',
+                    'user__session_revocation_boundary__version',
+                )
+                .get(user_id=self.pk)
+            )
         except UserSessionVersion.DoesNotExist:
             # Django treats an empty auth hash as invalid and flushes existing
             # sessions. The login signal below also rejects a new empty hash.
+            return ''
+        if boundary is None or version != boundary:
             return ''
         password_hash = super()._get_session_auth_hash(secret=secret)
         return salted_hmac(
@@ -288,6 +388,45 @@ class UserSessionVersion(models.Model):
         db_table = 'htx_user_session_version'
 
 
+class UserSessionRevocationBoundary(models.Model):
+    """Recovery high-water mark, independent of audit delivery and mutable user fields."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        primary_key=True,
+        on_delete=models.CASCADE,
+        related_name='session_revocation_boundary',
+    )
+    version = models.PositiveBigIntegerField(default=0, editable=False)
+
+    class Meta:
+        db_table = 'htx_user_session_revocation_boundary'
+
+
+class SessionRevocationEvent(models.Model):
+    """The local durable audit receiver. Event and security transition commit together."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event_type = models.CharField(max_length=32, default='browser_session_revoked', editable=False)
+    revocation_type = models.CharField(max_length=16, default='user', editable=False)
+    actor_type = models.CharField(max_length=16, default='human', editable=False)
+    actor_user_id = models.PositiveBigIntegerField(editable=False)
+    target_user_id = models.PositiveBigIntegerField(db_index=True, editable=False)
+    reason_code = models.CharField(max_length=32, editable=False)
+    security_version = models.PositiveBigIntegerField(editable=False)
+    occurred_at = models.DateTimeField(default=timezone.now, editable=False)
+    correlation_id = models.UUIDField(default=uuid.uuid4, editable=False)
+
+    class Meta:
+        db_table = 'htx_session_revocation_event'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['target_user_id', 'security_version'],
+                name='unique_session_revocation_event',
+            )
+        ]
+
+
 class UserLocalePreference(models.Model):
     """Optional display preference, deliberately separate from authentication state."""
 
@@ -311,9 +450,6 @@ def init_user(sender, instance=None, created=False, raw=False, using=None, updat
         return
     if created:
         UserSessionVersion.objects.using(using).create(user=instance)
+        UserSessionRevocationBoundary.objects.using(using).create(user=instance)
         # create token for user
         Token.objects.using(using).create(user=instance)
-    elif not instance.is_active and (update_fields is None or 'is_active' in update_fields):
-        from users.session_security import _advance_session_version
-
-        _advance_session_version(instance.pk, reason='account_disabled', actor_id=None, using=using)
