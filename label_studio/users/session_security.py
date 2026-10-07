@@ -64,6 +64,20 @@ def require_session_administrator(actor, *, using):
     return actor
 
 
+def reactivate_accounts(queryset, *, actor):
+    """Explicit administrator reactivation; full profile saves never imply this intent."""
+    if queryset.model is not User:
+        raise ValueError('Account reactivation requires a user queryset.')
+    using = queryset.db
+    with transaction.atomic(using=using):
+        targets = list(
+            queryset.filter(is_active=False).order_by('pk').select_for_update().values_list('pk', flat=True)
+        )
+        require_session_administrator(actor, using=using)
+        # Preserve both revocation versions and the accepted audit history.
+        return User.objects.using(using).filter(pk__in=targets).update(is_active=True)
+
+
 def revoke_all_sessions(user, *, reason, actor, request_id=None):
     """Revoke browser sessions for self or a Django user administrator in O(1).
 

@@ -2,11 +2,13 @@
 
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from io import StringIO
 from threading import Barrier
 from unittest.mock import Mock, patch
 
 import pytest
 from django.contrib.auth.models import AnonymousUser, Permission
+from django.contrib.sessions.models import Session
 from django.core.exceptions import PermissionDenied
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -218,6 +220,127 @@ def test_stale_profile_save_cannot_implicitly_reenable_a_disabled_account(admini
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize('path', ['save', 'admin'])
+def test_stale_authorized_profile_save_preserves_account_disable(path, administrator, client):
+    from django.contrib.admin import AdminSite
+    from users.admin import UserAdminShort
+
+    user = UserFactory()
+    user.set_password('restore-regression-test-only')
+    user.save(update_fields=['password'])
+    stale = User.objects.get(pk=user.pk)
+    disable(user, 'update', administrator)
+    stale.first_name = 'Administrator profile update'
+    if path == 'save':
+        stale.save(session_actor=administrator)
+    else:
+        request = RequestFactory().post('/admin/users/user/', {'is_active': 'on', 'first_name': stale.first_name})
+        request.user = administrator
+        UserAdminShort(User, AdminSite()).save_model(request, stale, Mock(changed_data=['first_name']), True)
+    user.refresh_from_db()
+    assert not user.is_active
+    assert user.first_name == 'Administrator profile update'
+    assert UserSessionVersion.objects.get(user=user).version == 1
+    assert SessionRevocationEvent.objects.filter(target_user_id=user.pk).count() == 1
+    assert not client.login(email=user.email, password='restore-regression-test-only')
+
+
+@pytest.mark.django_db
+def test_explicit_admin_reactivation_keeps_old_sessions_revoked(administrator, client):
+    from django.conf import settings
+    from django.contrib.admin import AdminSite
+    from django.test import Client
+    from users.admin import UserAdminShort
+
+    user = UserFactory()
+    user.set_password('reactivation-regression-test-only')
+    user.save(update_fields=['password'])
+    client.force_login(user)
+    cookie = client.cookies[settings.SESSION_COOKIE_NAME].value
+    disable(user, 'update', administrator)
+    request = RequestFactory().post('/admin/users/user/', {'action': 'reactivate_accounts'})
+    request.user = administrator
+    model_admin = UserAdminShort(User, AdminSite())
+    with patch.object(model_admin, 'message_user'):
+        model_admin.reactivate_accounts(request, User.objects.filter(pk=user.pk))
+    user.refresh_from_db()
+    assert user.is_active
+    assert UserSessionVersion.objects.get(user=user).version == 1
+    assert UserSessionRevocationBoundary.objects.get(user=user).version == 1
+    assert SessionRevocationEvent.objects.filter(target_user_id=user.pk).count() == 1
+    replay = Client()
+    replay.cookies[settings.SESSION_COOKIE_NAME] = cookie
+    assert replay.get('/api/current-user/whoami').status_code == 401
+    assert Client().login(email=user.email, password='reactivation-regression-test-only')
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('kind', ['ordinary', 'underprivileged', 'inactive', 'anonymous', 'missing', 'stale'])
+def test_admin_reactivation_rejects_untrusted_or_stale_actor(kind, administrator):
+    from django.contrib.admin import AdminSite
+    from users.admin import UserAdminShort
+
+    user = UserFactory(is_active=False)
+    if kind == 'stale':
+        User.objects.filter(pk=administrator.pk).update(is_staff=False, is_superuser=False)
+        actor = administrator
+    else:
+        actor = {
+            'ordinary': lambda: UserFactory(),
+            'underprivileged': lambda: UserFactory(is_staff=True),
+            'inactive': lambda: UserFactory(is_active=False, is_staff=True, is_superuser=True),
+            'anonymous': AnonymousUser,
+            'missing': lambda: None,
+        }[kind]()
+    request = RequestFactory().post('/admin/users/user/', {'actor_id': administrator.pk, 'is_active': 'on'})
+    request.user = actor
+    with pytest.raises(PermissionDenied):
+        UserAdminShort(User, AdminSite()).reactivate_accounts(request, User.objects.filter(pk=user.pk))
+    user.refresh_from_db()
+    assert not user.is_active
+    assert UserSessionVersion.objects.get(user=user).version == 0
+    assert SessionRevocationEvent.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_restore_checkpoint_preserves_post_backup_account_disable(administrator, client, tmp_path):
+    user = UserFactory()
+    user.set_password('restore-checkpoint-test-only')
+    user.save(update_fields=['password'])
+
+    def checkpoint(path):
+        output = StringIO()
+        call_command(
+            'dumpdata',
+            'users.User',
+            'users.UserSessionVersion',
+            'users.UserSessionRevocationBoundary',
+            'users.SessionRevocationEvent',
+            stdout=output,
+        )
+        path.write_text(output.getvalue(), encoding='utf-8')
+
+    backup, retained = tmp_path / 'old-backup.json', tmp_path / 'retained-security-checkpoint.json'
+    checkpoint(backup)
+    disable(user, 'update', administrator)
+    event_id = SessionRevocationEvent.objects.get(target_user_id=user.pk).pk
+    checkpoint(retained)
+    SessionRevocationEvent.objects.all().delete()
+    call_command('loaddata', str(backup), verbosity=0)
+    # A version/session-only restore barrier cannot prevent a fresh login here.
+    assert client.login(email=user.email, password='restore-checkpoint-test-only')
+    call_command('loaddata', str(retained), verbosity=0)
+    Session.objects.all().delete()
+    call_command('verify_session_security_state')
+    user.refresh_from_db()
+    assert not user.is_active
+    assert UserSessionVersion.objects.get(user=user).version == 1
+    assert UserSessionRevocationBoundary.objects.get(user=user).version == 1
+    assert SessionRevocationEvent.objects.get(target_user_id=user.pk).pk == event_id
+    assert not client.login(email=user.email, password='restore-checkpoint-test-only')
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize('path', ['update', 'bulk_update'])
 def test_mixed_disable_batch_changes_and_audits_only_active_users(path, administrator):
     active, inactive = UserFactory(), UserFactory(is_active=False)
@@ -323,13 +446,53 @@ def test_audit_admin_allows_inspection_but_rejects_direct_mutation(administrator
 
 
 @pytest.mark.django_db
-def test_new_user_provisioning_failure_does_not_leave_a_partial_account():
-    with patch('users.models.UserSessionRevocationBoundary.objects') as boundary:
-        boundary.using.return_value.create.side_effect = RuntimeError('security provisioning unavailable')
+def test_new_user_provisions_matching_primary_and_recovery_state(client):
+    user = UserFactory()
+    user.set_password('provisioning-regression-test-only')
+    user.save(update_fields=['password'])
+    assert UserSessionVersion.objects.get(user=user).version == 0
+    assert UserSessionRevocationBoundary.objects.get(user=user).version == 0
+    assert client.login(email=user.email, password='provisioning-regression-test-only')
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('model', ['UserSessionVersion', 'UserSessionRevocationBoundary'])
+def test_new_user_provisioning_failure_does_not_leave_a_partial_account(model):
+    with patch(f'users.models.{model}.objects') as state:
+        state.using.return_value.create.side_effect = RuntimeError('security provisioning unavailable')
         with pytest.raises(RuntimeError):
             UserFactory(email='provisioning-failure@example.test')
     assert not User.objects.filter(email='provisioning-failure@example.test').exists()
     assert UserSessionVersion.objects.count() == 0
+    assert UserSessionRevocationBoundary.objects.count() == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('kind', ['primary_missing', 'boundary_missing', 'mismatch'])
+def test_incomplete_security_pair_rejects_requests_login_and_cutover(kind, client):
+    user = UserFactory()
+    user.set_password('security-pair-regression-test-only')
+    user.save(update_fields=['password'])
+    client.force_login(user)
+    if kind == 'primary_missing':
+        UserSessionVersion.objects.filter(user=user).delete()
+    elif kind == 'boundary_missing':
+        UserSessionRevocationBoundary.objects.filter(user=user).delete()
+    else:
+        UserSessionRevocationBoundary.objects.filter(user=user).update(version=9)
+    before = (
+        list(UserSessionVersion.objects.filter(user=user).values_list('version', flat=True)),
+        list(UserSessionRevocationBoundary.objects.filter(user=user).values_list('version', flat=True)),
+    )
+    assert client.get('/api/current-user/whoami').status_code == 401
+    response = client.post('/user/login/', {'email': user.email, 'password': 'security-pair-regression-test-only'})
+    assert response.status_code == 403
+    with pytest.raises(CommandError, match='keep traffic drained'):
+        call_command('verify_session_security_state')
+    assert before == (
+        list(UserSessionVersion.objects.filter(user=user).values_list('version', flat=True)),
+        list(UserSessionRevocationBoundary.objects.filter(user=user).values_list('version', flat=True)),
+    )
 
 
 @pytest.mark.django_db

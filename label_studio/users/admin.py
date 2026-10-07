@@ -11,17 +11,29 @@ from organizations.models import Organization, OrganizationMember
 from projects.models import Project
 from tasks.models import Annotation, Prediction, Task
 from users.models import SessionRevocationEvent, User
-from users.session_security import recover_session_state, revoke_all_sessions
+from users.session_security import reactivate_accounts, recover_session_state, revoke_all_sessions
 
 
 class UserAdminShort(UserAdmin):
 
     add_fieldsets = ((None, {'fields': ('email', 'password1', 'password2')}),)
-    actions = ['revoke_browser_sessions', 'recover_browser_session_state']
+    actions = ['revoke_browser_sessions', 'recover_browser_session_state', 'reactivate_accounts']
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = super().get_readonly_fields(request, obj)
+        # Disabled accounts use an explicit action; stale checkboxes cannot reactivate them.
+        if obj is not None and not obj.is_active and 'is_active' not in fields:
+            return (*fields, 'is_active')
+        return fields
 
     def save_model(self, request, obj, form, change):
         # Actor identity comes from the authenticated admin request, never form data.
         obj.save(session_actor=request.user, session_request_id=uuid.uuid4())
+
+    @admin.action(description='Reactivate selected accounts', permissions=['change'])
+    def reactivate_accounts(self, request, queryset):
+        count = reactivate_accounts(queryset, actor=request.user)
+        self.message_user(request, f'{count} accounts reactivated. Previous browser sessions remain revoked.')
 
     @admin.action(description='Revoke all browser sessions', permissions=['change'])
     def revoke_browser_sessions(self, request, queryset):

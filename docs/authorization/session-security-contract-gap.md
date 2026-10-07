@@ -15,7 +15,8 @@ replace Django authentication or move platform/project policy into the fork.
 | Missing-state recovery never revives an old cookie | Authentication denied missing state; no authorized recovery operation | Independent recovery high-water mark; staff capability; denied actor substitution; no online guessing if the high-water mark is lost |
 | Durable transactional audit consequence | Best-effort `on_commit` log only | Local durable receiver accepts in the same transaction; persistence failure aborts; optional logging failure cannot lose acceptance |
 | Final migration barrier | Operator drain instructions only | Read-only `verify_session_security_state`; fail the cutover for legacy/missing/inconsistent records |
-| Restore invalidation/audit continuity | Older counter restore described as downgrade | Clear all restored sessions before traffic; preserve/reconcile the complete accepted-event ledger and recovery state |
+| Restore invalidation/audit continuity | Older counter restore described as downgrade | Clear all restored sessions before traffic; preserve/reconcile current account active flags, the complete accepted-event ledger and both security tables |
+| Stale administrator profile save | A trusted actor caused stale active flags to bypass the disable-preservation guard | Full profile saves preserve disabled state; explicit reactivation reloads administrator authority and preserves prior revocation |
 
 ## Delivery boundaries
 
@@ -46,7 +47,7 @@ backup/WAL preservation, disaster-recovery rehearsal, exact-head hosted CI and
 matching merged-main validation are not proved by local source changes. Keep
 Issues #44/#46/#47/#48 open until their own acceptance boundaries are satisfied.
 
-## Local candidate evidence (2026-10-07)
+## Initial local candidate evidence (2026-10-07)
 
 Candidate branch: `codex/session-security-contract-gap`. The user selected the
 local database receiver, reusing Django transactions; no external delivery adapter
@@ -71,3 +72,26 @@ refresh. The form now clears the submitted draft before starting the request.
 The regression delays that refresh while selecting the next member, and cleans
 fixture candidates between tests so a failed case cannot poison later cases.
 No authorization assertion or required workflow gate was weakened.
+
+## Review regression evidence (2026-10-07)
+
+The filtered batch-scope regression first failed on the unchanged model: 2 failed,
+7 passed. Updates now use the IDs captured under lock even when another updated
+field changes the original queryset filter. The authenticated stale profile/admin
+save regression separately failed on the preceding candidate: 2 failed. The
+corrected guard preserves disabled state even when the save has a trusted actor;
+the explicit native admin reactivation action checks fresh authority and keeps
+pre-disable sessions revoked.
+
+Additional tests cover both security-row provisioning failures, successful
+paired provisioning, and fail-closed request/login/cutover verification for a
+missing primary, missing boundary, or mismatch. A controlled Django
+`dumpdata`/`loaddata` fixture demonstrates fresh-login denial after restoring the
+retained current account flags, both security tables and complete ledger. It is
+local regression evidence, not production disaster-recovery acceptance. The
+security-state verifier checks version consistency and cannot reconstruct current
+account active flags from a backup.
+
+Final local suite results are recorded in the PR description. Current-head hosted
+CI and current-candidate reviewer approval remain separate gates; earlier results
+in the initial evidence table do not imply that either gate has passed.

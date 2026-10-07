@@ -245,15 +245,10 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
             previous = None
             if self.pk and writes_active:
                 previous = type(self).objects.using(using).select_for_update().filter(pk=self.pk).first()
-            if (
-                previous is not None
-                and not previous.is_active
-                and self.is_active
-                and update_fields is None
-                and session_actor is None
-            ):
+            if previous is not None and not previous.is_active and self.is_active and update_fields is None:
                 # A stale profile save must not implicitly undo a concurrent disable.
-                # Explicit account re-enabling remains a separate administration operation.
+                # An authenticated actor is not an explicit reactivation intent.
+                # Account re-enabling remains a separate administration operation.
                 self.is_active = False
             disables = previous is not None and previous.is_active and self.is_active is False
             actor = None
