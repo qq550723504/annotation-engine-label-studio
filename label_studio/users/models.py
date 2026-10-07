@@ -47,7 +47,7 @@ class UserQuerySet(models.QuerySet):
                 actor = require_session_administrator(session_actor, using=self.db)
             targets = list(self.order_by('pk').select_for_update().values_list('pk', 'is_active'))
             # Keep the locked target set; do not rediscover new matching rows after discovery.
-            locked = self.filter(pk__in=[pk for pk, _ in targets])
+            locked = self.model._default_manager.using(self.db).filter(pk__in=[pk for pk, _ in targets])
             count = models.QuerySet.update(locked, **kwargs)
             if actor is not None:
                 for user_id, was_active in targets:
@@ -86,7 +86,9 @@ class UserQuerySet(models.QuerySet):
                 .select_for_update()
                 .values_list('pk', flat=True)
             )
-            locked = self.filter(pk__in=locked_ids)
+            # Updates may change fields used by the original queryset predicate.
+            # After discovery, only the locked IDs define the mutation scope.
+            locked = self.model._default_manager.using(self.db).filter(pk__in=locked_ids)
             if remaining_fields:
                 models.QuerySet.bulk_update(locked, objs, remaining_fields, batch_size=batch_size)
             for active in (False, True):

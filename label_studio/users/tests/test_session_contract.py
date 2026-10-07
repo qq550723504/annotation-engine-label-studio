@@ -6,7 +6,7 @@ from threading import Barrier
 from unittest.mock import Mock, patch
 
 import pytest
-from django.contrib.auth.models import AnonymousUser
+from django.contrib.auth.models import AnonymousUser, Permission
 from django.core.exceptions import PermissionDenied
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -94,6 +94,94 @@ def test_unauthorized_actors_cannot_use_any_disable_entry_point(path, kind):
     user.refresh_from_db()
     assert user.is_active
     assert UserSessionVersion.objects.get(user=user).version == 0
+    assert SessionRevocationEvent.objects.count() == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('path', ['save', 'update', 'bulk_update'])
+@pytest.mark.parametrize('revoked', ['permission', 'inactive'])
+def test_stale_disable_actor_is_rejected_at_every_entry_point(path, revoked, administrator):
+    user = UserFactory()
+    if revoked == 'permission':
+        administrator.is_superuser = False
+        administrator.save(update_fields=['is_superuser'])
+        permission = Permission.objects.get(content_type__app_label='users', codename='change_user')
+        administrator.user_permissions.add(permission)
+    assert administrator.has_perm('users.change_user')
+    if revoked == 'permission':
+        administrator.user_permissions.remove(permission)
+    else:
+        User.objects.filter(pk=administrator.pk).update(
+            is_active=False, session_actor=UserFactory(is_staff=True, is_superuser=True)
+        )
+    committed_events = set(SessionRevocationEvent.objects.values_list('id', flat=True))
+    with pytest.raises(PermissionDenied):
+        disable(user, path, administrator)
+    user.refresh_from_db()
+    assert user.is_active
+    assert UserSessionVersion.objects.get(user=user).version == 0
+    assert UserSessionRevocationBoundary.objects.get(user=user).version == 0
+    assert set(SessionRevocationEvent.objects.values_list('id', flat=True)) == committed_events
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('path', ['update', 'bulk_update'])
+def test_disable_retains_captured_targets_when_a_filter_field_changes(path, administrator):
+    targets = [UserFactory(is_staff=False), UserFactory(is_staff=False)]
+    excluded = UserFactory(is_staff=True)
+    users = [*targets, excluded]
+    queryset = User.objects.filter(pk__in=[user.pk for user in users], is_staff=False)
+    if path == 'update':
+        count = queryset.update(is_staff=True, is_active=False, session_actor=administrator)
+    else:
+        for user in users:
+            user.is_staff = not user.is_staff
+            user.is_active = False
+        count = queryset.bulk_update(users, ['is_staff', 'is_active'], batch_size=1, session_actor=administrator)
+    assert count == len(targets)
+    for user in targets:
+        user.refresh_from_db()
+        assert user.is_staff
+        assert not user.is_active
+        assert UserSessionVersion.objects.get(user=user).version == 1
+        assert UserSessionRevocationBoundary.objects.get(user=user).version == 1
+    excluded.refresh_from_db()
+    assert excluded.is_staff and excluded.is_active
+    assert UserSessionVersion.objects.get(user=excluded).version == 0
+    events = SessionRevocationEvent.objects.all()
+    assert set(events.values_list('target_user_id', flat=True)) == {user.pk for user in targets}
+    assert events.count() == len(targets)
+    assert set(events.values_list('actor_user_id', flat=True)) == {administrator.pk}
+
+
+@pytest.mark.django_db
+def test_filtered_bulk_disable_rolls_back_other_field_changes_when_audit_fails(administrator):
+    users = [UserFactory(is_staff=False), UserFactory(is_staff=False)]
+    original_create = SessionRevocationEvent.objects.create
+    inserted = 0
+
+    def fail_second_insert(**kwargs):
+        nonlocal inserted
+        inserted += 1
+        if inserted == 2:
+            raise RuntimeError('Audit receiver unavailable')
+        return original_create(**kwargs)
+
+    for user in users:
+        user.is_staff = True
+        user.is_active = False
+    with patch('users.session_security.SessionRevocationEvent.objects') as events:
+        events.using.return_value.create.side_effect = fail_second_insert
+        with pytest.raises(RuntimeError, match='Audit receiver unavailable'):
+            User.objects.filter(pk__in=[user.pk for user in users], is_staff=False).bulk_update(
+                users, ['is_staff', 'is_active'], batch_size=1, session_actor=administrator
+            )
+    assert inserted == 2
+    for user in users:
+        user.refresh_from_db()
+        assert not user.is_staff and user.is_active
+        assert UserSessionVersion.objects.get(user=user).version == 0
+        assert UserSessionRevocationBoundary.objects.get(user=user).version == 0
     assert SessionRevocationEvent.objects.count() == 0
 
 
