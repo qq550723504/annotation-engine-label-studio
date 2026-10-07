@@ -156,7 +156,7 @@ describe("project member and role management UI", () => {
     cy.get('[data-testid="member-role-select"]').select("reviewer");
     cy.contains("button", "Add member").click();
     cy.wait("@temporaryFailure").its("response.statusCode").should("eq", 503);
-    cy.get('[data-testid="members-error"]').should("be.visible");
+    cy.get('[data-testid="members-error"]').scrollIntoView().should("be.visible");
     cy.get('[data-testid="member-add"]').should("not.be.disabled");
     cy.get('[data-testid="member-user-select"]').should("have.value", String(fixture.users.candidate_annotator.id));
     cy.get('[data-testid="member-role-select"]').should("have.value", "reviewer");
