@@ -189,6 +189,15 @@ Recovery is an explicit security operation and must either:
   state; or
 - invalidate all browser sessions first, then create fresh state.
 
+Recovery requires an authenticated active human staff administrator with
+`users.change_user`, even when the target is that administrator. Derive the actor
+from trusted server-side authentication and reload current active state and
+permissions before mutation. Self-service revocation, staff status alone, submitted
+actor/privilege fields, and system/background identity provide no recovery grant.
+Unauthorized recovery must leave both the missing/corrupted state and the
+authoritative recovery boundary unchanged. Require direct-service negative tests,
+stale-privilege/disable tests, and API/admin actor-substitution tests.
+
 A cookie issued before state loss must remain invalid after recovery.
 
 ## 8. Audit durability invariant

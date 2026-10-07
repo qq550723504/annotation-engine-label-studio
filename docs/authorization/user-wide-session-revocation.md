@@ -71,8 +71,21 @@ become valid again. The supported recovery path must either:
   sessions for that user before establishing a fresh recovery version.
 
 Never recreate a missing row with a default such as `0`, `1`, or a guessed
-historical value. Recovery must be an explicit operator/service action and
-transactional. Auditability for recovery is not part of #47 and is not introduced
+historical value. Recovery must be an explicit transactional security operation.
+
+Only an authenticated active human Django staff administrator with the concrete
+`users.change_user` permission may perform recovery, including recovery of their
+own state. Ordinary self-service revocation does not grant recovery authority.
+The API/admin layer must derive the recovery actor from the authenticated
+server-side session/token, never from submitted actor IDs or privilege fields.
+The recovery service must reload that actor's current active state and permissions
+from authoritative storage before changing any security state. Staff status alone
+is insufficient, and anonymous, context-free, or system/background callers have
+no independent recovery grant in the current #46-#48 scope.
+
+An unauthorized recovery must neither recreate the missing row nor change the
+authoritative recovery boundary. Authentication remains fail closed after the
+rejection. Auditability for recovery is not part of #47 and is not introduced
 implicitly by this contract.
 
 ## Service boundary
@@ -233,6 +246,10 @@ unknown code.
 - deleting/missing the security-version record causes an already-authenticated browser session to fail closed on its next request;
 - deleting/missing the security-version record also prevents a new browser login from silently recreating a default version or authenticating;
 - after explicit missing-state recovery, replay of a cookie issued before the row was deleted remains rejected; recovery uses a never-before-issued version or forces reauthentication/session invalidation before establishing fresh state;
+- missing-state recovery succeeds only for an active human staff administrator with `users.change_user`, freshly authorized by the recovery service;
+- call the recovery service directly with an ordinary user (including the target recovering their own state), staff without `users.change_user`, an inactive administrator, an anonymous actor, and a context-free/system caller without authorized human identity; every call is rejected without recreating the row or changing the authoritative recovery boundary;
+- load an authorized recovery actor, then revoke their permission or disable them in authoritative storage; a recovery attempt with that stale object is rejected and leaves security state unchanged;
+- a direct API/admin recovery request submitting an administrator's actor ID or privilege fields cannot substitute that identity for the authenticated unauthorized caller;
 - self-revocation succeeds for an authenticated active user targeting themselves;
 - a cross-user revoke succeeds only for an active staff actor with `users.change_user`;
 - an ordinary authenticated user attempting to revoke another user's sessions is rejected;
@@ -244,6 +261,8 @@ unknown code.
 - an ordinary authenticated human user cannot perform an account-disable transition;
 - a staff user lacking `users.change_user` cannot perform an account-disable transition;
 - a non-request/background/system account-disable attempt without that human authority is rejected by #47 itself;
+- exercise the account-disable authorization rejection matrix separately through model `save()`, `QuerySet.update(is_active=False)`, and `bulk_update(..., ['is_active'])`: ordinary users, staff without `users.change_user`, inactive administrators, anonymous callers, and context-free/system callers without authorized human identity must be rejected at **every** entry point;
+- for each rejected disable entry point, verify that all target users remain active and their security versions remain unchanged; a passing `save()` rejection cannot stand in for either batch-path regression;
 - arbitrary/free-text revocation reasons are rejected, including a value shaped like a copied cookie/session key; only allow-listed reason codes are accepted by the #47 service boundary;
 - self-service revocation accepts `logout_all_devices` and rejects administrative-only codes such as `administrator`, `account_disabled`, and `credential_compromise`;
 - a direct call to generic `revoke_all_sessions()` with `reason='account_disabled'` is rejected even for an authorized administrator when the target is still active; only the trusted atomic disable operation may emit that reason;

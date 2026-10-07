@@ -259,6 +259,13 @@ expiry policy, and project/member/assignment authorization as distinct controls.
 The user admin revocation action derives its actor from the authenticated server
 request. API/JWT tokens are unaffected. Require negative copied-cookie and
 cross-process regression tests, and keep expired DB-session cleanup scheduled.
+Keep authorization rejection tests for account disablement at every supported
+write entry point: model `save()`, `QuerySet.update()`, and `bulk_update()`.
+Missing-state recovery requires a freshly authorized active human staff
+administrator with `users.change_user`, derived from trusted server authentication;
+ordinary self-service and system/background identity provide no recovery grant.
+Preserve direct-service rejection, stale-privilege/disable, and API/admin
+actor-substitution regressions for recovery across upstream upgrades.
 The normative security state machine, monotonicity, transition, atomicity,
 migration/recovery, authorization, and audit-durability guarantees are defined in
 [session security invariants](session-security-invariants.md). Preserve that file
