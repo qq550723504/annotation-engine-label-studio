@@ -23,6 +23,21 @@ describe("project member and role management UI", () => {
     });
   });
 
+  beforeEach(() => {
+    // A failed add/role test must not leave its candidates as members for the next test.
+    cy.loginAs(fixture.users.manager.email, fixture.password, `/projects/${fixture.project_id}/settings/`);
+    cy.request(`/api/projects/${fixture.project_id}/members/?limit=100`).then(({ body }) => {
+      const candidates = new Set([fixture.users.candidate_annotator.id, fixture.users.candidate_reviewer.id]);
+      const members = body.results ?? body;
+      expect(members).to.be.an("array");
+      members.filter((member: { user: { id: number } }) => candidates.has(member.user.id))
+        .forEach((member: { id: number }) => {
+          cy.request("DELETE", `/api/projects/${fixture.project_id}/members/${member.id}/`)
+            .its("status").should("eq", 204);
+        });
+    });
+  });
+
   afterEach(() => {
     if (fixture?.users?.manager_b) {
       cy.task("setEnterpriseE2EMember", { actor: "manager_b", enabled: true });
@@ -48,6 +63,11 @@ describe("project member and role management UI", () => {
 
   it("lets a manager add annotator/reviewer members and mutate authoritative state", () => {
     openAsManager();
+
+    // Keep the first mutation's refresh pending while the next member is selected.
+    cy.intercept("GET", "**/api/projects/*/members/candidates/*", (request) => {
+      request.on("response", (response) => response.setDelay(800));
+    });
 
     cy.get('[data-testid="member-user-select"]').select(String(fixture.users.candidate_annotator.id));
     cy.get('[data-testid="member-role-select"]').select("annotator");

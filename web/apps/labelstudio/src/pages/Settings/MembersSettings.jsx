@@ -253,19 +253,21 @@ export const MembersSettings = () => {
       return;
     }
 
-    const success = await runMutation("add", "createProjectMember", {
+    // Clear the submitted draft before the asynchronous roster/candidate refresh.
+    // A late reset must never erase the next user selection made while refreshing.
+    const submittedUserId = selectedUserId;
+    const submittedRole = selectedRole;
+    setSelectedUserId("");
+    setSelectedRole("annotator");
+
+    await runMutation("add", "createProjectMember", {
       params: { pk: project.id },
       body: {
-        user_id: Number(selectedUserId),
-        role: selectedRole,
+        user_id: Number(submittedUserId),
+        role: submittedRole,
         enabled: true,
       },
     });
-
-    if (success) {
-      setSelectedUserId("");
-      setSelectedRole("annotator");
-    }
   };
 
   const confirmAssignmentImpact = (message) =>
