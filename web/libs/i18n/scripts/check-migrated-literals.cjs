@@ -17,7 +17,7 @@ const allowed = {
     { text: "Danger Zone", line: 245, reason: "Static route metadata; settings menu and breadcrumb translate by fixed child path." },
   ],
   "apps/labelstudio/src/pages/Settings/MembersSettings.jsx": [
-    { text: "Members", line: 503, reason: "Static route metadata; settings menu and breadcrumb translate by fixed child path." },
+    { text: "Members", line: 505, reason: "Static route metadata; settings menu and breadcrumb translate by fixed child path." },
   ],
   "apps/labelstudio/src/pages/ExportPage/ExportPage.jsx": [
     { text: "label-studio export", line: 322, reason: "Executable CLI syntax shown verbatim in timeout guidance." },
