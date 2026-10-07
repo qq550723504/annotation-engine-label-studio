@@ -110,7 +110,9 @@ the selected user IDs, not their session records.
 
 ## Durable audit receiver
 
-The supported audit receiver is the local database table
+The selected #48 audit receiver, implemented by
+[PR #71](https://github.com/qq550723504/annotation-engine-label-studio/pull/71),
+is the local database table
 `htx_session_revocation_event`. A UUID event records event/revocation type, the trusted
 human actor ID, singular target ID, allowed reason, resulting version, timestamp and
 server-generated correlation UUID. It is inserted in the security transaction;
@@ -134,6 +136,8 @@ API-token authentication, JWT authentication, and project authorization are
 separate controls and remain unchanged.
 
 ## Cutover and rollback
+
+Apply this cutover after installing the #71 implementation and its migrations.
 
 1. Plan a maintenance window and require everyone to log in again. Drain old
    workers and pause account creation/writes during the schema/backfill cutover.
