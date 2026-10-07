@@ -146,6 +146,54 @@ describe("project member and role management UI", () => {
     });
   });
 
+  it("preserves the member and role after a transient creation failure and retries", () => {
+    openAsManager();
+    cy.intercept({ method: "POST", url: "**/api/projects/*/members*", times: 1 }, {
+      statusCode: 503,
+      body: { detail: "Temporary failure" },
+    }).as("temporaryFailure");
+    cy.get('[data-testid="member-user-select"]').select(String(fixture.users.candidate_annotator.id));
+    cy.get('[data-testid="member-role-select"]').select("reviewer");
+    cy.contains("button", "Add member").click();
+    cy.wait("@temporaryFailure").its("response.statusCode").should("eq", 503);
+    cy.get('[data-testid="members-error"]').should("be.visible");
+    cy.get('[data-testid="member-add"]').should("not.be.disabled");
+    cy.get('[data-testid="member-user-select"]').should("have.value", String(fixture.users.candidate_annotator.id));
+    cy.get('[data-testid="member-role-select"]').should("have.value", "reviewer");
+
+    cy.intercept("POST", "**/api/projects/*/members*").as("retryMember");
+    cy.contains("button", "Add member").click();
+    cy.wait("@retryMember").then(({ request, response }) => {
+      expect(response?.statusCode).to.eq(201);
+      expect(request.body.role).to.eq("reviewer");
+    });
+    cy.contains("tr", fixture.users.candidate_annotator.email)
+      .find('[data-testid^="member-role-"]').should("have.value", "reviewer");
+  });
+
+  it("keeps a newer draft when an earlier creation request fails", () => {
+    openAsManager();
+    cy.intercept({ method: "POST", url: "**/api/projects/*/members*", times: 1 }, {
+      statusCode: 503,
+      delay: 1000,
+      body: { detail: "Temporary failure" },
+    }).as("temporaryFailure");
+    cy.get('[data-testid="member-user-select"]').select(String(fixture.users.candidate_annotator.id));
+    cy.get('[data-testid="member-role-select"]').select("reviewer");
+    cy.contains("button", "Add member").click();
+    cy.get('[data-testid="member-user-select"]').select(String(fixture.users.candidate_reviewer.id));
+    cy.get('[data-testid="member-role-select"]').select("manager");
+    cy.wait("@temporaryFailure").its("response.statusCode").should("eq", 503);
+    cy.get('[data-testid="member-add"]').should("not.be.disabled");
+    cy.get('[data-testid="member-user-select"]').should("have.value", String(fixture.users.candidate_reviewer.id));
+    cy.get('[data-testid="member-role-select"]').should("have.value", "manager");
+    cy.request(`/api/projects/${fixture.project_id}/members/?limit=100`).then(({ body }) => {
+      const members = body.results ?? body;
+      const candidateIds = [fixture.users.candidate_annotator.id, fixture.users.candidate_reviewer.id];
+      expect(members.some((member: { user: { id: number } }) => candidateIds.includes(member.user.id))).to.eq(false);
+    });
+  });
+
   it("cleans up a stale manager session after out-of-band revocation", () => {
     openProjectSettings(fixture.users.manager_b.email);
     cy.contains("a", "Members", { timeout: 30000 }).should("be.visible").click();
