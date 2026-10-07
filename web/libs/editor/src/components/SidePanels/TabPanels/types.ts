@@ -5,6 +5,7 @@ export type TabProps = {
   name: string;
   rootRef: MutableRefObject<HTMLDivElement | undefined>;
   tabTitle: string;
+  displayTitle: string;
   panelKey: string;
   tabIndex: number;
   active: boolean;

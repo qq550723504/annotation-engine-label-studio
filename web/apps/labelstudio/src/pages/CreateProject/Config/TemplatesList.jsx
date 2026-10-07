@@ -5,17 +5,18 @@ import { cn } from "../../../utils/bem";
 import "./Config.scss";
 import { IconInfo } from "@humansignal/icons";
 import { Button, EnterpriseBadge } from "@humansignal/ui";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 const listClass = cn("templates-list");
 
 const Arrow = () => (
-  <svg width="8" height="12" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <title>Arrow Icon</title>
+  <svg width="8" height="12" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <path opacity="0.9" d="M2 10L6 6L2 2" stroke="currentColor" strokeWidth="2" strokeLinecap="square" />
   </svg>
 );
 
 const TemplatesInGroup = ({ templates, group, onSelectRecipe, isEdition }) => {
+  const { t } = useLocaleTranslation("projects");
   const picked = templates
     .filter((recipe) => recipe.group === group)
     // templates without `order` go to the end of the list
@@ -34,7 +35,7 @@ const TemplatesInGroup = ({ templates, group, onSelectRecipe, isEdition }) => {
             key={recipe.title}
             onClick={() => !isDisabled && onSelectRecipe(recipe)}
             className={listClass.elem("template").mod({ disabled: isDisabled }).toClassName()}
-            title={isDisabled ? "Enterprise feature - Available in Label Studio Enterprise" : ""}
+            title={isDisabled ? t("enterpriseTemplateUnavailable") : ""}
           >
             <img src={recipe.image} alt={""} />
             <div className="flex flex-col items-center w-full">
@@ -49,6 +50,7 @@ const TemplatesInGroup = ({ templates, group, onSelectRecipe, isEdition }) => {
 };
 
 export const TemplatesList = ({ selectedGroup, selectedRecipe, onCustomTemplate, onSelectGroup, onSelectRecipe }) => {
+  const { t, locale } = useLocaleTranslation("projects");
   const [groups, setGroups] = React.useState([]);
   const [templates, setTemplates] = React.useState();
   const api = useAPI();
@@ -97,9 +99,9 @@ export const TemplatesList = ({ selectedGroup, selectedRecipe, onCustomTemplate,
           size="small"
           onClick={onCustomTemplate}
           className="w-full"
-          aria-label="Create custom template"
+          aria-label={t("createCustomTemplate")}
         >
-          Custom template
+          {t("customTemplate")}
         </Button>
       </aside>
       <main>
@@ -114,11 +116,11 @@ export const TemplatesList = ({ selectedGroup, selectedRecipe, onCustomTemplate,
       <footer className="flex items-center justify-center gap-1">
         <IconInfo className={listClass.elem("info-icon").toClassName()} width="20" height="20" />
         <span>
-          See the documentation to{" "}
+          {t("seeDocumentationTo")}{locale === "en-US" ? " " : ""}
           <a href="https://labelstud.io/guide" target="_blank" rel="noreferrer">
-            contribute a template
+            {t("contributeTemplate")}
           </a>
-          .
+          {t("templateHelpPunctuation")}
         </span>
       </footer>
     </div>

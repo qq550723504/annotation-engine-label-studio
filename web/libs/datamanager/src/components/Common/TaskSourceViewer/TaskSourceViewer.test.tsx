@@ -1,7 +1,14 @@
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render as renderReact, screen, waitFor, act } from "@testing-library/react";
+import { createLocaleRuntime } from "@humansignal/i18n";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import { TaskSourceViewer } from "./TaskSourceViewer";
+
+const runtime = createLocaleRuntime("en-US");
+const LocaleProvider = runtime.provider;
+const render = (view: ReactElement) => renderReact(<LocaleProvider>{view}</LocaleProvider>);
+afterAll(() => runtime.destroy());
 
 // Mock feature flags
 jest.mock("../../../utils/feature-flags", () => ({
@@ -12,10 +19,13 @@ jest.mock("../../../utils/feature-flags", () => ({
 
 // Mock UI components
 jest.mock("@humansignal/ui", () => ({
-  JsonViewer: ({ data, toolbarExtra }: any) => (
+  JsonViewer: ({ data, toolbarExtra, customFilters, labels }: any) => (
     <div data-testid="json-viewer">
       {toolbarExtra && <div data-testid="json-viewer-toolbar-extra">{toolbarExtra}</div>}
       <div data-testid="json-viewer-content">{JSON.stringify(data)}</div>
+      {customFilters?.map((filter: any) => <button key={filter.id}>{filter.label}</button>)}
+      <button>{labels?.all}</button>
+      <input aria-label={labels?.searchJson} placeholder={labels?.searchPlaceholder} />
     </div>
   ),
   Tabs: ({ children, value, onValueChange }: any) => (
@@ -88,6 +98,7 @@ describe("TaskSourceViewer Component", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     localStorage.clear();
+    runtime.updateLocale("en-US");
   });
 
   describe("Initial Load", () => {
@@ -144,6 +155,23 @@ describe("TaskSourceViewer Component", () => {
         expect(screen.getByTestId("json-viewer-toolbar-extra")).toBeInTheDocument();
         expect(screen.getByTestId("resolve-uri-toggle")).toBeInTheDocument();
       });
+    });
+
+    it("updates task-source filter labels when the locale changes", async () => {
+      localStorage.setItem(`${GLOBAL_STORAGE_KEY}:view`, "interactive");
+      render(<TaskSourceViewer {...defaultProps} />);
+
+      await waitFor(() => expect(screen.getByRole("button", { name: "Annotations" })).toBeInTheDocument());
+      expect(screen.getByRole("button", { name: "Predictions" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Data" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "All" })).toBeInTheDocument();
+
+      act(() => runtime.updateLocale("zh-CN"));
+      expect(screen.getByRole("button", { name: "标注" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "预测" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "数据" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "全部" })).toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: "搜索 JSON" })).toHaveAttribute("placeholder", "搜索键或值");
     });
 
     it("should reload task data when resolve URIs toggle changes", async () => {

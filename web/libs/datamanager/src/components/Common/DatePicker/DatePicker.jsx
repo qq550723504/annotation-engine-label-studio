@@ -1,4 +1,6 @@
 import { format, isMatch, isValid } from "date-fns";
+import { enUS, zhCN } from "date-fns/locale";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { default as DP } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -18,6 +20,8 @@ export const DatePicker = ({
   timeFormat = "HH:mm",
   onChange,
 }) => {
+  const { locale, t } = useLocaleTranslation("datamanager");
+  const dateLocale = locale === "zh-CN" ? zhCN : enUS;
   const finalFormat = showTime ? `${dateFormat} ${timeFormat}` : dateFormat;
 
   /**@type {import("react").RefObject<DP>} */
@@ -31,7 +35,7 @@ export const DatePicker = ({
     const parsedDate = new Date(date === null ? Date.now() : date);
 
     if (isValid(parsedDate)) {
-      return format(parsedDate, finalFormat);
+      return format(parsedDate, finalFormat, { locale: dateLocale });
     }
 
     return "";
@@ -115,6 +119,7 @@ export const DatePicker = ({
               selectsRange={selectRange}
               showTimeSelect={showTime}
               inline
+              locale={dateLocale}
             />
           </div>
         }
@@ -128,7 +133,7 @@ export const DatePicker = ({
           />
           {selectRange && (
             <>
-              <div className={cn("datepicker").elem("separator").toClassName()}>and</div>
+              <div className={cn("datepicker").elem("separator").toClassName()}>{t("andLower")}</div>
               <Input
                 size={size}
                 value={endDate || ""}

@@ -13,6 +13,7 @@ import { IconBan, IconChevronDown } from "@humansignal/icons";
 import { Dropdown } from "@humansignal/ui";
 import type { CustomButtonType } from "../../stores/CustomButton";
 import { cn } from "../../utils/bem";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import { FF_REVIEWER_FLOW, FF_FIT_1304_STRICT_OVERLAP, isFF } from "../../utils/feature-flags";
 import { isDefined, toArray } from "../../utils/utilities";
 import {
@@ -41,6 +42,7 @@ type ControlButtonProps = {
   variant?: ButtonProps["variant"];
   look?: ButtonProps["look"];
   onClick: (e: React.MouseEvent) => void;
+  builtinReject?: boolean;
 };
 
 export const EMPTY_SUBMIT_TOOLTIP = "Empty annotations denied in this project";
@@ -51,26 +53,28 @@ export const INCOMPLETE_ACCEPT_TOOLTIP = "Complete all regions before accepting"
 /**
  * Custom action button component, rendering buttons from store.customButtons
  */
-const ControlButton = observer(({ button, disabled, onClick, variant, look }: ControlButtonProps) => {
+const ControlButton = observer(({ button, disabled, onClick, variant, look, builtinReject }: ControlButtonProps) => {
+  const { t } = useLocaleTranslation("editor");
   return (
     <Button
       {...button.props}
       variant={button.variant ?? variant}
       look={button.look ?? look}
-      tooltip={button.tooltip}
+      tooltip={builtinReject ? t("rejectTooltip") : button.tooltip}
       className="w-[150px]"
-      aria-label={button.ariaLabel}
+      aria-label={builtinReject ? t("reject") : button.ariaLabel}
       disabled={button.disabled || disabled}
       onClick={onClick}
       data-testid={`bottombar-custom-${button.name}-button`}
     >
-      {button.title}
+      {builtinReject ? t("reject") : button.title}
     </Button>
   );
 });
 
 export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
   observer(({ store, history, annotation }) => {
+    const { t } = useLocaleTranslation("editor");
     const isReview = store.hasInterface("review") || annotation.canBeReviewed;
     const isNotQuickView = store.hasInterface("topbar:prevnext");
     const historySelected = isDefined(store.annotationStore.selectedHistory);
@@ -172,7 +176,7 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
           const selected = store.annotationStore?.selected;
 
           if (store.hasInterface("comments:reject")) {
-            handleActionWithComments(e, action, "Please enter a comment before rejecting");
+            handleActionWithComments(e, action, t("commentBeforeReject"));
           } else {
             selected?.submissionInProgress();
             await store.commentStore.commentFormSubmit();
@@ -180,20 +184,20 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
           }
         };
 
-        buttons.push(<ControlButton key={button.name} button={button} disabled={disabled} onClick={onReject} />);
+        buttons.push(<ControlButton key={button.name} button={button} builtinReject={!hasCustomReject} disabled={disabled} onClick={onReject} />);
       });
       buttons.push(<AcceptButton key="review-accept" disabled={disabled} history={history} store={store} />);
     } else if (annotation.skipped) {
       buttons.push(
         <div className={cn("controls").elem("skipped-info").toClassName()} key="skipped">
-          <IconBan /> Was skipped
+          <IconBan /> {t("wasSkipped")}
         </div>,
       );
       buttons.push(<UnskipButton key="unskip" disabled={disabled} store={store} />);
     } else {
       if (store.hasInterface("skip")) {
         const onSkipWithComment = (e: React.MouseEvent, action: () => any) => {
-          handleActionWithComments(e, action, "Please enter a comment before skipping");
+          handleActionWithComments(e, action, t("commentBeforeSkip"));
         };
 
         buttons.push(<SkipButton key="skip" disabled={disabled} store={store} onSkipWithComment={onSkipWithComment} />);
@@ -234,7 +238,7 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
               }}
               data-testid={`bottombar-${isUpdate ? "update" : "submit"}-and-exit-button`}
             >
-              {`${isUpdate ? "Update" : "Submit"} and exit`}
+              {isUpdate ? t("updateAndExit") : t("submitAndExit")}
             </Button>
           </div>
         );
@@ -242,19 +246,19 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
 
       if (userGenerate || (store.explore && !userGenerate && store.hasInterface("submit"))) {
         const title = hasIncompleteRegions
-          ? INCOMPLETE_SUBMIT_TOOLTIP
+          ? t("incompleteSubmit")
           : overlapDisabled
             ? store.overlapReachedMessage
             : submitDisabled
-              ? EMPTY_SUBMIT_TOOLTIP
-              : "Save results: [ Ctrl+Enter ]";
+              ? t("emptySubmitDenied")
+              : t("submitTooltip");
 
         buttons.push(
           <ButtonTooltip key="submit" title={title} className="whitespace-nowrap max-w-none">
             <div className={cn("controls").elem("tooltip-wrapper").toClassName()}>
               <ButtonGroup>
                 <Button
-                  aria-label="Submit current annotation"
+                  aria-label={t("submitCurrentAnnotation")}
                   name="submit"
                   className="w-[150px]"
                   disabled={isDisabled}
@@ -268,7 +272,7 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                   }}
                   data-testid="bottombar-submit-button"
                 >
-                  Submit
+                  {t("submit")}
                 </Button>
                 {useExitOption ? (
                   <Dropdown.Trigger
@@ -281,7 +285,7 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                   >
                     <Button
                       disabled={isDisabled}
-                      aria-label="Submit annotation"
+                      aria-label={t("submitAnnotation")}
                       data-testid="bottombar-submit-dropdown"
                     >
                       <IconChevronDown />
@@ -298,18 +302,18 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
         const noChanges = isFF(FF_REVIEWER_FLOW) && !history.canUndo && !annotation.draftId;
         const isUpdateDisabled = isDisabled || noChanges;
         const updateTitle = hasIncompleteRegions
-          ? INCOMPLETE_UPDATE_TOOLTIP
+          ? t("incompleteUpdate")
           : overlapDisabled
             ? store.overlapReachedMessage
             : noChanges
-              ? "No changes were made"
-              : "Update this task: [ Ctrl+Enter ]";
+              ? t("noChanges")
+              : t("updateTooltip");
         const button = (
           <ButtonTooltip key="update" title={updateTitle} className="whitespace-nowrap max-w-none">
             <div className={cn("controls").elem("tooltip-wrapper").toClassName()}>
               <ButtonGroup>
                 <Button
-                  aria-label="submit"
+                  aria-label={isUpdate ? t("updateAnnotation") : t("submitAnnotation")}
                   name="submit"
                   className="w-[150px]"
                   disabled={isUpdateDisabled}
@@ -323,7 +327,7 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                   }}
                   data-testid="bottombar-update-button"
                 >
-                  {isUpdate ? "Update" : "Submit"}
+                  {isUpdate ? t("update") : t("submit")}
                 </Button>
                 {useExitOption ? (
                   <Dropdown.Trigger
@@ -332,7 +336,7 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                   >
                     <Button
                       disabled={isUpdateDisabled}
-                      aria-label="Update annotation"
+                      aria-label={isUpdate ? t("updateAnnotation") : t("submitAnnotation")}
                       data-testid="bottombar-update-dropdown"
                     >
                       <IconChevronDown />

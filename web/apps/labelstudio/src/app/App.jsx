@@ -25,6 +25,10 @@ import { ff } from "@humansignal/core";
 import "@humansignal/ui/src/tailwind.css";
 import "./App.scss";
 import { AuthProvider } from "@humansignal/core/providers/AuthProvider";
+import { getAntdLocale, useLocaleTranslation } from "@humansignal/i18n";
+import { ConfigProvider as AntdConfigProvider } from "antd";
+import { LocalePreferenceProvider } from "../providers/LocalePreferenceProvider";
+import { appLocaleRuntime } from "../providers/AppLocaleRuntime";
 
 const baseURL = new URL(APP_SETTINGS.hostname || location.origin);
 export const UNBLOCK_HISTORY_MESSAGE = "UNBLOCK_HISTORY";
@@ -56,32 +60,43 @@ window.LSH = browserHistory;
 
 initSentry(browserHistory);
 
+const AppLocaleAdapter = ({ children }) => {
+  const { locale } = useLocaleTranslation("common");
+  return <AntdConfigProvider locale={getAntdLocale(locale)}>{children}</AntdConfigProvider>;
+};
+
 const App = ({ content }) => {
+  const LocaleProvider = appLocaleRuntime.provider;
   return (
-    <ErrorBoundary>
-      <Router history={browserHistory}>
-        <MultiProvider
-          providers={[
-            <QueryClientProvider client={queryClient} key="query" />,
-            <JotaiProvider key="jotai" store={JotaiStore} />,
-            <AuthProvider key="auth" />,
-            <AppStoreProvider key="app-store" />,
-            <ToastProvider key="toast" />,
-            <ApiProvider key="api" />,
-            <ConfigProvider key="config" />,
-            <RoutesProvider key="rotes" />,
-            <ProjectProvider key="project" />,
-            ff.isActive(ff.FF_PRODUCT_TOUR) && <TourProvider useAPI={useAPI} />,
-          ].filter(Boolean)}
-        >
-          <AsyncPage>
-            <DraftGuard />
-            <RootPage content={content} />
-            <ToastViewport />
-          </AsyncPage>
-        </MultiProvider>
-      </Router>
-    </ErrorBoundary>
+    <LocaleProvider>
+      <AppLocaleAdapter>
+        <ErrorBoundary>
+          <Router history={browserHistory}>
+            <MultiProvider
+              providers={[
+              <QueryClientProvider client={queryClient} key="query" />,
+              <JotaiProvider key="jotai" store={JotaiStore} />,
+              <AuthProvider key="auth" />,
+              <AppStoreProvider key="app-store" />,
+              <ToastProvider key="toast" />,
+              <ApiProvider key="api" />,
+              <LocalePreferenceProvider key="locale-preference" />,
+              <ConfigProvider key="config" />,
+              <RoutesProvider key="rotes" />,
+              <ProjectProvider key="project" />,
+              ff.isActive(ff.FF_PRODUCT_TOUR) && <TourProvider useAPI={useAPI} />,
+              ].filter(Boolean)}
+            >
+              <AsyncPage>
+                <DraftGuard />
+                <RootPage content={content} />
+                <ToastViewport />
+              </AsyncPage>
+            </MultiProvider>
+          </Router>
+        </ErrorBoundary>
+      </AppLocaleAdapter>
+    </LocaleProvider>
   );
 };
 

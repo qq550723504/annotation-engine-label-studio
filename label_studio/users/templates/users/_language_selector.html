@@ -1,0 +1,69 @@
+{% load i18n %}
+<div class="locale-switcher">
+  <label for="anonymous-ui-locale"
+         data-locale-en="{% language 'en-us' %}{% trans 'Display language' %}{% endlanguage %}"
+         data-locale-zh="{% language 'zh-hans' %}{% trans 'Display language' %}{% endlanguage %}">{% trans "Display language" %}</label>
+  <select id="anonymous-ui-locale" data-testid="anonymous-language-select">
+    <option value="auto" {% if ui_locale.source != 'cookie' %}selected{% endif %}
+            data-locale-en="{% language 'en-us' %}{% trans 'Automatic' %}{% endlanguage %}"
+            data-locale-zh="{% language 'zh-hans' %}{% trans 'Automatic' %}{% endlanguage %}">{% trans "Automatic" %}</option>
+    <option value="en-US" {% if ui_locale.source == 'cookie' and ui_locale.resolvedLocale == 'en-US' %}selected{% endif %}>English</option>
+    <option value="zh-CN" {% if ui_locale.source == 'cookie' and ui_locale.resolvedLocale == 'zh-CN' %}selected{% endif %}>简体中文</option>
+  </select>
+  <p id="locale-selection-error" role="alert" hidden
+     data-locale-en="{% language 'en-us' %}{% trans 'Could not save your language. Please try again.' %}{% endlanguage %}"
+     data-locale-zh="{% language 'zh-hans' %}{% trans 'Could not save your language. Please try again.' %}{% endlanguage %}"
+     data-locale-validation-en="{% language 'en-us' %}{% trans 'Please review the form and try again.' %}{% endlanguage %}"
+     data-locale-validation-zh="{% language 'zh-hans' %}{% trans 'Please review the form and try again.' %}{% endlanguage %}"></p>
+</div>
+<script nonce="{{ request.csp_nonce }}">
+  (() => {
+    const select = document.getElementById('anonymous-ui-locale');
+    const error = document.getElementById('locale-selection-error');
+    let confirmed = select.value;
+    const applyLocale = (locale, source) => {
+      if (locale !== 'en-US' && locale !== 'zh-CN') return false;
+      const key = locale === 'zh-CN' ? 'localeZh' : 'localeEn';
+      document.documentElement.lang = locale;
+      document.documentElement.dataset.localeSource = source;
+      document.querySelectorAll('[data-locale-en][data-locale-zh]').forEach((element) => {
+        element.textContent = element.dataset[key];
+      });
+      document.querySelectorAll('[data-locale-placeholder-en][data-locale-placeholder-zh]').forEach((element) => {
+        element.setAttribute('placeholder', element.dataset[key === 'localeZh' ? 'localePlaceholderZh' : 'localePlaceholderEn']);
+      });
+      document.querySelectorAll('[data-locale-aria-en][data-locale-aria-zh]').forEach((element) => {
+        element.setAttribute('aria-label', element.dataset[key === 'localeZh' ? 'localeAriaZh' : 'localeAriaEn']);
+      });
+      document.querySelectorAll('[data-locale-validation-error]').forEach((element) => {
+        element.textContent = error.dataset[key === 'localeZh' ? 'localeValidationZh' : 'localeValidationEn'];
+      });
+      return true;
+    };
+    select.addEventListener('change', async () => {
+      error.hidden = true;
+      select.disabled = true;
+      try {
+        const token = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+        if (!token) throw new Error('Missing CSRF token');
+        const preference = select.value === 'auto' ? null : select.value;
+        const response = await fetch("{% url 'ui-locale' %}", {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token },
+          body: JSON.stringify({ preference }),
+        });
+        if (!response.ok) throw new Error('Locale write failed');
+        const state = await response.json();
+        if (!applyLocale(state.resolvedLocale, state.source)) throw new Error('Invalid locale response');
+        confirmed = select.value;
+      } catch (_) {
+        select.value = confirmed;
+        error.textContent = error.dataset[document.documentElement.lang === 'zh-CN' ? 'localeZh' : 'localeEn'];
+        error.hidden = false;
+      } finally {
+        select.disabled = false;
+      }
+    });
+  })();
+</script>

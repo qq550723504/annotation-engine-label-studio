@@ -5,6 +5,7 @@ import { Dropdown } from "@humansignal/ui";
 import { Toggle } from "../../Common/Form";
 import { IconSettings, IconMinus, IconPlus } from "@humansignal/icons";
 import { debounce } from "@humansignal/core/lib/utils/debounce";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 const injector = inject(({ store }) => {
   const view = store?.currentView;
@@ -22,6 +23,7 @@ const injector = inject(({ store }) => {
 });
 
 export const GridWidthButton = injector(({ view, isGrid, gridWidth, fitImagesToWidth, hasImage, size }) => {
+  const { t } = useLocaleTranslation("datamanager");
   const [width, setWidth] = useState(gridWidth);
 
   const setGridWidthStore = debounce((value) => {
@@ -50,7 +52,7 @@ export const GridWidthButton = injector(({ view, isGrid, gridWidth, fitImagesToW
       content={
         <div className="p-tight min-w-wide space-y-base">
           <div className="grid grid-cols-[1fr_min-content] gap-base items-center">
-            <span>Columns: {width}</span>
+            <span>{t("gridColumns", { count: width })}</span>
             <ButtonGroup collapsed={false}>
               <Button
                 onClick={() => setGridWidth(width - 1)}
@@ -59,7 +61,7 @@ export const GridWidthButton = injector(({ view, isGrid, gridWidth, fitImagesToW
                 look="outlined"
                 leading={<IconMinus />}
                 size="small"
-                aria-label="Decrease columns number"
+                aria-label={t("decreaseColumns")}
               />
               <Button
                 onClick={() => setGridWidth(width + 1)}
@@ -68,20 +70,20 @@ export const GridWidthButton = injector(({ view, isGrid, gridWidth, fitImagesToW
                 look="outlined"
                 leading={<IconPlus />}
                 size="small"
-                aria-label="Increase columns number"
+                aria-label={t("increaseColumns")}
               />
             </ButtonGroup>
           </div>
           {hasImage && (
             <div className="grid grid-cols-[1fr_min-content] gap-base items-center">
-              <span>Fit images to width</span>
+              <span>{t("fitImagesToWidth")}</span>
               <Toggle checked={fitImagesToWidth} onChange={handleFitImagesToWidthToggle} />
             </div>
           )}
         </div>
       }
     >
-      <Button size={size} variant="neutral" look="outlined" aria-label="Grid settings">
+      <Button size={size} variant="neutral" look="outlined" aria-label={t("gridSettings")}>
         <IconSettings />
       </Button>
     </Dropdown.Trigger>

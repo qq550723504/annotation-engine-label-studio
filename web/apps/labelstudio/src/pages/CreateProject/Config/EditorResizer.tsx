@@ -2,6 +2,7 @@ import type React from "react";
 import { useCallback, useState } from "react";
 import clsx from "clsx";
 import styles from "./EditorResizer.module.scss";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 interface EditorResizerProps {
   containerRef: React.RefObject<HTMLDivElement>;
@@ -36,6 +37,7 @@ export const EditorResizer: React.FC<EditorResizerProps> = ({
   constraints,
   disabled = false,
 }) => {
+  const { t } = useLocaleTranslation("projects");
   const [isResizing, setIsResizing] = useState(false);
 
   const handlePointerDown = useCallback(
@@ -89,7 +91,7 @@ export const EditorResizer: React.FC<EditorResizerProps> = ({
       })}
       onPointerDown={handlePointerDown}
       aria-disabled={disabled}
-      title={disabled ? undefined : "Drag to resize"}
+      title={disabled ? undefined : t("dragToResize")}
     />
   );
 };

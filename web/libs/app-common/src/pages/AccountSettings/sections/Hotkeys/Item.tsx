@@ -6,6 +6,8 @@ import { Button, Tooltip } from "@humansignal/ui";
 import { Toggle as UiToggle } from "@humansignal/ui";
 import { KeyboardKey } from "./Key";
 import { IconClose } from "@humansignal/ui";
+import { useLocaleRuntime, useLocaleTranslation } from "@humansignal/i18n";
+import { displayHotkey } from "./display";
 
 // Type definitions
 interface Hotkey {
@@ -36,6 +38,9 @@ interface HotkeyItemProps {
  * @returns {React.ReactElement} The HotkeyItem component
  */
 export const HotkeyItem = ({ hotkey, onEdit, isEditing, onSave, onCancel, onToggle }: HotkeyItemProps) => {
+  const runtime = useLocaleRuntime();
+  const { t } = useLocaleTranslation("app");
+  const displayed = displayHotkey(hotkey, runtime);
   const [editedKey, setEditedKey] = useState<string>(hotkey.key);
   const [keyRecordingMode, setKeyRecordingMode] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
@@ -131,7 +136,7 @@ export const HotkeyItem = ({ hotkey, onEdit, isEditing, onSave, onCancel, onTogg
   if (isEditing) {
     return (
       <div className="py-3 space-y-3 border-b border-border last:border-0">
-        <div className="font-medium">{hotkey.label}</div>
+        <div className="font-medium">{displayed.label}</div>
         <div className="flex gap-3">
           {/* Key recording input area */}
           <Button
@@ -144,21 +149,21 @@ export const HotkeyItem = ({ hotkey, onEdit, isEditing, onSave, onCancel, onTogg
             )}
             onClick={startRecordingKeys}
             onKeyDown={handleKeyPress}
-            aria-label="Click to record keyboard shortcut"
+            aria-label={t("hotkeyRecord")}
           >
             {keyRecordingMode ? (
-              <span className="text-primary-content font-medium animate-pulse">Press keys now...</span>
+              <span className="text-primary-content font-medium animate-pulse">{t("hotkeyPressKeys")}</span>
             ) : editedKey ? (
               <KeyboardKey>{editedKey}</KeyboardKey>
             ) : (
-              <span className="text-neutral-content-subtler">Click to set shortcut</span>
+              <span className="text-neutral-content-subtler">{t("hotkeySetShortcut")}</span>
             )}
           </Button>
 
           {/* Action buttons */}
           <div className="flex flex-row gap-2">
             <Button variant="primary" onClick={handleSave} disabled={!editedKey || !!error}>
-              Apply
+              {t("hotkeyApply")}
             </Button>
             <Button variant="neutral" icon={<IconClose />} onClick={handleCancel} />
           </div>
@@ -178,18 +183,18 @@ export const HotkeyItem = ({ hotkey, onEdit, isEditing, onSave, onCancel, onTogg
         <UiToggle
           checked={hotkey.active}
           onChange={handleToggle}
-          aria-label={`${hotkey.active ? "Disable" : "Enable"} ${hotkey.label}`}
+          aria-label={t(hotkey.active ? "hotkeyDisable" : "hotkeyEnable", { label: displayed.label })}
         />
       </div>
 
       {/* Label and description */}
       <div className="flex-1 mr-4">
-        <div className="font-medium">{hotkey.label}</div>
-        <div className="text-sm text-neutral-content-subtler">{hotkey.description}</div>
+        <div className="font-medium">{displayed.label}</div>
+        <div className="text-sm text-neutral-content-subtler">{displayed.description}</div>
       </div>
 
       {/* Current hotkey display (clickable to edit) */}
-      <Tooltip title="Click to edit hotkey">
+      <Tooltip title={t("hotkeyEdit")}>
         <div
           className="flex items-center gap-2 cursor-pointer hover:opacity-80 hover:bg-primary-emphasis-subtle px-base py-base rounded-small"
           onClick={handleEdit}

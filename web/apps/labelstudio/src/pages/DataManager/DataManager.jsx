@@ -17,6 +17,7 @@ import { APIConfig } from "./api-config";
 import { AssignmentManager } from "./AssignmentManager";
 import { ReviewerWorkspace } from "./ReviewerWorkspace";
 import { SubmissionReleaseWorkspace } from "./SubmissionReleaseWorkspace";
+import { isDisplayLocale, useLocalePreference, useLocaleTranslation } from "@humansignal/i18n";
 
 import "./DataManager.scss";
 
@@ -51,6 +52,7 @@ const initializeDataManager = async (root, props, params) => {
     },
     ...props,
     ...settings,
+    locale: params.locale,
   };
 
   return new window.DataManager(dmConfig);
@@ -60,7 +62,52 @@ const buildLink = (path, params) => {
   return generatePath(`/projects/:id${path}`, params);
 };
 
+const CollaborationModalTitle = ({ kind, taskId }) => {
+  const { t } = useLocaleTranslation("collaboration");
+  if (kind === "assignments") return t("taskAssignmentsTitle", { id: taskId });
+  if (kind === "reviews") return t("reviewSubmissionsTitle");
+  return t("releaseWorkspaceTitle");
+};
+
+const CollaborationModalLanguage = ({ initialPreference, setPreference }) => {
+  const { t } = useLocaleTranslation("app");
+  const [preference, setLocalPreference] = useState(initialPreference ?? "auto");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(false);
+
+  const change = async (event) => {
+    const next = event.target.value;
+    if (next !== "auto" && !isDisplayLocale(next)) return;
+    setSaving(true);
+    setError(false);
+    const saved = await setPreference(next === "auto" ? null : next);
+    if (saved) setLocalPreference(next);
+    else setError(true);
+    setSaving(false);
+  };
+
+  return <div className="flex items-center gap-2">
+    <label htmlFor="collaboration-language-select">{t("displayLanguage")}</label>
+    <select
+      id="collaboration-language-select"
+      data-testid="collaboration-language-select"
+      aria-label={t("displayLanguage")}
+      value={preference}
+      disabled={saving}
+      onChange={change}
+    >
+      <option value="auto">{t("languageAutomatic")}</option>
+      <option value="en-US">English</option>
+      <option value="zh-CN">简体中文</option>
+    </select>
+    {error && <span role="alert">{t("languageSaveFailed")}</span>}
+  </div>;
+};
+
 export const DataManagerPage = ({ ...props }) => {
+  const { locale, t } = useLocaleTranslation("datamanager");
+  const latestLocale = useRef(locale);
+  latestLocale.current = locale;
   const dependencies = useMemo(loadDependencies, []);
   const toast = useContext(ToastContext);
   const root = useRef();
@@ -93,19 +140,22 @@ export const DataManagerPage = ({ ...props }) => {
         ...params,
         project,
         autoAnnotation: isDefined(interactiveBacked),
+        locale: latestLocale.current,
       })));
 
     Object.assign(window, { dataManager });
 
     dataManager.on("crash", (details) => {
+      if (details?.phase === "initialization") {
+        setCrashed(true);
+        return;
+      }
       const error = details?.error;
       const isMissingTaskError = error?.startsWith("Task ID:");
       const isMissingProjectError = error?.startsWith("Project ID:");
 
       if (isMissingTaskError || isMissingProjectError) {
-        const message = `The ${
-          isMissingTaskError ? "task" : "project"
-        } you are trying to access does not exist or is no longer available.`;
+        const message = t(isMissingTaskError ? "missingTask" : "missingProject");
 
         toast.show({
           message,
@@ -215,13 +265,17 @@ export const DataManagerPage = ({ ...props }) => {
     return () => destroyDM();
   }, []);
 
+  useEffect(() => {
+    dataManagerRef.current?.setLocale(locale);
+  }, [locale]);
+
   return crashed ? (
     <div className={cn("crash").toClassName()}>
-      <div className={cn("crash").elem("info").toClassName()}>Project was deleted or not yet created</div>
+      <div className={cn("crash").elem("info").toClassName()}>{t("workspaceLoadFailed")}</div>
 
-      <Button to="/projects" aria-label="Back to projects">
-        Back to projects
-      </Button>
+      <Link to="/projects" className={buttonVariant()} aria-label={t("backToProjects")}>
+        {t("backToProjects")}
+      </Link>
     </div>
   ) : (
     <>
@@ -242,6 +296,9 @@ DataManagerPage.pages = {
   ImportModal,
 };
 DataManagerPage.context = ({ dmRef }) => {
+  const { locale, t } = useLocaleTranslation("datamanager");
+  const { t: tc } = useLocaleTranslation("collaboration");
+  const localePreference = useLocalePreference();
   const { project } = useProject();
   const api = useAPI();
   const toast = useContext(ToastContext);
@@ -304,14 +361,15 @@ DataManagerPage.context = ({ dmRef }) => {
 
     if (!taskId) {
       toast.show({
-        message: "Open a task before managing assignments.",
+        message: tc("openTaskBeforeAssignments"),
         type: ToastType.error,
       });
       return;
     }
 
     modal({
-      title: `Task #${taskId} assignments`,
+      title: <CollaborationModalTitle kind="assignments" taskId={taskId} />,
+      header: <CollaborationModalLanguage initialPreference={localePreference.preference} setPreference={localePreference.setPreference} />,
       body: <AssignmentManager projectId={project.id} taskId={taskId} />,
       style: { width: 640 },
     });
@@ -319,7 +377,8 @@ DataManagerPage.context = ({ dmRef }) => {
 
   const openReviews = () => {
     modal({
-      title: "Review submissions",
+      title: <CollaborationModalTitle kind="reviews" />,
+      header: <CollaborationModalLanguage initialPreference={localePreference.preference} setPreference={localePreference.setPreference} />,
       body: <ReviewerWorkspace projectId={project.id} />,
       style: { width: 960 },
     });
@@ -327,25 +386,24 @@ DataManagerPage.context = ({ dmRef }) => {
 
   const openReleases = () => {
     modal({
-      title: "Submission history and release",
+      title: <CollaborationModalTitle kind="releases" />,
+      header: <CollaborationModalLanguage initialPreference={localePreference.preference} setPreference={localePreference.setPreference} />,
       body: <SubmissionReleaseWorkspace projectId={project.id} />,
       style: { width: 960 },
     });
   };
 
   const links = {
-    "/settings": "Settings",
+    "/settings": t("settings"),
   };
 
   const updateCrumbs = (currentMode) => {
     const isExplorer = currentMode === "explorer";
-
-    if (isExplorer) {
-      deleteCrumb("dm-crumb");
-    } else {
+    deleteCrumb("dm-crumb");
+    if (!isExplorer) {
       addCrumb({
         key: "dm-crumb",
-        title: "Labeling",
+        title: t("labeling"),
       });
     }
   };
@@ -356,7 +414,7 @@ DataManagerPage.context = ({ dmRef }) => {
 
     if (isLabelStream && show_instruction && expert_instruction) {
       modal({
-        title: "Labeling Instructions",
+        title: t("labelingInstructions"),
         body: <div dangerouslySetInnerHTML={{ __html: expert_instruction }} />,
         style: { width: 680 },
       });
@@ -365,7 +423,6 @@ DataManagerPage.context = ({ dmRef }) => {
 
   const onDMModeChanged = (currentMode) => {
     setMode(currentMode);
-    updateCrumbs(currentMode);
     showLabelingInstruction(currentMode);
   };
 
@@ -377,7 +434,11 @@ DataManagerPage.context = ({ dmRef }) => {
     return () => {
       dmRef?.off?.("modeChanged", onDMModeChanged);
     };
-  }, [dmRef, project]);
+  }, [dmRef, project, locale]);
+
+  useEffect(() => {
+    updateCrumbs(mode);
+  }, [mode, locale]);
 
   return project && project.id ? (
     <Space size="small">
@@ -389,7 +450,7 @@ DataManagerPage.context = ({ dmRef }) => {
           onClick={openAssignments}
           data-testid="manage-task-assignments"
         >
-          Assignments
+          {tc("assignments")}
         </Button>
       )}
 
@@ -400,7 +461,7 @@ DataManagerPage.context = ({ dmRef }) => {
           onClick={openReleases}
           data-testid="open-release-workspace"
         >
-          Releases
+          {tc("releases")}
         </Button>
       )}
 
@@ -411,7 +472,7 @@ DataManagerPage.context = ({ dmRef }) => {
           onClick={openReviews}
           data-testid="open-review-workspace"
         >
-          Reviews
+          {tc("reviews")}
         </Button>
       )}
 
@@ -421,7 +482,7 @@ DataManagerPage.context = ({ dmRef }) => {
           look="outlined"
           onClick={() => {
             modal({
-              title: "Instructions",
+              title: t("instructions"),
               body: () => (
                 <div
                   dangerouslySetInnerHTML={{
@@ -432,7 +493,7 @@ DataManagerPage.context = ({ dmRef }) => {
             });
           }}
         >
-          Instructions
+          {t("instructions")}
         </Button>
       )}
 

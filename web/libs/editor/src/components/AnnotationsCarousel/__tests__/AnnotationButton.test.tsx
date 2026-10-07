@@ -1,4 +1,6 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { act, screen, fireEvent } from "@testing-library/react";
+import { renderWithLocale as render } from "../../../__tests__/localeTestUtils";
+import { createLocaleRuntime } from "@humansignal/i18n";
 import { Provider } from "mobx-react";
 import { AnnotationButton } from "../AnnotationButton";
 
@@ -79,6 +81,29 @@ describe("AnnotationButton", () => {
     jest.clearAllMocks();
     const { isAlive } = jest.requireMock("mobx-state-tree");
     (isAlive as jest.Mock).mockReturnValue(true);
+  });
+
+  it("switches menu copy in place without changing annotation state", () => {
+    const runtime = createLocaleRuntime("en-US");
+    const LocaleProvider = runtime.provider;
+    const entity = createEntity();
+    const annotationStore = { ...defaultAnnotationStore, store: defaultStore };
+    const { container, unmount } = render(
+      <LocaleProvider>
+        <Provider store={defaultStore}>
+          <AnnotationButton entity={entity} capabilities={defaultCapabilities} annotationStore={annotationStore} />
+        </Provider>
+      </LocaleProvider>,
+    );
+    fireEvent.click(container.querySelector(".ls-annotation-button__trigger")!);
+    expect(screen.getByText("Copy Annotation ID")).toBeInTheDocument();
+    act(() => runtime.updateLocale("zh-CN"));
+    expect(screen.getByText("复制标注 ID")).toBeInTheDocument();
+    expect(entity.setGroundTruth).not.toHaveBeenCalled();
+    expect(entity.list.deleteAnnotation).not.toHaveBeenCalled();
+    expect(annotationStore.addAnnotationFromPrediction).not.toHaveBeenCalled();
+    unmount();
+    runtime.destroy();
   });
 
   it("renders null when entity is not alive", () => {
@@ -210,6 +235,35 @@ describe("AnnotationButton", () => {
       />,
     );
     expect(screen.getByText("Me")).toBeInTheDocument();
+  });
+
+  it("localizes incomplete identity and privacy labels on a live locale switch", () => {
+    const runtime = createLocaleRuntime("en-US");
+    const LocaleProvider = runtime.provider;
+    const store = {
+      ...defaultStore,
+      hasInterface: jest.fn((key: string) => key === "annotations:hide-info"),
+    };
+    const annotationStore = { ...defaultAnnotationStore, store } as any;
+    const view = render(
+      <LocaleProvider>
+        <>
+          <AnnotationButton entity={createEntity({ id: 3, createdBy: "" })} capabilities={defaultCapabilities} annotationStore={defaultAnnotationStore} />
+          <AnnotationButton entity={createEntity({ id: 4, createdBy: "current@test.com", user: { id: 1 } })} capabilities={defaultCapabilities} annotationStore={annotationStore} />
+          <AnnotationButton entity={createEntity({ id: 5, createdBy: "other@test.com", user: { id: 2 } })} capabilities={defaultCapabilities} annotationStore={annotationStore} />
+        </>
+      </LocaleProvider>,
+    );
+    expect(screen.getByText("Admin")).toBeInTheDocument();
+    expect(screen.getByText("Me")).toBeInTheDocument();
+    expect(screen.getByText("User")).toBeInTheDocument();
+
+    act(() => runtime.updateLocale("zh-CN"));
+    expect(screen.getAllByText("管理员").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("我").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("用户").length).toBeGreaterThan(0);
+    view.unmount();
+    runtime.destroy();
   });
 
   it("shows skipped state", () => {

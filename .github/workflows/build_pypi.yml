@@ -126,7 +126,10 @@ jobs:
         run: poetry install --with build
 
       - name: Collect static
-        run: poetry run python label_studio/manage.py collectstatic
+        run: |
+          sudo apt-get update && sudo apt-get install -y gettext
+          poetry run python label_studio/manage.py compilemessages -l en_US -l zh_Hans
+          poetry run python label_studio/manage.py collectstatic
 
       - name: Package
         env:

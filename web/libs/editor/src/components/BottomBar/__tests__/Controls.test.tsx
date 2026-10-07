@@ -1,4 +1,5 @@
-import { render, fireEvent } from "@testing-library/react";
+import { fireEvent } from "@testing-library/react";
+import { renderWithLocale as render } from "../../../__tests__/localeTestUtils";
 import { Provider } from "mobx-react";
 import { Controls } from "../Controls";
 
@@ -7,7 +8,7 @@ jest.mock("@humansignal/ui", () => {
   return {
     Button: forwardRef(({ children, ...props }: { children: React.ReactNode }) => {
       return (
-        <button {...props} data-testid="button">
+        <button data-testid="button" {...props}>
           {children}
         </button>
       );
@@ -93,13 +94,13 @@ describe("Controls", () => {
   test("When skip button is clicked, if there is no currentComment and annotators must leave a comment on skip, it must not submit and setToolTipMessage", () => {
     mockStore.hasInterface = (a: string) => (a === "skip" || a === "comments:skip") ?? true;
 
-    const { getByLabelText } = render(
+    const { getByTestId } = render(
       <Provider store={mockStore}>
         <Controls history={mockHistory} annotation={mockAnnotation} />
       </Provider>,
     );
 
-    const skipTask = getByLabelText("skip-task");
+    const skipTask = getByTestId("bottombar-skip-button");
     fireEvent.click(skipTask);
 
     expect(mockStore.skipTask).not.toHaveBeenCalled();
@@ -111,13 +112,13 @@ describe("Controls", () => {
     mockStore.hasInterface = (a: string) => (a === "skip" || a === "comments:skip") ?? true;
     mockStore.commentStore.currentComment.a31wsd = "   ";
 
-    const { getByLabelText } = render(
+    const { getByTestId } = render(
       <Provider store={mockStore}>
         <Controls history={mockHistory} annotation={mockAnnotation} />
       </Provider>,
     );
 
-    const skipTask = getByLabelText("skip-task");
+    const skipTask = getByTestId("bottombar-skip-button");
     fireEvent.click(skipTask);
 
     expect(mockStore.skipTask).not.toHaveBeenCalled();
@@ -128,13 +129,13 @@ describe("Controls", () => {
   test("When skip button is clicked, if there is no currentComment and annotators doesn't need to leave a comment on skip, it must submit", async () => {
     mockStore.hasInterface = (a: string) => a === "skip";
 
-    const { getByLabelText } = render(
+    const { getByTestId } = render(
       <Provider store={mockStore}>
         <Controls history={mockHistory} annotation={mockAnnotation} />
       </Provider>,
     );
 
-    const skipTask = getByLabelText("skip-task");
+    const skipTask = getByTestId("bottombar-skip-button");
     fireEvent.click(skipTask);
 
     await expect(mockStore.commentStore.commentFormSubmit).toHaveBeenCalled();
@@ -147,13 +148,13 @@ describe("Controls", () => {
     mockStore.hasInterface = (a: string) => a === "skip";
     mockStore.task = { id: 1, allow_skip: false };
 
-    const { getByLabelText } = render(
+    const { getByTestId } = render(
       <Provider store={mockStore}>
         <Controls history={mockHistory} annotation={mockAnnotation} />
       </Provider>,
     );
 
-    const skipTask = getByLabelText("skip-task");
+    const skipTask = getByTestId("bottombar-skip-button");
     // In LSO, skip button should NOT be disabled even when allow_skip=false
     expect(skipTask).not.toBeDisabled();
   });
@@ -163,13 +164,13 @@ describe("Controls", () => {
     mockStore.hasInterface = (a: string) => a === "skip";
     mockStore.task = { id: 1, allow_skip: false };
 
-    const { getByLabelText } = render(
+    const { getByTestId } = render(
       <Provider store={mockStore}>
         <Controls history={mockHistory} annotation={mockAnnotation} />
       </Provider>,
     );
 
-    const skipTask = getByLabelText("skip-task");
+    const skipTask = getByTestId("bottombar-skip-button");
     expect(skipTask).toBeDisabled();
   });
 
@@ -178,13 +179,13 @@ describe("Controls", () => {
     mockStore.hasInterface = (a: string) => a === "skip";
     mockStore.task = { id: 1, allow_skip: true };
 
-    const { getByLabelText } = render(
+    const { getByTestId } = render(
       <Provider store={mockStore}>
         <Controls history={mockHistory} annotation={mockAnnotation} />
       </Provider>,
     );
 
-    const skipTask = getByLabelText("skip-task");
+    const skipTask = getByTestId("bottombar-skip-button");
     expect(skipTask).not.toBeDisabled();
   });
 
@@ -194,13 +195,13 @@ describe("Controls", () => {
     mockStore.task = { id: 1, allow_skip: false };
     mockStore.skipTask.mockClear();
 
-    const { getByLabelText } = render(
+    const { getByTestId } = render(
       <Provider store={mockStore}>
         <Controls history={mockHistory} annotation={mockAnnotation} />
       </Provider>,
     );
 
-    const skipTask = getByLabelText("skip-task");
+    const skipTask = getByTestId("bottombar-skip-button");
     fireEvent.click(skipTask);
 
     expect(mockStore.skipTask).not.toHaveBeenCalled();

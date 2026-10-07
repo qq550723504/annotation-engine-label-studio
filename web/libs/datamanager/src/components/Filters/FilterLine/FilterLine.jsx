@@ -1,4 +1,6 @@
 import React from "react";
+import { useLocaleTranslation } from "@humansignal/i18n";
+import { displayColumnTitle } from "../../displayColumn";
 import { observer } from "mobx-react";
 import { cn } from "../../../utils/bem";
 import { Button, Badge, EnterpriseBadge } from "@humansignal/ui";
@@ -13,11 +15,12 @@ import { RECENT_VALUE_PREFIX } from "../useRecentFilters";
 const RECENTS_AUTOSAVE_DELAY_MS = 500;
 
 const Conjunction = observer(({ index, view }) => {
+  const { t } = useLocaleTranslation("datamanager");
   return (
     <FilterDropdown
       items={[
-        { value: "and", label: "And" },
-        { value: "or", label: "Or" },
+        { value: "and", label: t("and") },
+        { value: "or", label: t("or") },
       ]}
       disabled={index > 1}
       value={view.conjunction}
@@ -32,7 +35,7 @@ const Conjunction = observer(({ index, view }) => {
  *  (see select.tsx line 473: pl-3 font-bold text-neutral-content-subtler pt-2).
  *  Since our headers render inside the Option wrapper (which adds p-1 + px-4 py-1),
  *  we only style the text — no margin hacks that would be clipped by overflow-hidden. */
-function filterFieldOptionRender({ item }) {
+function filterFieldOptionRender({ item }, t) {
   const original = item?.original ?? item;
 
   if (original?._isSeparator) {
@@ -48,7 +51,7 @@ function filterFieldOptionRender({ item }) {
           color: "#8C8F9A",
         }}
       >
-        {original?.field?.title ?? original?.title ?? "Recent"}
+        {original?.field?.title ?? original?.title ?? t("recent")}
       </span>
     );
   }
@@ -60,11 +63,11 @@ function filterFieldOptionRender({ item }) {
       className={cn("filterLine").elem("selector").toClassName()}
       style={{ display: "flex", alignItems: "center", gap: "6px" }}
     >
-      <span>{filter?.field?.title}</span>
+      <span>{displayColumnTitle(filter?.field, t)}</span>
       {showEnterpriseBadge && <EnterpriseBadge style="ghost" />}
       {filter?.field?.parent && (
         <Badge size="small" className="ml-tightest">
-          {filter.field.parent.title}
+          {displayColumnTitle(filter.field.parent, t)}
         </Badge>
       )}
     </div>
@@ -110,6 +113,7 @@ function handleColumnChange(filter, availableFilters, selectedValue, onSaveOnSwi
  */
 export const FilterLine = observer(
   ({ filter, availableFilters, index, view, sidebar, dropdownClassName, onSaveOnSwitch, onSaveInPlace }) => {
+    const { t } = useLocaleTranslation("datamanager");
     const childFilter = filter.child_filter;
 
     // Debounced auto-save: persist current filter state to recents after it settles.
@@ -142,7 +146,7 @@ export const FilterLine = observer(
           {/* Main filter row */}
           <div className={cn("filterLine").elem("column").mix("conjunction").toClassName()}>
             {index === 0 ? (
-              <span style={{ fontSize: 12, paddingRight: 5 }}>Where</span>
+              <span style={{ fontSize: 12, paddingRight: 5 }}>{t("where")}</span>
             ) : (
               <Conjunction index={index} view={view} />
             )}
@@ -150,15 +154,17 @@ export const FilterLine = observer(
 
           <div className={cn("filterLine").elem("column").mix("field").toClassName()}>
             <FilterDropdown
-              placeholder="Column"
+              placeholder={t("column")}
               defaultValue={filter.filter.id}
               items={availableFilters}
               dropdownClassName={dropdownClassName}
-              searchFilter={filterFieldSearchHandler}
+              searchFilter={(option, query) =>
+                filterFieldSearchHandler(option, query, (column) => displayColumnTitle(column, t))
+              }
               onChange={(selectedValue) =>
                 handleColumnChange(filter, availableFilters, selectedValue, onSaveOnSwitch, onSaveInPlace)
               }
-              optionRender={filterFieldOptionRender}
+              optionRender={(item) => filterFieldOptionRender(item, t)}
               disabled={filter.field.disabled}
             />
           </div>
@@ -194,15 +200,15 @@ export const FilterLine = observer(
             <>
               {/* Conjunction */}
               <div className={cn("filterLine").elem("column").mix("conjunction").toClassName()}>
-                <span style={{ fontSize: 12, paddingRight: 5 }}>and</span>
+                <span style={{ fontSize: 12, paddingRight: 5 }}>{t("andLower")}</span>
               </div>
 
               {/* Field */}
               <div className={cn("filterLine").elem("column").mix("field child-field").toClassName()}>
                 <FilterDropdown
-                  placeholder={childFilter.field.title}
+                  placeholder={displayColumnTitle(childFilter.field, t)}
                   value={childFilter.field.title}
-                  items={[{ value: childFilter.field.title, label: childFilter.field.title }]}
+                  items={[{ value: childFilter.field.title, label: displayColumnTitle(childFilter.field, t) }]}
                   disabled={true}
                   onChange={() => {}} // No-op since it's disabled
                   style={{ minWidth: "80px" }}
@@ -241,7 +247,7 @@ export const FilterLine = observer(
       <div className={cn("filterLine").mod({ hasChild: !!childFilter }).toClassName()}>
         <div className={cn("filterLine").elem("column").mix("conjunction").toClassName()}>
           {index === 0 ? (
-            <span style={{ fontSize: 12, paddingRight: 5 }}>Where</span>
+            <span style={{ fontSize: 12, paddingRight: 5 }}>{t("where")}</span>
           ) : (
             <Conjunction index={index} view={view} />
           )}
@@ -249,17 +255,19 @@ export const FilterLine = observer(
 
         <div className={cn("filterLine").elem("column").mix("field").toClassName()}>
           <FilterDropdown
-            placeholder="Column"
+            placeholder={t("column")}
             defaultValue={filter.filter.id}
             items={availableFilters}
             width={80}
             dropdownWidth={170}
             dropdownClassName={dropdownClassName}
-            searchFilter={filterFieldSearchHandler}
+            searchFilter={(option, query) =>
+              filterFieldSearchHandler(option, query, (column) => displayColumnTitle(column, t))
+            }
             onChange={(selectedValue) =>
               handleColumnChange(filter, availableFilters, selectedValue, onSaveOnSwitch, onSaveInPlace)
             }
-            optionRender={filterFieldOptionRender}
+            optionRender={(item) => filterFieldOptionRender(item, t)}
             disabled={filter.field.disabled}
           />
         </div>
@@ -295,14 +303,14 @@ export const FilterLine = observer(
             <div className={cn("filterLine").elem("remove").toClassName()} />
 
             <div className={cn("filterLine").elem("column").mix("conjunction").toClassName()}>
-              <span style={{ fontSize: 12, paddingRight: 5 }}>and</span>
+              <span style={{ fontSize: 12, paddingRight: 5 }}>{t("andLower")}</span>
             </div>
 
             <div className={cn("filterLine").elem("column").mix("field child-field").toClassName()}>
               <FilterDropdown
-                placeholder={childFilter.field.title}
+                placeholder={displayColumnTitle(childFilter.field, t)}
                 value={childFilter.field.title}
-                items={[{ value: childFilter.field.title, label: childFilter.field.title }]}
+                items={[{ value: childFilter.field.title, label: displayColumnTitle(childFilter.field, t) }]}
                 disabled={true}
                 onChange={() => {}} // No-op since it's disabled
               />

@@ -20,12 +20,24 @@
   }
 
   &__item {
-    cursor: pointer;
     color: var(--color-neutral-content-subtler);
     border-radius: 4px;
-    padding: var(--spacing-tightest) var(--spacing-tight);
     flex-grow: 1;
     text-align: center;
+
+    button {
+      width: 100%;
+      padding: var(--spacing-tightest) var(--spacing-tight);
+      border: 0;
+      color: inherit;
+      background: transparent;
+      cursor: pointer;
+
+      &:focus-visible {
+        outline: 2px solid var(--color-primary-emphasis);
+        outline-offset: 2px;
+      }
+    }
 
     &_active {
       color: var(--color-neutral-content);

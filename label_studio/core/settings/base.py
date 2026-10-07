@@ -250,11 +250,11 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.locale.LocaleMiddleware',
     'core.middleware.DisableCSRF',
     'django.middleware.csrf.CsrfViewMiddleware',
     'core.middleware.XApiKeySupportMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'users.locale.RequestLocaleMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'core.middleware.CommonMiddlewareAppendSlashWithoutRedirect',  # instead of 'CommonMiddleware'
     'django_user_agents.middleware.UserAgentMiddleware',
@@ -350,6 +350,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.settings',
+                'users.locale_context.locale_context',
             ],
             'builtins': ['django.templatetags.i18n'],
         },
@@ -442,8 +443,11 @@ GRAPHIQL = True
 # Internationalization
 # https://docs.djangoproject.com/en/2.1/topics/i18n/
 LANGUAGE_CODE = 'en-us'
+UI_DEFAULT_LOCALE = get_env('UI_DEFAULT_LOCALE', 'en-US')
+LANGUAGES = [('en-us', 'English'), ('zh-hans', '简体中文')]
+LOCALE_PATHS = [os.path.join(os.path.dirname(BASE_DIR), 'locale')]
 TIME_ZONE = 'UTC'
-USE_I18N = False
+USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 

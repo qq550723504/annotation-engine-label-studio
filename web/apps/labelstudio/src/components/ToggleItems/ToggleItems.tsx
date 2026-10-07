@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { cn } from "../../utils/bem";
 import "./ToggleItems.scss";
 
@@ -10,10 +10,10 @@ export const ToggleItems = ({
   active,
   onSelect,
 }: {
-  className: string;
+  className?: string;
   style?: CSSProperties;
   big?: boolean;
-  items: { [name: string]: string };
+  items: { [name: string]: ReactNode };
   active: string;
   onSelect: (name: string) => any;
 }) => {
@@ -28,9 +28,10 @@ export const ToggleItems = ({
             .elem("item")
             .mod({ active: item === active })
             .toClassName()}
-          onClick={() => onSelect(item)}
         >
-          {items[item]}
+          <button type="button" data-testid={`toggle-${item}`} aria-pressed={item === active} onClick={() => onSelect(item)}>
+            {items[item]}
+          </button>
         </li>
       ))}
     </ul>

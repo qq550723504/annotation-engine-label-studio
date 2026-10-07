@@ -95,4 +95,9 @@ def proceed_registration(request, user_form, organization_form, next_page):
 
 def login(request, *args, **kwargs):
     request.session['last_login'] = time()
-    return auth.login(request, *args, **kwargs)
+    result = auth.login(request, *args, **kwargs)
+    from users.locale import activate_request_locale
+
+    request._locale_clear_cookie = True
+    activate_request_locale(request, args[0] if args else kwargs['user'])
+    return result

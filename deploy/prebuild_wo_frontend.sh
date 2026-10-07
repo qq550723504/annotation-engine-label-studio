@@ -5,6 +5,9 @@ echo "SCRIPT_DIR: ${SCRIPT_DIR}"
 
 MANAGE=${SCRIPT_DIR}/../label_studio/manage.py
 
+echo "=> Compile Django messages..."
+python3 $MANAGE compilemessages -l en_US -l zh_Hans
+
 echo "=> Collect static..."
 python3 $MANAGE collectstatic --no-input
 

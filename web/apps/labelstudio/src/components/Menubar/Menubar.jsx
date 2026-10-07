@@ -33,6 +33,8 @@ import { pages } from "@humansignal/app-common";
 import { isFF } from "../../utils/feature-flags";
 import { ff } from "@humansignal/core";
 import { openHotkeyHelp } from "@humansignal/app-common/pages/AccountSettings/sections/Hotkeys/Help";
+import { LanguagePreferences } from "@humansignal/app-common/pages/AccountSettings/sections/LanguagePreferences";
+import { useLocaleRuntime, useLocaleTranslation } from "@humansignal/i18n";
 
 export const MenubarContext = createContext();
 
@@ -55,6 +57,8 @@ const RightContextMenu = ({ className, ...props }) => {
 };
 
 export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSidebarToggle, onSidebarPin }) => {
+  const { t } = useLocaleTranslation("app");
+  const localeRuntime = useLocaleRuntime();
   const menuDropdownRef = useRef();
   const useMenuRef = useRef();
   const { user, isLoading } = useAuth();
@@ -139,7 +143,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
         <div className={menubarClass}>
           <Dropdown.Trigger dropdown={menuDropdownRef} closeOnClickOutside={!sidebarPinned}>
             <div className={`${menubarClass.elem("trigger")} main-menu-trigger`}>
-              <LSLogo className={`${menubarClass.elem("logo")}`} alt="Label Studio Logo" />
+              <LSLogo className={`${menubarClass.elem("logo")}`} alt={t("labelStudioLogo")} />
               <Hamburger opened={sidebarOpened} />
             </div>
           </Dropdown.Trigger>
@@ -154,7 +158,8 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
               <Button
                 variant="neutral"
                 look="outlined"
-                tooltip="Keyboard Shortcuts"
+                tooltip={t("keyboardShortcuts")}
+                aria-label={t("keyboardShortcuts")}
                 data-testid="hotkeys-button"
                 size="small"
                 onClick={() => {
@@ -167,7 +172,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
                     "video",
                     "timeseries",
                     "image_gallery",
-                  ]);
+                  ], localeRuntime);
                 }}
                 icon={<IconHotkeys />}
               />
@@ -181,13 +186,15 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
             align="right"
             content={
               <Menu>
+                <li className="px-3 py-2"><LanguagePreferences compact /></li>
+                <Menu.Divider />
                 <Menu.Item
                   icon={<IconPersonInCircle />}
-                  label="Account &amp; Settings"
+                  label={t("accountAndSettings")}
                   href={pages.AccountSettingsPage.path}
                 />
                 {/* <Menu.Item label="Dark Mode"/> */}
-                <Menu.Item icon={<IconDoor />} label="Log Out" href={absoluteURL("/logout")} data-external />
+                <Menu.Item icon={<IconDoor />} label={t("logOut")} href={absoluteURL("/logout")} data-external />
                 {showNewsletterDot && (
                   <>
                     <Menu.Divider />
@@ -195,7 +202,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
                       className={cn("newsletter-menu-item").toClassName()}
                       href={pages.AccountSettingsPage.path}
                     >
-                      <span>Please check new notification settings in the Account & Settings page</span>
+                      <span>{t("notificationSettingsNotice")}</span>
                       <span className={cn("newsletter-menu-badge").toClassName()} />
                     </Menu.Item>
                   </>
@@ -203,10 +210,10 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
               </Menu>
             }
           >
-            <div title={user?.email} className={menubarClass.elem("user").toClassName()}>
+            <button type="button" title={user?.email} aria-label={t("accountAndSettings")} data-testid="user-menu-trigger" className={menubarClass.elem("user").toClassName()}>
               <Userpic user={user} isInProgress={isLoading} />
               {showNewsletterDot && <div className={menubarClass.elem("userpic-badge").toClassName()} />}
-            </div>
+            </button>
           </Dropdown.Trigger>
         </div>
       )}
@@ -223,9 +230,9 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
               style={{ width: 240 }}
             >
               <Menu>
-                {isFF(FF_HOMEPAGE) && <Menu.Item label="Home" to="/" icon={<IconHome />} data-external exact />}
-                <Menu.Item label="Projects" to="/projects" icon={<IconFolder />} data-external exact />
-                <Menu.Item label="Organization" to="/organization" icon={<IconPeople />} data-external exact />
+                {isFF(FF_HOMEPAGE) && <Menu.Item label={t("home")} to="/" icon={<IconHome />} data-external exact />}
+                <Menu.Item label={t("projects")} to="/projects" icon={<IconFolder />} data-external exact />
+                <Menu.Item label={t("organization")} to="/organization" icon={<IconPeople />} data-external exact />
 
                 <Menu.Spacer />
 
@@ -237,7 +244,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
                   icon={<IconTerminal />}
                   target="_blank"
                 />
-                <Menu.Item label="Docs" href="https://labelstud.io/guide" icon={<IconBook />} target="_blank" />
+                <Menu.Item label={t("docs")} href="https://labelstud.io/guide" icon={<IconBook />} target="_blank" />
                 <Menu.Item
                   label="GitHub"
                   href="https://github.com/HumanSignal/label-studio"
@@ -246,7 +253,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
                   rel="noreferrer"
                 />
                 <Menu.Item
-                  label="Slack Community"
+                  label={t("slackCommunity")}
                   href="https://slack.labelstud.io/?source=product-menu"
                   icon={<IconSlack />}
                   target="_blank"
@@ -263,7 +270,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
                   onClick={sidebarPin}
                   active={sidebarPinned}
                 >
-                  {sidebarPinned ? "Unpin menu" : "Pin menu"}
+                  {sidebarPinned ? t("unpinMenu") : t("pinMenu")}
                 </Menu.Item>
               </Menu>
             </Dropdown>

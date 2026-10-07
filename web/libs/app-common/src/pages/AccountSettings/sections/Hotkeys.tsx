@@ -22,11 +22,14 @@ import type { Hotkey, Section, DirtyState, DuplicateConfirmDialog, ImportData } 
 import { HOTKEY_SECTIONS } from "./Hotkeys/defaults";
 import styles from "../AccountSettings.module.scss";
 import { useHotkeys } from "../hooks/useHotkeys";
+import { useLocaleRuntime, useLocaleTranslation } from "@humansignal/i18n";
+import { displayHotkey, displayHotkeySection } from "./Hotkeys/display";
 
 // Type the imported defaults
 const typedHotkeySections = HOTKEY_SECTIONS as Section[];
 
 export const HotkeysHeaderButtons = () => {
+  const { t } = useLocaleTranslation("app");
   const [importDialogOpen, setImportDialogOpen] = useState<boolean>(false);
   const { handleResetToDefaults, handleExportHotkeys, handleImportHotkeys } = useHotkeys();
 
@@ -34,13 +37,13 @@ export const HotkeysHeaderButtons = () => {
     <>
       <div className={`${styles.flexRow} justify-end gap-tight`}>
         <Button variant="neutral" look="outlined" onClick={() => setImportDialogOpen(true)}>
-          Import
+          {t("hotkeyImport")}
         </Button>
         <Button variant="neutral" look="outlined" onClick={handleExportHotkeys}>
-          Export
+          {t("hotkeyExport")}
         </Button>
         <Button variant="negative" look="outlined" onClick={handleResetToDefaults}>
-          Reset to Defaults
+          {t("hotkeyResetDefaults")}
         </Button>
       </div>
 
@@ -51,6 +54,8 @@ export const HotkeysHeaderButtons = () => {
 };
 
 export const HotkeysManager = () => {
+  const runtime = useLocaleRuntime();
+  const { t } = useLocaleTranslation("app");
   const toast = useToast();
   const [editingHotkeyId, setEditingHotkeyId] = useState<string | null>(null);
   const [dirtyState, setDirtyState] = useState<DirtyState>({});
@@ -94,7 +99,7 @@ export const HotkeysManager = () => {
   // Helper function to get section title by ID
   const getSectionTitle = (sectionId: string): string => {
     const section = typedHotkeySections.find((s: Section) => s.id === sectionId);
-    return section ? section.title : sectionId;
+    return section ? displayHotkeySection(section, runtime).title : sectionId;
   };
 
   // Handle saving an edited hotkey
@@ -194,28 +199,26 @@ export const HotkeysManager = () => {
         delete newDirtyState[sectionId];
         setDirtyState(newDirtyState);
 
-        const sectionName =
-          sectionId === "settings" ? "Settings" : typedHotkeySections.find((s: Section) => s.id === sectionId)?.title;
+        const sectionName = sectionId === "settings" ? t("settings") : getSectionTitle(sectionId);
 
         if (toast) {
           toast.show({
-            message: `${sectionName} hotkeys saved successfully`,
+            message: t("hotkeysSaved", { section: sectionName }),
             type: ToastType.info,
           });
         }
       } else {
         if (toast) {
           toast.show({
-            message: `Failed to save: ${result.error || "Unknown error"}`,
+            message: t("hotkeysSaveFailed"),
             type: ToastType.error,
           });
         }
       }
     } catch (error: unknown) {
       if (toast) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
         toast.show({
-          message: `Error saving: ${errorMessage}`,
+          message: t("hotkeysSaveFailed"),
           type: ToastType.error,
         });
       }
@@ -247,12 +250,11 @@ export const HotkeysManager = () => {
       setDirtyState({});
 
       if (toast) {
-        toast.show({ message: "Hotkeys imported successfully", type: ToastType.info });
+        toast.show({ message: t("hotkeysImported"), type: ToastType.info });
       }
     } catch (error: unknown) {
       if (toast) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        toast.show({ message: `Error importing hotkeys: ${errorMessage}`, type: ToastType.error });
+        toast.show({ message: t("hotkeysImportFailed"), type: ToastType.error });
       }
     } finally {
       setIsLoading(false);
@@ -324,9 +326,9 @@ export const HotkeysManager = () => {
       <Dialog open={duplicateConfirmDialog.open} onOpenChange={handleCancelDuplicate}>
         <DialogContent className="bg-neutral-surface">
           <DialogHeader>
-            <DialogTitle>Warning: Duplicate Hotkey Detected</DialogTitle>
+            <DialogTitle>{t("hotkeyDuplicateTitle")}</DialogTitle>
             <DialogDescription>
-              The hotkey combination "<strong>{duplicateConfirmDialog.newKey}</strong>" is already being used by:
+              {t("hotkeyDuplicateIntro")}{" "}<strong>{duplicateConfirmDialog.newKey}</strong>{" "}{t("hotkeyDuplicateUsedBy")}
             </DialogDescription>
           </DialogHeader>
 
@@ -339,7 +341,7 @@ export const HotkeysManager = () => {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="font-medium overflow-hidden text-ellipsis whitespace-nowrap">
-                      {conflictHotkey.label}
+                      {displayHotkey(conflictHotkey, runtime).label}
                     </div>
                     <div className="text-small text-neutral-content-subtler">
                       {getSectionTitle(conflictHotkey.section)}
@@ -358,15 +360,15 @@ export const HotkeysManager = () => {
               <IconWarning className="text-warning-icon" />
             </div>
             <div>
-              Having duplicate hotkeys may cause conflicts and unexpected behavior. Are you sure you want to proceed?
+              {t("hotkeyDuplicateWarning")}
             </div>
           </DialogDescription>
 
           <DialogFooter>
             <Button variant="neutral" onClick={handleCancelDuplicate}>
-              Cancel
+              {t("hotkeyCancel")}
             </Button>
-            <Button onClick={handleConfirmDuplicate}>Allow Duplicate</Button>
+            <Button onClick={handleConfirmDuplicate}>{t("hotkeyAllowDuplicate")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

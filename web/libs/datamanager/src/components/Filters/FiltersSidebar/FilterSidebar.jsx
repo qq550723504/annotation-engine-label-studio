@@ -3,6 +3,7 @@ import { IconChevronLeft } from "@humansignal/icons";
 import { cn } from "../../../utils/bem";
 import { Button } from "@humansignal/ui";
 import { Filters } from "../Filters";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import "./FilterSidebar.scss";
 
 const sidebarInjector = inject(({ store }) => {
@@ -16,6 +17,7 @@ const sidebarInjector = inject(({ store }) => {
 });
 
 export const FiltersSidebar = sidebarInjector(({ viewsStore, sidebarEnabled, sidebarVisible }) => {
+  const { t } = useLocaleTranslation("datamanager");
   return sidebarEnabled && sidebarVisible ? (
     <div className={cn("filters-sidebar").toClassName()}>
       <div className={cn("filters-sidebar").elem("header").toClassName()}>
@@ -23,12 +25,12 @@ export const FiltersSidebar = sidebarInjector(({ viewsStore, sidebarEnabled, sid
           <Button
             look="string"
             onClick={() => viewsStore.collapseFilters()}
-            tooltip="Unpin filters"
-            aria-label="Unpin filters"
+            tooltip={t("unpinFilters")}
+            aria-label={t("unpinFilters")}
           >
             <IconChevronLeft width={24} height={24} />
           </Button>
-          <div className={cn("filters-sidebar").elem("title").toClassName()}>Filters</div>
+          <div className={cn("filters-sidebar").elem("title").toClassName()}>{t("filters")}</div>
         </div>
       </div>
       <Filters sidebar={true} />

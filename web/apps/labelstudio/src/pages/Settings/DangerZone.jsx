@@ -11,15 +11,17 @@ import { Spinner } from "../../components/Spinner/Spinner";
 import { useAPI } from "../../providers/ApiProvider";
 import { useProject } from "../../providers/ProjectProvider";
 import { cn } from "../../utils/bem";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 export const DangerZone = () => {
+  const { locale, t } = useLocaleTranslation("projects");
   const { project } = useProject();
   const api = useAPI();
   const history = useHistory();
   const toast = useToast();
   const [processing, setProcessing] = useState(null);
 
-  useUpdatePageTitle(createTitleFromSegments([project?.title, "Danger Zone"]));
+  useUpdatePageTitle(createTitleFromSegments([project?.title, t("dangerZone")]));
 
   const showDangerConfirmation = ({ title, message, requiredWord, buttonText, onConfirm }) => {
     const isDev = process.env.NODE_ENV === "development";
@@ -38,7 +40,7 @@ export const DangerZone = () => {
               {message}
             </Typography>
             <Input
-              label={`To proceed, type "${requiredWord}" in the field below:`}
+              label={t("dangerTypeWord", { word: requiredWord })}
               value={inputValue}
               onChange={(e) => ctrl?.setState({ inputValue: e.target.value })}
               autoFocus
@@ -61,7 +63,7 @@ export const DangerZone = () => {
               onClick={() => ctrl?.hide()}
               data-testid="danger-zone-cancel-button"
             >
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               variant="negative"
@@ -83,34 +85,34 @@ export const DangerZone = () => {
   const handleOnClick = (type) => () => {
     const actionConfig = {
       reset_cache: {
-        title: "Reset Cache",
+        title: t("resetCache"),
         message: (
           <>
-            You are about to reset the cache for <strong>{project.title}</strong>. This action cannot be undone.
+            {t("dangerResetCacheIntro")} <strong>{project.title}</strong>. {t("dangerCannotUndo")}
           </>
         ),
         requiredWord: "cache",
-        buttonText: "Reset Cache",
+        buttonText: t("resetCache"),
       },
       tabs: {
-        title: "Drop All Tabs",
+        title: t("dropAllTabs"),
         message: (
           <>
-            You are about to drop all tabs for <strong>{project.title}</strong>. This action cannot be undone.
+            {t("dangerDropTabsIntro")} <strong>{project.title}</strong>. {t("dangerCannotUndo")}
           </>
         ),
         requiredWord: "tabs",
-        buttonText: "Drop All Tabs",
+        buttonText: t("dropAllTabs"),
       },
       project: {
-        title: "Delete Project",
+        title: t("deleteProject"),
         message: (
           <>
-            You are about to delete the project <strong>{project.title}</strong>. This action cannot be undone.
+            {t("dangerDeleteProjectIntro")} <strong>{project.title}</strong>. {t("dangerCannotUndo")}
           </>
         ),
         requiredWord: "delete",
-        buttonText: "Delete Project",
+        buttonText: t("deleteProject"),
       },
     };
 
@@ -131,25 +133,25 @@ export const DangerZone = () => {
                 pk: project.id,
               },
             });
-            toast.show({ message: "Cache reset successfully" });
+            toast.show({ message: t("cacheResetSuccess") });
           } else if (type === "tabs") {
             await api.callApi("deleteTabs", {
               body: {
                 project: project.id,
               },
             });
-            toast.show({ message: "All tabs dropped successfully" });
+            toast.show({ message: t("tabsDroppedSuccess") });
           } else if (type === "project") {
             await api.callApi("deleteProject", {
               params: {
                 pk: project.id,
               },
             });
-            toast.show({ message: "Project deleted successfully" });
+            toast.show({ message: t("projectDeletedSuccess") });
             history.replace("/projects");
           }
         } catch (error) {
-          toast.show({ message: `Error: ${error.message}`, type: "error" });
+          toast.show({ message: t("dangerOperationFailed"), type: "error" });
         } finally {
           setProcessing(null);
         }
@@ -162,48 +164,44 @@ export const DangerZone = () => {
       {
         type: "annotations",
         disabled: true, //&& !project.total_annotations_number,
-        label: `Delete ${project.total_annotations_number} Annotations`,
+        label: t("deleteAnnotations", { count: project.total_annotations_number }),
       },
       {
         type: "tasks",
         disabled: true, //&& !project.task_number,
-        label: `Delete ${project.task_number} Tasks`,
+        label: t("deleteTasks", { count: project.task_number }),
       },
       {
         type: "predictions",
         disabled: true, //&& !project.total_predictions_number,
-        label: `Delete ${project.total_predictions_number} Predictions`,
+        label: t("deletePredictions", { count: project.total_predictions_number }),
       },
       {
         type: "reset_cache",
-        help:
-          "Reset Cache may help in cases like if you are unable to modify the labeling configuration due " +
-          "to validation errors concerning existing labels, but you are confident that the labels don't exist. You can " +
-          "use this action to reset the cache and try again.",
-        label: "Reset Cache",
+        help: t("resetCacheHelp"),
+        label: t("resetCache"),
       },
       {
         type: "tabs",
-        help: "If the Data Manager is not loading, dropping all Data Manager tabs can help.",
-        label: "Drop All Tabs",
+        help: t("dropTabsHelp"),
+        label: t("dropAllTabs"),
       },
       {
         type: "project",
-        help: "Deleting a project removes all tasks, annotations, and project data from the database.",
-        label: "Delete Project",
+        help: t("deleteProjectHelp"),
+        label: t("deleteProject"),
       },
     ],
-    [project],
+    [project, locale],
   );
 
   return (
     <div className={cn("simple-settings").toClassName()}>
       <Typography variant="headline" size="medium" className="mb-tighter">
-        Danger Zone
+        {t("dangerZone")}
       </Typography>
       <Typography variant="body" size="medium" className="text-neutral-content-subtler !mb-base">
-        Perform these actions at your own risk. Actions you take on this page can't be reverted. Make sure your data is
-        backed up.
+        {t("dangerZoneDescription")}
       </Typography>
 
       {project.id ? (

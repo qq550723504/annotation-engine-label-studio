@@ -2,6 +2,7 @@ import { observer } from "mobx-react";
 import { IconViewAll } from "@humansignal/icons";
 import { Typography } from "@humansignal/ui";
 import { cn } from "../../utils/bem";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import "./ViewAllToggle.scss";
 
 interface ViewAllToggleProps {
@@ -10,12 +11,13 @@ interface ViewAllToggleProps {
 }
 
 export const ViewAllToggle = observer(({ isActive, onClick }: ViewAllToggleProps) => {
+  const { t } = useLocaleTranslation("editor");
   return (
     <button
       type="button"
       className={cn("view-all-toggle").mod({ selected: isActive }).toClassName()}
       onClick={onClick}
-      aria-label="Compare all annotations"
+      aria-label={t("compareAllAnnotations")}
       aria-pressed={isActive}
       data-testid="compare-all-toggle"
     >
@@ -25,7 +27,7 @@ export const ViewAllToggle = observer(({ isActive, onClick }: ViewAllToggleProps
         </div>
         <div className={cn("view-all-toggle").elem("content").toClassName()}>
           <Typography variant="label" size="small" className={cn("view-all-toggle").elem("label").toClassName()}>
-            Compare All
+            {t("compareAll")}
           </Typography>
         </div>
       </div>

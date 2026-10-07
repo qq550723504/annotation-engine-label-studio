@@ -6,6 +6,8 @@ import styles from "../AccountSettings.module.scss";
 import { useAuth } from "@humansignal/core/providers/AuthProvider";
 import { atomWithMutation } from "jotai-tanstack-query";
 import { useAtomValue } from "jotai";
+import { LanguagePreferences } from "./LanguagePreferences";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 /**
  * FIXME: This is legacy imports. We're not supposed to use such statements
@@ -40,6 +42,7 @@ const updateUserAvatarAtom = atomWithMutation(() => ({
 }));
 
 export const PersonalInfo = () => {
+  const { locale, t } = useLocaleTranslation("app");
   const toast = useToast();
   const { user, refetch: refetchUser, isLoading: userInProgress, update: updateUser } = useAuth();
   const updateUserAvatar = useAtomValue(updateUserAvatarAtom);
@@ -61,13 +64,14 @@ export const PersonalInfo = () => {
       });
 
       if (!response.$meta.ok) {
-        toast?.show({ message: response?.response?.detail ?? "Error updating avatar", type: ToastType.error });
+        const detail = response.$meta.headers?.get("content-language") === locale ? response?.response?.detail : null;
+        toast?.show({ message: typeof detail === "string" ? detail : t("avatarUpdateFailed"), type: ToastType.error });
       } else {
         refetchUser();
       }
       input.value = "";
     },
-    [user?.id],
+    [user?.id, locale],
   );
 
   const deleteUserAvatar = async () => {
@@ -86,10 +90,11 @@ export const PersonalInfo = () => {
 
       refetchUser();
       if (!response?.$meta.ok) {
-        toast?.show({ message: response?.response?.detail ?? "Error updating user", type: ToastType.error });
+        const detail = response?.$meta?.headers?.get("content-language") === locale ? response?.response?.detail : null;
+        toast?.show({ message: typeof detail === "string" ? detail : t("profileUpdateFailed"), type: ToastType.error });
       }
     },
-    [user?.id],
+    [user?.id, locale],
   );
 
   useEffect(() => {
@@ -110,6 +115,7 @@ export const PersonalInfo = () => {
           <form className={styles.flex1}>
             <InputFile
               name="avatar"
+              text={t("uploadImage")}
               onChange={fileChangeHandler}
               accept="image/png, image/jpeg, image/jpg"
               ref={avatarRef}
@@ -117,7 +123,7 @@ export const PersonalInfo = () => {
           </form>
           {user?.avatar && (
             <Button type="submit" variant="negative" look="outlined" size="medium" onClick={deleteUserAvatar}>
-              Delete
+              {t("deleteAvatar")}
             </Button>
           )}
         </div>
@@ -125,7 +131,7 @@ export const PersonalInfo = () => {
           <div className={styles.flexRow}>
             <div className={styles.flex1}>
               <Input
-                label="First Name"
+                label={t("firstName")}
                 value={fname}
                 onChange={(e: React.KeyboardEvent<HTMLInputElement>) => setFname(e.currentTarget.value)}
                 name="first_name"
@@ -133,7 +139,7 @@ export const PersonalInfo = () => {
             </div>
             <div className={styles.flex1}>
               <Input
-                label="Last Name"
+                label={t("lastName")}
                 value={lname}
                 onChange={(e: React.KeyboardEvent<HTMLInputElement>) => setLname(e.currentTarget.value)}
                 name="last_name"
@@ -142,11 +148,11 @@ export const PersonalInfo = () => {
           </div>
           <div className={styles.flexRow}>
             <div className={styles.flex1}>
-              <Input label="E-mail" type="email" readOnly={true} value={user?.email ?? ""} />
+              <Input label={t("email")} type="email" readOnly={true} value={user?.email ?? ""} />
             </div>
             <div className={styles.flex1}>
               <Input
-                label="Phone"
+                label={t("phone")}
                 type="phone"
                 onChange={(e: React.KeyboardEvent<HTMLInputElement>) => setPhone(e.currentTarget.value)}
                 value={phone}
@@ -156,10 +162,11 @@ export const PersonalInfo = () => {
           </div>
           <div className={clsx(styles.flexRow, styles.flexEnd)}>
             <Button style={{ width: 125 }} waiting={isInProgress}>
-              Save
+              {t("save")}
             </Button>
           </div>
         </form>
+        <LanguagePreferences />
       </div>
     </div>
   );

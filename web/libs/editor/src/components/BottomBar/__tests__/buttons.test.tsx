@@ -1,4 +1,5 @@
-import { render, fireEvent } from "@testing-library/react";
+import { fireEvent } from "@testing-library/react";
+import { renderWithLocale as render } from "../../../__tests__/localeTestUtils";
 import { Provider } from "mobx-react";
 import { SkipButton } from "../buttons";
 

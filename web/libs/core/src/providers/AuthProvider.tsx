@@ -1,5 +1,6 @@
 import { createContext, memo, useCallback, useContext, useMemo } from "react";
 import type { APIUser } from "../types/user";
+import type { WrappedResponse } from "../lib/api-proxy/types";
 import { useAtomValue } from "jotai";
 import { queryClientAtom } from "jotai-tanstack-query";
 import { currentUserAtom, currentUserUpdateAtom } from "../atoms/user";
@@ -33,7 +34,7 @@ type AuthState = {
   user: APIUser | null;
   isLoading: boolean;
   refetch: () => void;
-  update: (userUpdate: Partial<APIUser>) => Promise<APIUser | undefined>;
+  update: (userUpdate: Partial<APIUser>) => Promise<WrappedResponse<APIUser> | undefined>;
   permissions: AuthPermissions;
 };
 

@@ -5,25 +5,21 @@ import { Spinner } from "../../components/Spinner/Spinner";
 import { useAPI } from "../../providers/ApiProvider";
 import { useProject } from "../../providers/ProjectProvider";
 import { cn } from "../../utils/bem";
+import { useLocaleTranslation } from "@humansignal/i18n";
+import { collaborationErrorCode, displayCollaborationError } from "../DataManager/collaborationDisplay";
 import "./MembersSettings.scss";
 
 const ROLES = [
-  { value: "manager", label: "Manager" },
-  { value: "annotator", label: "Annotator" },
-  { value: "reviewer", label: "Reviewer" },
+  "manager", "annotator", "reviewer",
 ];
 
-const flattenError = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.flatMap(flattenError);
-  if (typeof value === "object") return Object.values(value).flatMap(flattenError);
-  return [String(value)];
-};
-
-const errorMessage = (result, fallback) => {
-  const response = result?.response;
-  const messages = flattenError(response);
-  return messages.length ? messages.join(" ") : result?.error ?? fallback;
+const displayRole = (role, t) => {
+  switch (role) {
+    case "manager": return t("roleManager");
+    case "annotator": return t("roleAnnotator");
+    case "reviewer": return t("roleReviewer");
+    default: return role;
+  }
 };
 
 const responseItems = (response) => {
@@ -32,6 +28,7 @@ const responseItems = (response) => {
 };
 
 export const MembersSettings = () => {
+  const { t } = useLocaleTranslation("collaboration");
   const api = useAPI();
   const callApiRef = useRef(api.callApi);
   callApiRef.current = api.callApi;
@@ -230,7 +227,7 @@ export const MembersSettings = () => {
       }
 
       if (!result || result?.error || result?.$meta?.ok === false) {
-        setError(errorMessage(result, "The requested member change could not be completed."));
+        setError(collaborationErrorCode(result, "memberChangeFailed"));
         const stillAllowed = await loadMembers(memberPage);
         if (stillAllowed) {
           await loadOrganizationUsers();
@@ -252,7 +249,7 @@ export const MembersSettings = () => {
   const addMember = async (event) => {
     event.preventDefault();
     if (!selectedUserId) {
-      setError("Select an organization user before adding a project member.");
+      setError("selectOrganizationUserFirst");
       return;
     }
 
@@ -273,7 +270,7 @@ export const MembersSettings = () => {
 
   const confirmAssignmentImpact = (message) =>
     window.confirm(
-      `${message}\n\nThis can cancel the member's active task assignments. Restoring the role or re-enabling the member will not restore cancelled assignments. Continue?`,
+      `${message}\n\n${t("assignmentImpactWarning")}`,
     );
 
   const updateMember = async (member, body, action) => {
@@ -286,8 +283,8 @@ export const MembersSettings = () => {
       losesLabelAccess &&
       !confirmAssignmentImpact(
         body.enabled === false
-          ? `Disable ${member.user?.email || "this member"}?`
-          : `Change ${member.user?.email || "this member"} to Reviewer?`,
+          ? t("confirmDisableMember", { member: member.user?.email || t("thisMember") })
+          : t("confirmChangeToReviewer", { member: member.user?.email || t("thisMember") }),
       )
     ) {
       return;
@@ -302,7 +299,7 @@ export const MembersSettings = () => {
   const removeMember = async (member) => {
     if (
       !confirmAssignmentImpact(
-        `Remove ${member.user?.email || "this member"} from the project? This membership removal cannot be undone.`,
+        t("confirmRemoveMember", { member: member.user?.email || t("thisMember") }),
       )
     ) {
       return;
@@ -324,38 +321,38 @@ export const MembersSettings = () => {
   return (
     <div className={cn("members-settings").toClassName()} data-testid="project-members-settings">
       <Typography variant="headline" size="medium" className="mb-tighter">
-        Project Members
+        {t("projectMembers")}
       </Typography>
       <Typography variant="body" size="medium" className="text-neutral-content-subtler !mb-base">
-        Manage project-scoped access. Server-side authorization remains authoritative.
+        {t("membersDescription")}
       </Typography>
 
       {error && (
         <div className={cn("members-settings").elem("error").toClassName()} role="alert" data-testid="members-error">
-          {error}
+          {displayCollaborationError(error, t)}
         </div>
       )}
 
       <form className={cn("members-settings").elem("add").toClassName()} onSubmit={addMember}>
         <div>
-          <label htmlFor="project-member-user">Organization user</label>
+          <label htmlFor="project-member-user">{t("organizationUser")}</label>
           <select
             id="project-member-user"
             data-testid="member-user-select"
             value={selectedUserId}
             onChange={(event) => setSelectedUserId(event.target.value)}
           >
-            <option value="">Select user</option>
+            <option value="">{t("selectUser")}</option>
             {availableUsers.map((user) => (
               <option key={user.id} value={user.id}>
-                {user.email || user.username || `User ${user.id}`}
+                {user.email || user.username || t("userNumber", { id: user.id })}
               </option>
             ))}
           </select>
         </div>
 
         <div>
-          <label htmlFor="project-member-role">Role</label>
+          <label htmlFor="project-member-role">{t("role")}</label>
           <select
             id="project-member-role"
             data-testid="member-role-select"
@@ -363,15 +360,15 @@ export const MembersSettings = () => {
             onChange={(event) => setSelectedRole(event.target.value)}
           >
             {ROLES.map((role) => (
-              <option key={role.value} value={role.value}>
-                {role.label}
+              <option key={role} value={role}>
+                {displayRole(role, t)}
               </option>
             ))}
           </select>
         </div>
 
-        <Button type="submit" waiting={processing === "add"} disabled={!selectedUserId || processing !== null}>
-          Add member
+        <Button type="submit" data-testid="member-add" waiting={processing === "add"} disabled={!selectedUserId || processing !== null}>
+          {t("addMember")}
         </Button>
       </form>
 
@@ -387,9 +384,9 @@ export const MembersSettings = () => {
             await loadOrganizationUsers(nextPage);
           }}
         >
-          Previous users
+          {t("previousUsers")}
         </Button>
-        <span>Organization users page {organizationPage}</span>
+        <span>{t("organizationUsersPage", { page: organizationPage })}</span>
         <Button
           size="small"
           look="outlined"
@@ -401,7 +398,7 @@ export const MembersSettings = () => {
             await loadOrganizationUsers(nextPage);
           }}
         >
-          Next users
+          {t("nextUsers")}
         </Button>
       </div>
 
@@ -416,9 +413,9 @@ export const MembersSettings = () => {
             await loadMembers(nextPage);
           }}
         >
-          Previous members
+          {t("previousMembers")}
         </Button>
-        <span>Project members page {memberPage}</span>
+        <span>{t("projectMembersPage", { page: memberPage })}</span>
         <Button
           size="small"
           look="outlined"
@@ -429,7 +426,7 @@ export const MembersSettings = () => {
             await loadMembers(nextPage);
           }}
         >
-          Next members
+          {t("nextMembers")}
         </Button>
       </div>
 
@@ -437,10 +434,10 @@ export const MembersSettings = () => {
         <table>
           <thead>
             <tr>
-              <th>User</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th aria-label="Member actions">Actions</th>
+              <th>{t("user")}</th>
+              <th>{t("role")}</th>
+              <th>{t("status")}</th>
+              <th aria-label={t("memberActions")}>{t("actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -451,36 +448,38 @@ export const MembersSettings = () => {
               return (
                 <tr key={member.id} data-testid={`project-member-${member.id}`}>
                   <td>
-                    <strong>{member.user?.email || member.user?.username || `User ${member.user?.id}`}</strong>
-                    {isCreator && <span className={cn("members-settings").elem("creator").toClassName()}>Creator</span>}
+                    <strong>{member.user?.email || member.user?.username || t("userNumber", { id: member.user?.id ?? "?" })}</strong>
+                    {isCreator && <span className={cn("members-settings").elem("creator").toClassName()}>{t("creator")}</span>}
                   </td>
                   <td>
                     <select
-                      aria-label={`Role for ${member.user?.email || member.user?.id}`}
+                      aria-label={t("roleForMember", { member: member.user?.email || member.user?.id })}
                       data-testid={`member-role-${member.user?.id}`}
                       value={member.role}
                       disabled={isCreator || busy || processing !== null}
                       onChange={(event) => updateMember(member, { role: event.target.value }, "role")}
                     >
                       {ROLES.map((role) => (
-                        <option key={role.value} value={role.value}>
-                          {role.label}
+                        <option key={role} value={role}>
+                          {displayRole(role, t)}
                         </option>
                       ))}
                     </select>
                   </td>
-                  <td>{member.enabled ? "Enabled" : "Disabled"}</td>
+                  <td>{member.enabled ? t("enabled") : t("disabled")}</td>
                   <td className={cn("members-settings").elem("actions").toClassName()}>
                     <Button
+                      data-testid={`member-toggle-${member.id}`}
                       size="small"
                       look="outlined"
                       disabled={isCreator || busy || processing !== null}
                       waiting={processing === `enabled-${member.id}`}
                       onClick={() => updateMember(member, { enabled: !member.enabled }, "enabled")}
                     >
-                      {member.enabled ? "Disable" : "Enable"}
+                      {member.enabled ? t("disable") : t("enable")}
                     </Button>
                     <Button
+                      data-testid={`member-remove-${member.id}`}
                       size="small"
                       variant="negative"
                       look="outlined"
@@ -488,7 +487,7 @@ export const MembersSettings = () => {
                       waiting={processing === `remove-${member.id}`}
                       onClick={() => removeMember(member)}
                     >
-                      Remove
+                      {t("remove")}
                     </Button>
                   </td>
                 </tr>

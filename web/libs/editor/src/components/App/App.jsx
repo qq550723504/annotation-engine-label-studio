@@ -34,6 +34,8 @@ import { guidGenerator } from "../../utils/unique";
 import { isDefined, sortAnnotations } from "../../utils/utilities";
 import { queryClient } from "@humansignal/core/lib/utils/query-client";
 import { ToastProvider, ToastViewport } from "@humansignal/ui/lib/toast/toast";
+import { useLocaleTranslation } from "@humansignal/i18n";
+import defaultMessages from "../../utils/messages";
 
 /**
  * Components
@@ -41,7 +43,7 @@ import { ToastProvider, ToastViewport } from "@humansignal/ui/lib/toast/toast";
 import { Annotation } from "./Annotation";
 import { BottomBar } from "../BottomBar/BottomBar";
 import Debug from "../Debug";
-import { InstructionsModal } from "../InstructionsModal/InstructionsModal";
+import { InstructionsModal, InstructionsTitle } from "../InstructionsModal/InstructionsModal";
 import { RelationsOverlay } from "../InteractiveOverlays/RelationsOverlay";
 import Settings from "../Settings/Settings";
 import { SideTabsPanels } from "../SidePanels/TabPanels/SideTabsPanels";
@@ -68,6 +70,32 @@ const hasTagInSidebar = (annotation) => {
   return false;
 };
 
+const DefaultMessageTitle = ({ message, messageKey, translationKey }) => {
+  const { t } = useLocaleTranslation("editor");
+  // A host may provide its own message. Preserve it exactly.
+  return message === defaultMessages[messageKey] ? t(translationKey) : message;
+};
+
+const NoTasksContent = ({ store, message }) => {
+  const { t } = useLocaleTranslation("editor");
+  return (
+    <>
+      <Result status="success" title={<DefaultMessageTitle message={message} messageKey="NO_NEXT_TASK" translationKey="noMoreTasks" />} />
+      <div className={cn("sub__result").toClassName()}>{t("allQueueTasksCompleted")}</div>
+      {store.taskHistory.length > 0 && (
+        <Button
+          onClick={(e) => store.prevTask(e, true)}
+          variant="neutral"
+          className="mx-0 my-4"
+          aria-label={t("previousTask")}
+        >
+          {t("goToPreviousTask")}
+        </Button>
+      )}
+    </>
+  );
+};
+
 /**
  * App
  */
@@ -83,7 +111,7 @@ class App extends Component {
   renderSuccess() {
     return (
       <div className={cn("editor").toClassName()}>
-        <Result status="success" title={getEnv(this.props.store).messages.DONE} />
+        <Result status="success" title={<DefaultMessageTitle message={getEnv(this.props.store).messages.DONE} messageKey="DONE" translationKey="done" />} />
       </div>
     );
   }
@@ -91,7 +119,7 @@ class App extends Component {
   renderNoAnnotation() {
     return (
       <div className={cn("editor").toClassName()}>
-        <Result status="success" title={getEnv(this.props.store).messages.NO_COMP_LEFT} />
+        <Result status="success" title={<DefaultMessageTitle message={getEnv(this.props.store).messages.NO_COMP_LEFT} messageKey="NO_COMP_LEFT" translationKey="noMoreAnnotations" />} />
       </div>
     );
   }
@@ -108,18 +136,7 @@ class App extends Component {
           paddingBottom: "30vh",
         }}
       >
-        <Result status="success" title={getEnv(this.props.store).messages.NO_NEXT_TASK} />
-        <div className={cn("sub__result").toClassName()}>All tasks in the queue have been completed</div>
-        {store.taskHistory.length > 0 && (
-          <Button
-            onClick={(e) => store.prevTask(e, true)}
-            variant="neutral"
-            className="mx-0 my-4"
-            aria-label="Previous task"
-          >
-            Go to Previous Task
-          </Button>
-        )}
+        <NoTasksContent store={store} message={getEnv(this.props.store).messages.NO_NEXT_TASK} />
       </div>
     );
   }
@@ -127,7 +144,7 @@ class App extends Component {
   renderNoAccess() {
     return (
       <div className={cn("editor").toClassName()}>
-        <Result status="warning" title={getEnv(this.props.store).messages.NO_ACCESS} />
+        <Result status="warning" title={<DefaultMessageTitle message={getEnv(this.props.store).messages.NO_ACCESS} messageKey="NO_ACCESS" translationKey="noTaskAccess" />} />
       </div>
     );
   }
@@ -257,7 +274,7 @@ class App extends Component {
               <InstructionsModal
                 visible={store.showingDescription}
                 onCancel={() => store.toggleDescription()}
-                title={store.hasInterface("review") ? "Review Instructions" : "Labeling Instructions"}
+                title={<InstructionsTitle review={store.hasInterface("review")} />}
               >
                 {store.description}
               </InstructionsModal>

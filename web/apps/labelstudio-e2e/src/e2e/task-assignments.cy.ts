@@ -51,6 +51,9 @@ describe("task assignment management UI", () => {
     cy.loginAs(email, fixture.password, dataPage());
     cy.visit(`${dataPage()}?task=${fixture.tasks.c.id}`);
     cy.location("pathname", { timeout: 30000 }).should("eq", dataPage());
+    cy.window({ timeout: 30000 }).should((win) => {
+      expect(win.dataManager?.store?.taskStore?.selected?.id).to.eq(fixture.tasks.c.id);
+    });
   };
 
   const openAssignmentManager = () => {
@@ -89,7 +92,7 @@ describe("task assignment management UI", () => {
 
     cy.contains('[data-testid^="assignment-row-"]', fixture.users.annotator_a.email)
       .should("exist")
-      .and("contain.text", "assigned");
+      .and("contain.text", "Assigned");
 
     cy.request(
       `/api/task-assignments/?project=${fixture.project_id}&task=${fixture.tasks.c.id}&active=true`,

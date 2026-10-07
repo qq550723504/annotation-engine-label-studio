@@ -15,3 +15,10 @@
 
 // Import commands.js using ES2015 syntax:
 import './commands';
+import { redactFailure } from './failure-diagnostics.cjs';
+
+// https://docs.cypress.io/api/cypress-api/catalog-of-events#Cypress-Events
+// Rethrowing is required: a diagnostic redaction must never make a test pass.
+Cypress.on('fail', (error) => {
+  throw redactFailure(error);
+});

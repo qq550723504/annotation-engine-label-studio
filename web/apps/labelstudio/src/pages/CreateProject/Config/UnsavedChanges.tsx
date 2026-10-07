@@ -3,12 +3,14 @@ import { Button } from "@humansignal/ui";
 import { LeaveBlocker, type LeaveBlockerCallbacks } from "../../../components/LeaveBlocker/LeaveBlocker";
 import { modal } from "../../../components/Modal/Modal";
 import { Space } from "../../../components/Space/Space";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 type SaveAndLeaveButtonProps = {
   onSave: () => Promise<void>;
-  text?: string;
+  text: string;
+  ariaLabel: string;
 };
-const SaveAndLeaveButton = ({ onSave, text = "Save and Leave" }: SaveAndLeaveButtonProps) => {
+const SaveAndLeaveButton = ({ onSave, text, ariaLabel }: SaveAndLeaveButtonProps) => {
   const [saving, setSaving] = useState(false);
   const saveHandler = useCallback(async () => {
     setSaving(true);
@@ -16,7 +18,7 @@ const SaveAndLeaveButton = ({ onSave, text = "Save and Leave" }: SaveAndLeaveBut
     setSaving(false);
   }, [onSave]);
   return (
-    <Button size="small" onClick={saveHandler} waiting={saving} aria-label="Save changes">
+    <Button size="small" onClick={saveHandler} waiting={saving} aria-label={ariaLabel}>
       {text}
     </Button>
   );
@@ -26,11 +28,12 @@ type UnsavedChangesModalProps = {
   onSave: () => void;
   onCancel?: () => void;
   onDiscard?: () => void;
-  cancelText?: string;
-  discardText?: string;
-  okText?: string;
-  title?: string;
-  body?: string;
+  cancelText: string;
+  discardText: string;
+  okText: string;
+  saveChangesLabel: string;
+  title: string;
+  body: string;
 };
 
 export const unsavedChangesModal = ({
@@ -40,8 +43,9 @@ export const unsavedChangesModal = ({
   cancelText,
   discardText,
   okText,
-  title = "You have unsaved changes.",
-  body = "Would you like to save them before leaving?",
+  saveChangesLabel,
+  title,
+  body,
   ...props
 }: UnsavedChangesModalProps) => {
   let modalInstance: any;
@@ -65,7 +69,7 @@ export const unsavedChangesModal = ({
           }}
           autoFocus
         >
-          {cancelText ?? "Cancel"}
+          {cancelText}
         </Button>
 
         {onDiscard && (
@@ -78,11 +82,11 @@ export const unsavedChangesModal = ({
             }}
             size="small"
           >
-            {discardText ?? "Discard and leave"}
+            {discardText}
           </Button>
         )}
 
-        <SaveAndLeaveButton onSave={saveAndLeave} text={okText} />
+        <SaveAndLeaveButton onSave={saveAndLeave} text={okText} ariaLabel={saveChangesLabel} />
       </Space>
     ),
     style: { width: 512 },
@@ -101,6 +105,7 @@ type UnsavedChangesProps = {
  * @param onSave - function that should be called to save changes
  */
 export const UnsavedChanges = ({ hasChanges, onSave }: UnsavedChangesProps) => {
+  const { locale, t } = useLocaleTranslation("projects");
   const saveHandlerRef = useRef(onSave);
   saveHandlerRef.current = onSave;
   const blockHandler = useCallback(async ({ continueCallback, cancelCallback }: LeaveBlockerCallbacks) => {
@@ -119,8 +124,14 @@ export const UnsavedChanges = ({ hasChanges, onSave }: UnsavedChangesProps) => {
       onSave: wrappedOnSave,
       onCancel: cancelCallback,
       onDiscard: continueCallback,
+      title: t("unsavedChangesTitle"),
+      body: t("unsavedChangesBody"),
+      cancelText: t("cancel"),
+      discardText: t("discardAndLeave"),
+      okText: t("saveAndLeave"),
+      saveChangesLabel: t("saveChanges"),
     });
-  }, []);
+  }, [locale]);
 
   return <LeaveBlocker active={hasChanges} onBlock={blockHandler} />;
 };

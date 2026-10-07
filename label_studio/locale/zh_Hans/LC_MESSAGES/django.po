@@ -1,0 +1,125 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: zh_Hans\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Unknown error"
+msgstr "未知错误"
+
+msgid "Validation error"
+msgstr "验证错误"
+
+msgid "Provide only the preference field."
+msgstr "只能提交语言偏好字段。"
+
+msgid "Choose English, Simplified Chinese, or Automatic."
+msgstr "请选择英语、简体中文或自动。"
+
+msgid "Only anonymous visitors can select a display cookie."
+msgstr "只有未登录访客可以设置显示语言 Cookie。"
+
+msgid "Invalid locale request."
+msgstr "语言请求无效。"
+
+msgid "The email and password you entered don't match."
+msgstr "邮箱和密码不匹配。"
+
+msgid "Email is too long"
+msgstr "邮箱地址过长。"
+
+msgid "Invalid email"
+msgstr "邮箱地址无效。"
+
+msgid "User with username already exists"
+msgstr "该用户名已存在。"
+
+msgid "User with this email already exists"
+msgstr "该邮箱已注册。"
+
+msgid "User"
+msgstr "用户"
+
+msgid "Email"
+msgstr "邮箱"
+
+msgid "Work Email"
+msgstr "工作邮箱"
+
+msgid "Display language"
+msgstr "界面语言"
+
+msgid "Automatic"
+msgstr "自动"
+
+msgid "Could not save your language. Please try again."
+msgstr "无法保存语言设置，请重试。"
+
+msgid "Please review the form and try again."
+msgstr "请检查表单后重试。"
+
+msgid "Welcome to Label Studio Community Edition %(version)s"
+msgstr "欢迎使用 Label Studio 社区版 %(version)s"
+
+msgid "A full-fledged open source solution for data labeling"
+msgstr "功能完整的开源数据标注解决方案"
+
+msgid "Sign up"
+msgstr "注册"
+
+msgid "Log in"
+msgstr "登录"
+
+msgid "Email Address"
+msgstr "邮箱地址"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Keep me logged in this browser"
+msgstr "在此浏览器保持登录"
+
+msgid "Don't have an account?"
+msgstr "还没有账号？"
+
+msgid "How did you hear about Label Studio?"
+msgstr "您从哪里了解到 Label Studio？"
+
+msgid "Select an option"
+msgstr "请选择"
+
+msgid "Please elaborate"
+msgstr "请补充说明"
+
+msgid "Get the latest news from Heidi"
+msgstr "接收 Heidi 的最新资讯"
+
+msgid "Create Account"
+msgstr "创建账号"
+
+msgid "Already have an account?"
+msgstr "已有账号？"
+
+msgid "Github"
+msgstr "GitHub"
+
+msgid "Email or newsletter"
+msgstr "邮件或简报"
+
+msgid "Search engine"
+msgstr "搜索引擎"
+
+msgid "Friend or coworker"
+msgstr "朋友或同事"
+
+msgid "Ad"
+msgstr "广告"
+
+msgid "Other"
+msgstr "其他"
+
+msgid "Log in | Label Studio"
+msgstr "登录 | Label Studio"
+
+msgid "Sign up | Label Studio"
+msgstr "注册 | Label Studio"

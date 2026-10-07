@@ -17,50 +17,54 @@ export type SectionType = {
   description?: React.FC;
 };
 
-export const accountSettingsSections = (settings: AuthTokenSettings, permissions: AuthPermissions): SectionType[] => {
+export const accountSettingsSections = (
+  settings: AuthTokenSettings,
+  permissions: AuthPermissions,
+  t: (key: string) => string,
+): SectionType[] => {
   const canCreateTokens = permissions.can(ABILITY.can_create_tokens);
 
   return [
     {
-      title: "Personal Info",
+      title: t("personalInfo"),
       id: "personal-info",
       component: PersonalInfo,
     },
     {
       title: (
         <div className="flex items-center gap-tight">
-          <span>Hotkeys</span>
+          <span>{t("accountHotkeys")}</span>
           <Badge variant="beta" style="solid" shape="rounded">
-            Beta
+            {t("beta")}
           </Badge>
         </div>
       ),
       id: "hotkeys",
       component: HotkeysManager,
       description: () =>
-        "Customize your keyboard shortcuts to speed up your workflow. Click on any hotkey below to assign a new key combination that works best for you.",
+        t("hotkeysDescription"),
     },
     {
-      title: "Email Preferences",
+      title: t("emailPreferences"),
       id: "email-preferences",
       component: EmailPreferences,
     },
     {
-      title: "Membership Info",
+      title: t("membershipInfo"),
       id: "membership-info",
       component: MembershipInfo,
     },
     settings.api_tokens_enabled &&
       canCreateTokens &&
       ff.isActive(ff.FF_AUTH_TOKENS) && {
-        title: "Personal Access Token",
+        title: t("personalAccessToken"),
         id: "personal-access-token",
         component: PersonalJWTToken,
         description: PersonalAccessTokenDescription,
       },
     settings.legacy_api_tokens_enabled &&
       canCreateTokens && {
-        title: ff.isActive(ff.FF_AUTH_TOKENS) ? "Legacy Token" : "Access Token",
+        title: ff.isActive(ff.FF_AUTH_TOKENS) ? t("legacyToken") : t("accessToken"),
         id: "legacy-token",
         component: PersonalAccessToken,
         description: PersonalAccessTokenDescription,

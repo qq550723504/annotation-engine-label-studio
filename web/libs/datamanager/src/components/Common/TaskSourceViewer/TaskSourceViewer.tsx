@@ -4,6 +4,7 @@ import { FF_LOPS_E_3, FF_INTERACTIVE_JSON_VIEWER, isFF } from "../../../utils/fe
 import { CodeView } from "./CodeView";
 import styles from "./TaskSourceViewer.module.scss";
 import { ViewToggle, type ViewMode } from "./ViewToggle";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 export type { ViewMode };
 
@@ -35,11 +36,11 @@ export interface TaskSourceViewerProps {
   renderToggle?: (toggle: React.ReactNode) => void;
 }
 
-// Define filters outside component to prevent recreation on every render
-const TASK_SOURCE_FILTERS: FilterConfig[] = [
+// Keep filter IDs and predicates stable; resolve display labels in the active locale.
+const TASK_SOURCE_FILTERS: (Omit<FilterConfig, "label"> & { labelKey: string })[] = [
   {
     id: "annotations",
-    label: "Annotations",
+    labelKey: "taskSourceAnnotations",
     filterFn: (nodeData) => {
       const path = nodeData.path;
       return path && path.includes("annotations");
@@ -47,7 +48,7 @@ const TASK_SOURCE_FILTERS: FilterConfig[] = [
   },
   {
     id: "predictions",
-    label: "Predictions",
+    labelKey: "taskSourcePredictions",
     filterFn: (nodeData) => {
       const path = nodeData.path;
       return path && path.includes("predictions");
@@ -55,7 +56,7 @@ const TASK_SOURCE_FILTERS: FilterConfig[] = [
   },
   {
     id: "data",
-    label: "Data",
+    labelKey: "taskSourceData",
     filterFn: (nodeData) => {
       const path = nodeData.path;
       return path && path.includes("data");
@@ -76,6 +77,11 @@ export const TaskSourceViewer: FC<TaskSourceViewerProps> = ({
   storageKey,
   renderToggle,
 }) => {
+  const { t } = useLocaleTranslation("datamanager");
+  const taskSourceFilters: FilterConfig[] = TASK_SOURCE_FILTERS.map(({ labelKey, ...filter }) => ({
+    ...filter,
+    label: t(labelKey),
+  }));
   const isInteractiveViewerEnabled = isFF(FF_INTERACTIVE_JSON_VIEWER);
 
   const [taskData, setTaskData] = useState(content);
@@ -162,7 +168,16 @@ export const TaskSourceViewer: FC<TaskSourceViewerProps> = ({
             inset={true}
             viewOnly={true}
             showSearch={true}
-            customFilters={TASK_SOURCE_FILTERS}
+            customFilters={taskSourceFilters}
+            labels={{
+              all: t("taskSourceAll"),
+              searchPlaceholder: t("taskSourceSearchPlaceholder"),
+              searchJson: t("taskSourceSearchJson"),
+              clearSearch: t("taskSourceClearSearch"),
+              resetFilters: t("taskSourceResetFilters"),
+              copyJson: t("taskSourceCopyJson"),
+              copied: t("copied"),
+            }}
             minHeight={560}
             maxHeight={560}
             collapse={collapseDepth}
@@ -170,7 +185,7 @@ export const TaskSourceViewer: FC<TaskSourceViewerProps> = ({
             storageKey={storageKey}
             toolbarExtra={
               <div style={{ marginLeft: "auto" }}>
-                <Toggle label="Resolve URIs" checked={resolveUrls} onChange={handleResolveUrlsChange} />
+                <Toggle label={t("resolveUris")} checked={resolveUrls} onChange={handleResolveUrlsChange} />
               </div>
             }
           />

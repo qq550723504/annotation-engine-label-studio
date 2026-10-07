@@ -1,5 +1,6 @@
 import { observer } from "mobx-react";
-import { type FC, useCallback, useEffect, useMemo, useState } from "react";
+import { type FC, useCallback, useMemo } from "react";
+import { useLocaleTranslation } from "@humansignal/i18n";
 import { cn } from "../../../utils/bem";
 import { PanelBase, type PanelProps } from "../PanelBase";
 import { OutlinerTree } from "./OutlinerTree";
@@ -27,7 +28,7 @@ const OutlinerFFClasses: string[] = [];
 OutlinerFFClasses.push("ff_hide_all_regions");
 
 const OutlinerPanelComponent: FC<OutlinerPanelProps> = ({ regions, ...props }) => {
-  const [group, setGroup] = useState<GroupingOptions>(regions.group);
+  const { t } = useLocaleTranslation("editor");
   const onOrderingChange = useCallback(
     (value: OrderingOptions) => {
       regions.setSort(value);
@@ -38,19 +39,12 @@ const OutlinerPanelComponent: FC<OutlinerPanelProps> = ({ regions, ...props }) =
   const onGroupingChange = useCallback(
     (value: GroupingOptions) => {
       regions.setGrouping(value);
-      setGroup(value);
     },
     [regions],
   );
 
-  useEffect(() => {
-    setGroup(regions.group);
-  }, []);
-
-  regions.setGrouping(group);
-
   return (
-    <PanelBase {...props} name="outliner" mix={OutlinerFFClasses} title="Outliner">
+    <PanelBase {...props} name="outliner" mix={OutlinerFFClasses} title={t("outliner")}>
       <ViewControls
         ordering={regions.sort}
         regions={regions}
@@ -96,24 +90,28 @@ const OutlinerStandAlone: FC<OutlinerPanelProps> = ({ regions }) => {
   );
 };
 
-const OutlinerEmptyState = () => (
+const OutlinerEmptyState = () => {
+  const { t } = useLocaleTranslation("editor");
+  return (
   <EmptyState
     icon={<IconLsLabeling width={24} height={24} />}
-    header="Labeled regions will appear here"
+    header={t("regionsEmpty")}
     description={
       <>
         <span>
-          Start labeling and track your results
+          {t("regionsEmptyDescriptionFirst")}
           <br />
-          using this panel
+          {t("regionsEmptyDescriptionSecond")}
         </span>
       </>
     }
-    learnMore={{ href: getDocsUrl("guide/labeling"), text: "Learn more", testId: "regions-panel-learn-more" }}
+    learnMore={{ href: getDocsUrl("guide/labeling"), text: t("learnMore"), testId: "regions-panel-learn-more" }}
   />
-);
+  );
+};
 
 const OutlinerTreeComponent: FC<OutlinerTreeComponentProps> = observer(({ regions }) => {
+  const { t } = useLocaleTranslation("editor");
   const allRegionsHidden = regions?.regions?.length > 0 && regions?.filter?.length === 0;
 
   const hiddenRegions = useMemo(() => {
@@ -127,9 +125,9 @@ const OutlinerTreeComponent: FC<OutlinerTreeComponentProps> = observer(({ region
       {allRegionsHidden ? (
         <div className={cn("filters-info").toClassName()}>
           <IconInfo width={21} height={20} />
-          <div className={cn("filters-info").elem("filters-title").toClassName()}>All regions hidden</div>
+          <div className={cn("filters-info").elem("filters-title").toClassName()}>{t("allRegionsHidden")}</div>
           <div className={cn("filters-info").elem("filters-description").toClassName()}>
-            Adjust or remove the filters to view
+            {t("adjustFiltersToView")}
           </div>
         </div>
       ) : regions?.regions?.length > 0 ? (
@@ -141,10 +139,10 @@ const OutlinerTreeComponent: FC<OutlinerTreeComponentProps> = observer(({ region
                 <div className={cn("filters-info").toClassName()}>
                   <IconInfo width={21} height={20} />
                   <div className={cn("filters-info").elem("filters-title").toClassName()}>
-                    There {hiddenRegions === 1 ? "is" : "are"} {hiddenRegions} hidden region{hiddenRegions > 1 && "s"}
+                    {t("hiddenRegions", { count: hiddenRegions })}
                   </div>
                   <div className={cn("filters-info").elem("filters-description").toClassName()}>
-                    Adjust or remove filters to view
+                    {t("adjustFiltersToViewShort")}
                   </div>
                 </div>
               )

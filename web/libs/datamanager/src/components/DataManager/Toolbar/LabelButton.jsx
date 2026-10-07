@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IconChevronDown } from "@humansignal/icons";
 import { Dropdown } from "@humansignal/ui";
 import { Menu } from "../../Common/Menu/Menu";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 const injector = inject(({ store }) => {
   const { dataStore, currentView } = store;
@@ -21,6 +22,7 @@ const injector = inject(({ store }) => {
 });
 
 export const LabelButton = injector(({ store, canLabel, size, target, selectedCount }) => {
+  const { t } = useLocaleTranslation("datamanager");
   const disabled = target === "annotations";
   const triggerRef = useRef();
   const [isOpen, setIsOpen] = useState(false);
@@ -91,21 +93,21 @@ export const LabelButton = injector(({ store, canLabel, size, target, selectedCo
             variant="primary"
             look="outlined"
             disabled={disabled}
+            data-testid="dm-label-all-toolbar"
             style={primaryStyle}
             onClick={onLabelAll}
           >
-            Label {selectedCount ? selectedCount : "All"} Task
-            {!selectedCount || selectedCount > 1 ? "s" : ""}
+            {selectedCount ? t("labelSelectedTasks", { count: selectedCount }) : t("labelAllTasks")}
           </Button>
           <Dropdown.Trigger
             alignment="bottom-right"
             content={
               <Menu size="compact">
-                <Menu.Item onClick={onLabelVisible}>Label Tasks As Displayed</Menu.Item>
+                <Menu.Item onClick={onLabelVisible}>{t("labelTasksAsDisplayed")}</Menu.Item>
               </Menu>
             }
           >
-            <Button size={size} look="outlined" variant="primary" aria-label={"Toggle open"}>
+            <Button size={size} look="outlined" variant="primary" aria-label={t("toggleOpen")}>
               <IconChevronDown />
             </Button>
           </Dropdown.Trigger>

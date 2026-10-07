@@ -16,22 +16,34 @@ describe("Video Frame Seeking", () => {
 
     LabelStudio.waitForObjectsReady();
 
-    VideoView.captureVideoCanvas("video_canvas");
+    let previousFrame: { pixels: string; width: number; height: number };
+    const videoCanvas = () => VideoView.videoCanvas.find<HTMLCanvasElement>("canvas").should("have.length", 1);
 
-    VideoView.clickAtFrame(2);
+    VideoView.waitForFrame(1);
+    VideoView.timeframesArea.scrollIntoView();
+    VideoView.waitForStableState();
+    videoCanvas().then(($canvas) => {
+      const canvas = $canvas[0];
+      expect(canvas.width, "rendered canvas width").to.be.greaterThan(0);
+      expect(canvas.height, "rendered canvas height").to.be.greaterThan(0);
+      previousFrame = { pixels: canvas.toDataURL(), width: canvas.width, height: canvas.height };
+    });
 
-    VideoView.videoCanvasShouldChange("video_canvas", 0);
+    for (const frame of [2, 3, 4]) {
+      VideoView.clickAtFrame(frame);
+      VideoView.frameCounter.invoke("text").should("match", new RegExp(`^${frame} of \\d+$`));
 
-    VideoView.captureVideoCanvas("video_canvas");
-
-    VideoView.clickAtFrame(3);
-
-    VideoView.videoCanvasShouldChange("video_canvas", 0);
-
-    VideoView.captureVideoCanvas("video_canvas");
-
-    VideoView.clickAtFrame(4);
-
-    VideoView.videoCanvasShouldChange("video_canvas", 0);
+      // Compare the rendered pixels directly: DOM screenshots can be clipped by fixed controls.
+      videoCanvas()
+        .should(($canvas) => {
+          const canvas = $canvas[0];
+          expect(canvas.width, "canvas width stays constant").to.eq(previousFrame.width);
+          expect(canvas.height, "canvas height stays constant").to.eq(previousFrame.height);
+          expect(canvas.toDataURL() !== previousFrame.pixels, `frame ${frame} pixels changed`).to.eq(true);
+        })
+        .then(($canvas) => {
+          previousFrame.pixels = $canvas[0].toDataURL();
+        });
+    }
   });
 });

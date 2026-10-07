@@ -23,7 +23,7 @@ export const ToolBar = {
   },
 
   get submitBtn() {
-    return this.sectionTwo.find('[aria-label="Submit current annotation"]');
+    return this.sectionTwo.find('[data-testid="bottombar-submit-button"]');
   },
 
   get updateBtn() {

@@ -29,7 +29,7 @@ export const LabelingSettings = () => {
           }
 
           //error handling
-          return res.response;
+          return res;
         }
       : async () => {
           const res = await api.callApi("updateProjectRaw", {
@@ -45,10 +45,15 @@ export const LabelingSettings = () => {
             return true;
           }
 
-          const error = await res.json();
+          let response;
+          try {
+            response = await res.json();
+          } catch {
+            // A non-JSON rejection uses the controlled local fallback.
+          }
 
           fetchProject();
-          return error;
+          return { response, $meta: { status: res.status, headers: res.headers } };
         },
     [project, config],
   );

@@ -19,6 +19,7 @@ import { FieldsButton } from "../FieldsButton";
 import { FF_LOPS_E_3, isFF } from "../../../utils/feature-flags";
 import { DensityToggle } from "../../DataManager/Toolbar/DensityToggle";
 import { TaskSourceViewer, getTaskSourceViewerStorageKey } from "../TaskSourceViewer";
+import { useLocaleTranslation } from "@humansignal/i18n";
 
 const Decorator = (decoration) => {
   return {
@@ -57,6 +58,7 @@ export const Table = observer(
     RowContextMenuComponent,
     ...props
   }) => {
+    const { t } = useLocaleTranslation("datamanager");
     const colOrderKey = "dm:columnorder";
     const tableHead = useRef();
     const [colOrder, setColOrder] = useState(JSON.parse(localStorage.getItem(colOrderKey)) ?? {});
@@ -88,10 +90,10 @@ export const Table = observer(
           indeterminate={selectedItems.isIndeterminate}
           onChange={() => props.onSelectAll()}
           className="select-all"
-          ariaLabel={`${selectedItems.isAllSelected ? "Unselect" : "Select"} all rows`}
+          ariaLabel={t(selectedItems.isAllSelected ? "unselectAllRows" : "selectAllRows")}
         />
       );
-    }, [props.onSelectAll, selectedItems]);
+    }, [props.onSelectAll, selectedItems, t]);
 
     const rowCheckBoxCell = useCallback(
       ({ data: rowData }) => {
@@ -122,11 +124,11 @@ export const Table = observer(
               // Always remember last clicked for shift-click range
               lastClickedId.current = rowData.id;
             }}
-            ariaLabel={`${isChecked ? "Unselect" : "Select"} Task ${rowData.id}`}
+            ariaLabel={t(isChecked ? "unselectTaskRow" : "selectTaskRow", { taskId: rowData.id })}
           />
         );
       },
-      [props.onSelectRow, selectedItems, data, onRangeSelect],
+      [props.onSelectRow, selectedItems, data, onRangeSelect, t],
     );
 
     const columns = prepareColumns(props.columns, props.hiddenColumns);
@@ -186,7 +188,7 @@ export const Table = observer(
             className="w-6 h-6 p-0 text-primary-content hover:text-primary-content-hover"
             onClick={() => {
               const modalInstance = modal({
-                title: `Source for task ${out?.id}`,
+                title: t("sourceForTask", { taskId: out?.id }),
                 style: { width: 900 },
                 header: null, // Will be set by renderToggle
                 body: (
@@ -204,7 +206,7 @@ export const Table = observer(
               });
             }}
             leading={<Icon icon={IconBraces} />}
-            tooltip="View Task Source"
+            tooltip={t("viewTaskSource")}
           />
         );
       },
@@ -287,16 +289,16 @@ export const Table = observer(
           <FieldsButton
             className={cn("table-toolbar").elem("customize-button").toClassName()}
             wrapper={FieldsButton.Checkbox}
-            title={"Columns"}
+            title={t("columns")}
             size="small"
             trailingIcon={<Icon icon={IconChevronDown} />}
-            tooltip={"Customize Columns"}
+            tooltip={t("customizeColumns")}
             data-testid="columns-picker-quickview"
           />
           <DensityToggle size="small" onChange={onDensityChange} data-testid="density-toggle-quickview" />
         </div>
       );
-    }, [toolbarVisible, onDensityChange]);
+    }, [toolbarVisible, onDensityChange, t]);
 
     const renderTableHeader = useCallback(
       ({ style }) => (

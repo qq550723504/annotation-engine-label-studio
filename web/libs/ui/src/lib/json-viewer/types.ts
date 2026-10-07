@@ -4,6 +4,16 @@ export interface FilterConfig {
   filterFn: (nodeData: any) => boolean;
 }
 
+export interface JsonViewerLabels {
+  all: string;
+  searchPlaceholder: string;
+  searchJson: string;
+  clearSearch: string;
+  resetFilters: string;
+  copyJson: string;
+  copied: string;
+}
+
 export interface JsonViewerProps {
   // Core data
   /** JSON data to display */
@@ -24,6 +34,8 @@ export interface JsonViewerProps {
   // Features
   /** Optional custom filter buttons */
   customFilters?: FilterConfig[];
+  /** Display copy supplied by the owning application; defaults to English. */
+  labels?: Partial<JsonViewerLabels>;
   /** Threshold (in characters) for showing Reader View button on strings. Set to 0 to disable. Default: 100 */
   readerViewThreshold?: number;
   /** Storage key for localStorage persistence of filters and search state */

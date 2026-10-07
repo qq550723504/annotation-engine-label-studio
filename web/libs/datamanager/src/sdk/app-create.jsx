@@ -4,6 +4,13 @@ import { AppStore } from "../stores/AppStore";
 import * as DataStores from "../stores/DataStores";
 import { DynamicModel, registerModel } from "../stores/DynamicModel";
 import { types } from "mobx-state-tree";
+import { ConfigProvider as AntdConfigProvider } from "antd";
+import { getAntdLocale, useLocaleTranslation } from "@humansignal/i18n";
+
+const DMLocaleAdapter = ({ children }) => {
+  const { locale } = useLocaleTranslation("common");
+  return <AntdConfigProvider locale={getAntdLocale(locale)}>{children}</AntdConfigProvider>;
+};
 
 const createDynamicModels = (columns) => {
   const grouppedColumns = columns.reduce((res, column) => {
@@ -30,14 +37,22 @@ const createDynamicModels = (columns) => {
  * Create DM React app
  * @param {HTMLElement} rootNode
  * @param {import("./dm-sdk").DataManager} datamanager
- * @returns {Promise<AppStore>}
+ * @returns {Promise<AppStore|null>}
  */
-export const createApp = async (rootNode, datamanager) => {
+export const createApp = async (rootNode, datamanager, isCurrent = () => true) => {
   const isLabelStream = datamanager.mode === "labelstream";
 
   const response = await datamanager.api.columns();
+  // The API request can outlive a destroyed or reloaded Data Manager instance.
+  if (!isCurrent()) return null;
 
-  if (!response || response.error) {
+  if (response?.error) {
+    datamanager.invoke("error", response);
+    datamanager.invoke("crash", { ...response, phase: "initialization" });
+    return null;
+  }
+
+  if (!response) {
     const message = `
       ${response?.error ?? ""}
       LS API not available; check \`API_GATEWAY\` and \`LS_ACCESS_TOKEN\` env vars;
@@ -47,7 +62,8 @@ export const createApp = async (rootNode, datamanager) => {
     throw new Error(message);
   }
 
-  const columns = response.columns ?? (Array.isArray(response) ? response : []);
+  const columns = response.columns ?? response;
+  if (!Array.isArray(columns)) throw new TypeError("Invalid Data Manager columns response");
 
   createDynamicModels(columns);
 
@@ -91,7 +107,8 @@ export const createApp = async (rootNode, datamanager) => {
 
   window.DM = appStore;
 
-  ReactDOM.render(<App app={appStore} />, rootNode);
+  const LocaleProvider = datamanager.localeRuntime.provider;
+  ReactDOM.render(<LocaleProvider><DMLocaleAdapter><App app={appStore} /></DMLocaleAdapter></LocaleProvider>, rootNode);
 
   return appStore;
 };
