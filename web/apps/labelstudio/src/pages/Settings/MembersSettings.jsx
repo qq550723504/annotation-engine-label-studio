@@ -51,6 +51,7 @@ export const MembersSettings = () => {
   const refreshGenerationRef = useRef(0);
   const memberRequestGenerationRef = useRef(0);
   const organizationRequestGenerationRef = useRef(0);
+  const memberDraftRevisionRef = useRef(0);
   activeProjectIdRef.current = project?.id;
 
   const loadMembers = useCallback(
@@ -257,10 +258,12 @@ export const MembersSettings = () => {
     // A late reset must never erase the next user selection made while refreshing.
     const submittedUserId = selectedUserId;
     const submittedRole = selectedRole;
+    const submittedRevision = memberDraftRevisionRef.current;
+    const submittedProjectId = project.id;
     setSelectedUserId("");
     setSelectedRole("annotator");
 
-    await runMutation("add", "createProjectMember", {
+    const success = await runMutation("add", "createProjectMember", {
       params: { pk: project.id },
       body: {
         user_id: Number(submittedUserId),
@@ -268,6 +271,15 @@ export const MembersSettings = () => {
         enabled: true,
       },
     });
+    if (
+      !success &&
+      activeProjectIdRef.current === submittedProjectId &&
+      memberDraftRevisionRef.current === submittedRevision
+    ) {
+      // Restore only the submitted draft; a newer user selection owns the form.
+      setSelectedUserId(submittedUserId);
+      setSelectedRole(submittedRole);
+    }
   };
 
   const confirmAssignmentImpact = (message) =>
@@ -342,7 +354,10 @@ export const MembersSettings = () => {
             id="project-member-user"
             data-testid="member-user-select"
             value={selectedUserId}
-            onChange={(event) => setSelectedUserId(event.target.value)}
+            onChange={(event) => {
+              memberDraftRevisionRef.current += 1;
+              setSelectedUserId(event.target.value);
+            }}
           >
             <option value="">{t("selectUser")}</option>
             {availableUsers.map((user) => (
@@ -359,7 +374,10 @@ export const MembersSettings = () => {
             id="project-member-role"
             data-testid="member-role-select"
             value={selectedRole}
-            onChange={(event) => setSelectedRole(event.target.value)}
+            onChange={(event) => {
+              memberDraftRevisionRef.current += 1;
+              setSelectedRole(event.target.value);
+            }}
           >
             {ROLES.map((role) => (
               <option key={role} value={role}>
