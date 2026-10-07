@@ -273,12 +273,15 @@ as the source of truth across upstream rebases.
 
 #47 owns correct revocation state transitions independently of the audit layer.
 #48 adds durable audit intent through a database-backed event/outbox record in the
-same transaction as the transition. Its delivery contract requires at-least-once
-dispatch with crash-durable receiver deduplication, dedup/tombstone retention for
-the full supported replay horizon, retry/dead-letter redrive, and preservation or
-reconciliation of both pending intents and receiver accepted-ID state across
-rollback/restore. Do not regress this to best-effort post-commit-only logging or
-volatile/short-lived deduplication.
+same transaction as the transition. The selected local database ledger accepts
+events atomically, retains stable event/target-version identity without an audit
+TTL, and preserves or reconciles the complete accepted ledger across rollback/
+restore. Optional logs are projections. If external delivery is configured, it
+additionally requires at-least-once dispatch with crash-durable receiver dedup,
+retention for the full replay horizon, retry/dead-letter redrive, and preservation
+or reconciliation of pending intents and receiver accepted-ID state across restore.
+Do not regress either topology to best-effort post-commit-only logging or volatile/
+short-lived acceptance state.
 
 See [session revocation](session-revocation.md) for configuration, cutover,
 rollback boundaries, and deployment acceptance.

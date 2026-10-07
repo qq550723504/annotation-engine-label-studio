@@ -216,8 +216,17 @@ intent and an uncommitted transition must have none.
 Use a durable audit row or transactional outbox in the same database transaction
 as the audited revocation transition.
 
-Delivery to logs/SIEM is at-least-once transport with exactly one **logical**
-event, which requires more than a stable event ID:
+The selected #48 receiver is a local database audit ledger. Its committed row is
+both the audit record and durable acceptance state: it commits atomically with the
+security transition, has a stable event UUID and unique target/version identity,
+and remains inspectable with read-only audit access. There is no audit TTL; retain
+and reconcile the complete accepted-event ledger across rollback/restore. Optional
+post-commit log output is a projection and is not the acceptance boundary.
+
+This local topology has no asynchronous acceptance/acknowledgement gap and needs
+no remote dispatcher or retry queue. If an external logs/SIEM receiver is
+configured, its additional delivery is at-least-once transport with exactly one
+**logical** event, which requires more than a stable event ID:
 
 - receiver acceptance/deduplication state is crash-durable;
 - receiver accepted-ID/tombstone retention covers the maximum supported replay
@@ -253,9 +262,10 @@ Tests should be organized around the invariants above:
 5. batch operations cover every actual target and no non-target;
 6. authorization is derived from fresh server state;
 7. migration/recovery never create a replay window;
-8. committed transitions remain auditable across dispatcher, receiver, sink,
-   retry-exhaustion, and rollback/restore failures without duplicate logical
-   delivery or lost pending intent.
+8. committed transitions remain auditable across receiver and rollback/restore
+   failures without duplicate logical events or lost audit records; configured
+   external delivery additionally survives dispatcher, sink, and retry-exhaustion
+   failures without duplicate delivery or lost pending intent.
 
 Endpoint-specific and ORM-path-specific tests are evidence for these invariants,
 not independent security models.
