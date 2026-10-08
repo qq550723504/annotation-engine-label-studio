@@ -284,6 +284,31 @@ When the original scope exhausts its parameter budget, do not force a one-ID
 predicate: retain the executable scope, lock in global order and intersect the
 supplied object set before writes. Document the broader lock scope of this fallback.
 
+Disable entry points must receive the trusted authenticated `session_actor`, reload
+its active staff/`users.change_user` authority, lock authoritative targets and
+apply side effects only to real active-to-inactive transitions. Preserve the
+independent monotonic recovery boundary and require matching state on authentication.
+Online recovery is administrator-only; loss of that boundary requires the documented
+maintenance reauthentication barrier, never a guessed default version.
+
+Revoke-all and real account-disable operations commit a durable
+`SessionRevocationEvent` in the same transaction. The local DB audit ledger is the
+supported receiver, with stable UUID and unique target/version identity, no TTL and
+read-only administrative access. Log callbacks are optional projections. External
+SIEM delivery is a separately configured topology and must prove receipt/dedup,
+retry/redrive and restore semantics before use. Rollback/restore must preserve the
+ledger and reject restored browser credentials before traffic resumes.
+
+Account mutation batches must preserve Django write routing and backend parameter
+budgets, including target discovery and later ID predicates. Keep global PK lock
+order and capture the entire target scope before any profile/state write. All
+chunks share one transaction and fresh authority checked after locking; retain
+budget, captured-scope, whole-batch rollback, self-disable and overlapping-batch
+concurrency regressions across upstream QuerySet changes.
+When the original scope exhausts its parameter budget, do not force a one-ID
+predicate: retain the executable scope, lock in global order and intersect the
+supplied object set before writes. Document the broader lock scope of this fallback.
+
 Retain Django password-change and secret-key fallback behavior, existing session
 expiry policy, and project/member/assignment authorization as distinct controls.
 The user admin revocation action derives its actor from the authenticated server

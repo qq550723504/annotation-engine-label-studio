@@ -1,6 +1,9 @@
 name: Fork PR Gate
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -16,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: fork-pr-gate-${{ github.event.pull_request.number }}
+  group: fork-pr-gate-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -33,9 +36,22 @@ jobs:
     name: Authorization foundation tests
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    services:
+      session-postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: session-security-test-only
+          POSTGRES_DB: session_security
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
 
     steps:
-      - name: Checkout PR merge commit
+      - name: Checkout PR merge commit or pushed main commit
         uses: actions/checkout@v6
 
       - name: Install Poetry
@@ -67,6 +83,7 @@ jobs:
         run: |
           poetry run pytest -v \
             users/tests/test_session_revocation.py \
+            users/tests/test_session_contract.py \
             users/tests/test_session_workers.py \
             users/tests/test_session_version_migration.py \
             session_policy/tests/test_session_policy.py \
@@ -83,6 +100,17 @@ jobs:
       - name: Run annotation/task API smoke tests
         working-directory: label_studio
         run: poetry run pytest -v tasks/tests/test_api.py -m "not integration_tests"
+
+      - name: Run PostgreSQL session state and concurrency regressions
+        working-directory: label_studio
+        env:
+          DJANGO_DB: postgresql
+          POSTGRE_HOST: localhost
+          POSTGRE_NAME: session_security
+          POSTGRE_USER: postgres
+          POSTGRE_PASSWORD: session-security-test-only
+        run: |
+          poetry run pytest -q users/tests/test_session_contract.py users/tests/test_session_revocation.py users/tests/test_session_version_migration.py
 
       - name: Run request locale and translated template regressions
         working-directory: label_studio

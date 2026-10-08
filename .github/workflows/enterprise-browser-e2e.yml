@@ -1,6 +1,9 @@
 name: Enterprise Browser E2E
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -17,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: enterprise-browser-e2e-${{ github.event.pull_request.number || github.run_id }}
+  group: enterprise-browser-e2e-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref) || github.run_id }}
   cancel-in-progress: true
 
 env:
@@ -39,7 +42,7 @@ jobs:
     timeout-minutes: 35
 
     steps:
-      - name: Checkout PR merge commit or dispatch ref
+      - name: Checkout PR merge commit, pushed main commit or dispatch ref
         uses: actions/checkout@v6
 
       - name: Install Poetry

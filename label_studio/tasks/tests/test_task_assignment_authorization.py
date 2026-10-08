@@ -962,7 +962,7 @@ class TestTaskAssignmentAuthorization(APITestCase):
         project_membership.enabled = False
         project_membership.save(update_fields=['enabled'])
         revoked.is_active = False
-        revoked.save(update_fields=['is_active'])
+        revoked.save(update_fields=['is_active'], session_actor=UserFactory(is_staff=True, is_superuser=True))
 
         self.client.force_authenticate(user=self.manager)
         response = self.client.get(
