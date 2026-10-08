@@ -68,6 +68,7 @@ def reactivate_accounts(queryset, *, actor):
     """Explicit administrator reactivation; full profile saves never imply this intent."""
     if queryset.model is not User:
         raise ValueError('Account reactivation requires a user queryset.')
+    queryset._for_write = True
     using = queryset.db
     with transaction.atomic(using=using):
         targets = list(
@@ -77,8 +78,11 @@ def reactivate_accounts(queryset, *, actor):
         # This is the sole trusted reactivation write: targets are locked and the
         # actor was freshly authorized. Ordinary ORM entry points reject it.
         # Preserve both revocation versions and the accepted audit history.
-        locked = User.objects.using(using).filter(pk__in=targets)
-        return QuerySet.update(locked, is_active=True)
+        count = 0
+        for target_batch in User.objects.using(using)._security_batches(targets):
+            locked = User.objects.using(using).filter(pk__in=target_batch)
+            count += QuerySet.update(locked, is_active=True)
+        return count
 
 
 def revoke_all_sessions(user, *, reason, actor, request_id=None):

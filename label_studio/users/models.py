@@ -5,15 +5,15 @@ import uuid
 from typing import Optional
 
 from core.feature_flags import flag_set
-from core.utils.common import load_func
+from core.utils.common import batch, load_func
 from core.utils.db import fast_first
 from django.conf import settings
 from django.contrib import auth
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.contrib.auth.signals import user_logged_in
-from django.core.exceptions import PermissionDenied
-from django.db import models, router, transaction
+from django.core.exceptions import EmptyResultSet, PermissionDenied
+from django.db import connections, models, router, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -34,34 +34,63 @@ year = models.IntegerField(_('year'), choices=YEAR_CHOICES, default=datetime.dat
 
 
 class UserQuerySet(models.QuerySet):
-    def update(self, *, session_actor=None, session_request_id=None, **kwargs):
-        if 'is_active' not in kwargs:
-            return super().update(**kwargs)
-        from users.session_security import _advance_session_version, require_session_administrator
+    def _security_batches(self, objects, *, fields=('is_active',), batch_size=None, reserved_params=0):
+        connection = connections[self.db]
+        fields = [self.model._meta.get_field(name) for name in fields]
+        # Include CASE value/PK pairs and the final ID predicate in the budget.
+        # Retain a conservative protocol bound when the backend reports no limit.
+        parameter_limit = connection.features.max_query_params or 65535
+        size = min(
+            batch_size or 1000,
+            1000,
+            max(1, parameter_limit - reserved_params),
+            max(1, parameter_limit // (2 * len(fields) + 1)),
+            max(1, connection.ops.bulk_batch_size(['pk', 'pk'] + fields, objects)),
+        )
+        yield from batch(objects, size)
 
-        if not isinstance(kwargs['is_active'], bool):
-            raise PermissionDenied('Account state changes require an explicit boolean value.')
-        with transaction.atomic(using=self.db):
-            actor = None
-            if kwargs['is_active'] is False:
-                actor = require_session_administrator(session_actor, using=self.db)
-            targets = list(self.order_by('pk').select_for_update().values_list('pk', 'is_active'))
-            if kwargs['is_active'] is True and any(not was_active for _, was_active in targets):
-                raise PermissionDenied('Account reactivation requires the explicit reactivation service.')
-            # Keep the locked target set; do not rediscover new matching rows after discovery.
-            locked = self.model._default_manager.using(self.db).filter(pk__in=[pk for pk, _ in targets])
-            count = models.QuerySet.update(locked, **kwargs)
-            if actor is not None:
-                for user_id, was_active in targets:
+    def _write_locked_account_state(self, targets, values, *, actor, request_id=None):
+        from users.session_security import _advance_session_version
+
+        if values['is_active'] is True and any(not was_active for _, was_active in targets):
+            raise PermissionDenied('Account reactivation requires the explicit reactivation service.')
+        count = 0
+        for target_batch in self._security_batches(targets, fields=values):
+            # Only the previously locked IDs define scope, even if fields change filters.
+            locked = self.model._default_manager.using(self.db).filter(pk__in=[pk for pk, _ in target_batch])
+            count += models.QuerySet.update(locked, **values)
+            if values['is_active'] is False:
+                for user_id, was_active in target_batch:
                     if was_active:
                         _advance_session_version(
                             user_id,
                             reason='account_disabled',
                             actor_id=actor.pk,
                             using=self.db,
-                            request_id=session_request_id,
+                            request_id=request_id,
                         )
-            return count
+        return count
+
+    def update(self, *, session_actor=None, session_request_id=None, **kwargs):
+        if 'is_active' not in kwargs:
+            return super().update(**kwargs)
+        from users.session_security import require_session_administrator
+
+        if not isinstance(kwargs['is_active'], bool):
+            raise PermissionDenied('Account state changes require an explicit boolean value.')
+        self._for_write = True
+        with transaction.atomic(using=self.db):
+            actor = None
+            if kwargs['is_active'] is False:
+                actor = require_session_administrator(session_actor, using=self.db)
+            targets = list(dict(self.order_by('pk').select_for_update().values_list('pk', 'is_active')).items())
+            if actor is not None:
+                actor = require_session_administrator(session_actor, using=self.db)
+            if not targets:
+                # Keep Django's field validation even when no row is selected.
+                empty = self.model._default_manager.using(self.db).filter(pk__in=[])
+                return models.QuerySet.update(empty, **kwargs)
+            return self._write_locked_account_state(targets, kwargs, actor=actor, request_id=session_request_id)
 
     def bulk_update(self, objs, fields, batch_size=None, *, session_actor=None, session_request_id=None):
         fields = tuple(fields)
@@ -78,30 +107,47 @@ class UserQuerySet(models.QuerySet):
             raise PermissionDenied('Account state changes require an explicit boolean value.')
         if len({obj.pk for obj in objs}) != len(objs):
             raise ValueError('Account state batches must not contain duplicate users.')
+        # Reuse Django's field validation without issuing a write.
+        models.QuerySet.bulk_update(self, (), fields, batch_size=batch_size)
         remaining_fields = [field for field in fields if field != 'is_active']
+        if not objs:
+            return 0
+        self._for_write = True
         with transaction.atomic(using=self.db):
-            if any(not obj.is_active for obj in objs):
+            disables = any(not obj.is_active for obj in objs)
+            if disables:
                 require_session_administrator(session_actor, using=self.db)
-            locked_ids = list(
-                self.filter(pk__in=[obj.pk for obj in objs])
-                .order_by('pk')
-                .select_for_update()
-                .values_list('pk', flat=True)
-            )
-            # Updates may change fields used by the original queryset predicate.
-            # After discovery, only the locked IDs define the mutation scope.
-            locked = self.model._default_manager.using(self.db).filter(pk__in=locked_ids)
-            if remaining_fields:
-                models.QuerySet.bulk_update(locked, objs, remaining_fields, batch_size=batch_size)
-            for active in (False, True):
-                ids = [obj.pk for obj in objs if obj.is_active is active]
-                if ids:
-                    locked.filter(pk__in=ids).update(
-                        is_active=active,
-                        session_actor=session_actor,
-                        session_request_id=session_request_id,
-                    )
-            return len(locked_ids)
+            objects_by_id = {obj.pk: obj for obj in objs}
+            targets = []
+            try:
+                scope = self.values_list('pk', 'is_active').query.get_compiler(using=self.db)
+                _, scope_parameters = scope.as_sql()
+            except EmptyResultSet:
+                return 0
+            # Acquire the whole target scope before any field write. Global PK order
+            # is independent of caller order and prevents reverse-batch deadlocks.
+            for id_batch in self._security_batches(
+                sorted(objects_by_id), fields=fields, batch_size=batch_size, reserved_params=len(scope_parameters)
+            ):
+                selected = self.filter(pk__in=id_batch).order_by('pk').select_for_update()
+                targets.extend(dict(selected.values_list('pk', 'is_active')).items())
+            actor = require_session_administrator(session_actor, using=self.db) if disables else None
+            for target_batch in self._security_batches(targets, fields=fields, batch_size=batch_size):
+                locked = self.model._default_manager.using(self.db).filter(pk__in=[pk for pk, _ in target_batch])
+                selected_objects = [objects_by_id[pk] for pk, _ in target_batch]
+                if remaining_fields:
+                    models.QuerySet.bulk_update(locked, selected_objects, remaining_fields, batch_size=batch_size)
+                for active in (False, True):
+                    selected = [
+                        (pk, was_active) for pk, was_active in target_batch if objects_by_id[pk].is_active is active
+                    ]
+                    if selected:
+                        # Authority is freshly checked once for the whole operation;
+                        # disabling its own actor must not change later batch intent.
+                        self._write_locked_account_state(
+                            selected, {'is_active': active}, actor=actor, request_id=session_request_id
+                        )
+            return len(targets)
 
 
 class UserManager(BaseUserManager.from_queryset(UserQuerySet)):

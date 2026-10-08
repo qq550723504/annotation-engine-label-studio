@@ -103,3 +103,24 @@ account active flags from a backup.
 Final local suite results are recorded in the PR description. Current-head hosted
 CI and current-candidate reviewer approval remain separate gates; earlier results
 in the initial evidence table do not imply that either gate has passed.
+
+## Bounded batch review evidence (2026-10-08)
+
+Four reduced driver-parameter-budget regressions failed on the preceding candidate:
+bulk discovery (default and explicit batch size), captured-ID QuerySet writes, and
+reactivation writes. The fix reuses Django backend sizing and the existing project
+batch utility. All bulk targets are locked in global PK order before field writes;
+only that captured scope is mutated, and all chunks share the whole transaction.
+Fresh authority is checked after locking for the complete operation, preserving
+legitimate batches that include their own administrator. Native write routing is
+retained. An additional regression failed when the original scope already used
+most of the parameter budget; discovery now reserves those existing parameters
+before adding each bounded ID predicate.
+
+The budget/captured-scope, late-audit-failure and mixed-batch rejection subset passed
+all seven cases. Final local session/revocation/migration suites passed SQLite
+130 cases with five PostgreSQL-only skips, and PostgreSQL 135 cases including five
+concurrency cases. New regressions cover opposing input orders across one-row
+chunks, self-disable batches and unavailable read-replica routing. Ruff/Blue/diff
+checks pass. The reduced-budget probe is regression evidence, not a production
+large-batch throughput or deployment claim.

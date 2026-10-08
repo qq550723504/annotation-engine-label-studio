@@ -2,6 +2,7 @@
 
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from io import StringIO
 from threading import Barrier
 from unittest.mock import Mock, patch
@@ -12,8 +13,8 @@ from django.contrib.sessions.models import Session
 from django.core.exceptions import PermissionDenied
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.db import connection, connections, transaction
-from django.test import RequestFactory
+from django.db import ProgrammingError, connection, connections, transaction
+from django.test import RequestFactory, override_settings
 from users.models import SessionRevocationEvent, User, UserSessionRevocationBoundary, UserSessionVersion
 from users.session_security import recover_session_state, revoke_all_sessions
 from users.tests.factories import UserFactory
@@ -154,6 +155,151 @@ def test_disable_retains_captured_targets_when_a_filter_field_changes(path, admi
     assert set(events.values_list('target_user_id', flat=True)) == {user.pk for user in targets}
     assert events.count() == len(targets)
     assert set(events.values_list('actor_user_id', flat=True)) == {administrator.pk}
+
+
+@contextmanager
+def user_parameter_budget(limit):
+    def enforce(execute, sql, params, many, context):
+        if '"htx_user"' in sql and len(params or ()) > limit:
+            raise ProgrammingError('User query exceeds the driver parameter budget.')
+        return execute(sql, params, many, context)
+
+    with patch.object(connection.features, 'max_query_params', limit), connection.execute_wrapper(enforce):
+        yield
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('batch_size', [None, 1])
+def test_bulk_disable_bounds_discovery_and_writes_to_the_parameter_budget(batch_size, administrator):
+    targets = [UserFactory(is_staff=False) for _ in range(21)]
+    excluded = UserFactory(is_staff=True)
+    users = list(reversed([*targets, excluded]))
+    for user in users:
+        user.is_staff = not user.is_staff
+        user.is_active = False
+    with user_parameter_budget(20):
+        count = User.objects.filter(is_staff=False).bulk_update(
+            users, ['is_staff', 'is_active'], batch_size=batch_size, session_actor=administrator
+        )
+    assert count == len(targets)
+    for user in targets:
+        user.refresh_from_db()
+        assert user.is_staff and not user.is_active
+        assert UserSessionVersion.objects.get(user=user).version == 1
+        assert UserSessionRevocationBoundary.objects.get(user=user).version == 1
+    excluded.refresh_from_db()
+    assert excluded.is_staff and excluded.is_active
+    assert UserSessionVersion.objects.get(user=excluded).version == 0
+    assert SessionRevocationEvent.objects.count() == len(targets)
+
+
+@pytest.mark.django_db
+def test_bulk_discovery_reserves_the_original_scope_parameter_budget(administrator):
+    names = [f'Filtered profile {index}' for index in range(18)]
+    users = [UserFactory(first_name=names[index % len(names)], is_staff=False) for index in range(21)]
+    for user in users:
+        user.is_staff = True
+        user.is_active = False
+    with user_parameter_budget(20):
+        count = User.objects.filter(first_name__in=names, is_staff=False).bulk_update(
+            users, ['is_staff', 'is_active'], session_actor=administrator
+        )
+    assert count == len(users)
+    for user in users:
+        user.refresh_from_db()
+        assert user.is_staff and not user.is_active
+        assert UserSessionVersion.objects.get(user=user).version == 1
+        assert UserSessionRevocationBoundary.objects.get(user=user).version == 1
+    assert SessionRevocationEvent.objects.count() == len(users)
+
+
+@pytest.mark.django_db
+def test_queryset_disable_bounds_captured_id_writes_to_the_parameter_budget(administrator):
+    targets = [UserFactory(is_staff=False) for _ in range(21)]
+    excluded = UserFactory(is_staff=True)
+    with user_parameter_budget(20):
+        count = User.objects.filter(is_staff=False).update(
+            is_active=False, first_name='Bounded update', session_actor=administrator
+        )
+    assert count == len(targets)
+    for user in targets:
+        user.refresh_from_db()
+        assert not user.is_active and user.first_name == 'Bounded update'
+        assert UserSessionVersion.objects.get(user=user).version == 1
+        assert UserSessionRevocationBoundary.objects.get(user=user).version == 1
+    excluded.refresh_from_db()
+    assert excluded.is_active
+    assert UserSessionVersion.objects.get(user=excluded).version == 0
+    assert SessionRevocationEvent.objects.count() == len(targets)
+
+
+@pytest.mark.django_db
+def test_reactivation_bounds_captured_id_writes_to_the_parameter_budget(administrator):
+    from users.session_security import reactivate_accounts
+
+    targets = [UserFactory(is_staff=False) for _ in range(21)]
+    excluded = UserFactory(is_staff=True, is_active=False)
+    User.objects.filter(is_staff=False).update(is_active=False, session_actor=administrator)
+    accepted = set(SessionRevocationEvent.objects.values_list('id', flat=True))
+    with user_parameter_budget(20):
+        count = reactivate_accounts(User.objects.filter(is_staff=False), actor=administrator)
+    assert count == len(targets)
+    for user in targets:
+        user.refresh_from_db()
+        assert user.is_active
+        assert UserSessionVersion.objects.get(user=user).version == 1
+        assert UserSessionRevocationBoundary.objects.get(user=user).version == 1
+    excluded.refresh_from_db()
+    assert not excluded.is_active
+    assert set(SessionRevocationEvent.objects.values_list('id', flat=True)) == accepted
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('path', ['update', 'bulk_update'])
+def test_disable_batch_can_include_its_authorized_actor(path, administrator):
+    users = [administrator, UserFactory(), UserFactory()]
+    with user_parameter_budget(3):
+        if path == 'update':
+            count = User.objects.filter(pk__in=[user.pk for user in users]).update(
+                is_active=False, session_actor=administrator
+            )
+        else:
+            for user in users:
+                user.is_active = False
+            count = User.objects.bulk_update(users, ['is_active'], batch_size=1, session_actor=administrator)
+    assert count == len(users)
+    for user in users:
+        user.refresh_from_db()
+        assert not user.is_active
+        assert UserSessionVersion.objects.get(user=user).version == 1
+        assert UserSessionRevocationBoundary.objects.get(user=user).version == 1
+    assert SessionRevocationEvent.objects.count() == len(users)
+    assert set(SessionRevocationEvent.objects.values_list('actor_user_id', flat=True)) == {administrator.pk}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('path', ['update', 'bulk_update', 'reactivate'])
+def test_account_batches_use_django_write_routing(path, administrator):
+    from users.session_security import reactivate_accounts
+
+    user = UserFactory(is_active=path != 'reactivate')
+    routing = Mock()
+    routing.db_for_read.return_value = 'unavailable-read-replica'
+    routing.db_for_write.return_value = 'default'
+    with override_settings(DATABASE_ROUTERS=[routing]):
+        queryset = User.objects.filter(pk=user.pk)
+        if path == 'update':
+            count = queryset.update(is_active=False, session_actor=administrator)
+        elif path == 'bulk_update':
+            user.is_active = False
+            count = queryset.bulk_update([user], ['is_active'], batch_size=1, session_actor=administrator)
+        else:
+            count = reactivate_accounts(queryset, actor=administrator)
+    assert count == 1
+    routing.db_for_write.assert_called()
+    user.refresh_from_db()
+    assert user.is_active is (path == 'reactivate')
+    assert UserSessionVersion.objects.get(user=user).version == (0 if path == 'reactivate' else 1)
 
 
 @pytest.mark.django_db
@@ -736,6 +882,36 @@ def test_concurrent_disable_revalidates_a_stale_target_set(path, administrator):
     assert UserSessionVersion.objects.get(user=user).version == 1
     assert UserSessionRevocationBoundary.objects.get(user=user).version == 1
     assert SessionRevocationEvent.objects.filter(target_user_id=user.pk).count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_bulk_disable_uses_global_lock_order_across_batches(administrator):
+    if not connection.features.has_select_for_update:
+        pytest.skip('Row-lock serialization is exercised separately against PostgreSQL.')
+    users = [UserFactory() for _ in range(4)]
+    barrier = Barrier(2)
+
+    def worker(reverse):
+        try:
+            actor = User.objects.get(pk=administrator.pk)
+            targets = list(
+                User.objects.filter(pk__in=[user.pk for user in users]).order_by('-pk' if reverse else 'pk')
+            )
+            for target in targets:
+                target.is_active = False
+            barrier.wait(timeout=15)
+            return User.objects.bulk_update(targets, ['is_active'], batch_size=1, session_actor=actor)
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(worker, reverse) for reverse in (False, True)]
+        assert [future.result(timeout=30) for future in futures] == [len(users), len(users)]
+    for user in users:
+        assert not User.objects.get(pk=user.pk).is_active
+        assert UserSessionVersion.objects.get(user=user).version == 1
+        assert UserSessionRevocationBoundary.objects.get(user=user).version == 1
+    assert SessionRevocationEvent.objects.count() == len(users)
 
 
 @pytest.mark.django_db(transaction=True)
