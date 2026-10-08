@@ -29,6 +29,18 @@ Label Studio CE fork
 
 The host platform owns policy. The Label Studio fork owns enforcement at Label Studio resource boundaries that cannot safely be protected only from outside the process.
 
+### Controlled Core-only-review Pilot: submission protocol v1
+
+The dedicated, finite synthetic DPP Pilot uses the user-confirmed C1 policy: Core is the sole business reviewer. A formal Submission is an immutable source for authorized internal acquisition, not a Core review decision, Gold certification or delivery authorization. This is an additional host-integration mode; the existing fork reviewer workflow and historical DPP #205/#208 official CE acceptance remain valid in their original scope.
+
+The server-side adapter uses ordinary `GET /api/submissions/?project=P&page=N&page_size=100` and `GET /api/submissions/{id}/` under the existing authenticated organization/project permissions. Internal acquisition does not require fork approval. It must not use `reviewable=true`, `POST .../review/` or `GET .../release/` as substitutes, grant itself Reviewer authority, or auto-approve on a Core decision. The dedicated Pilot does not run a second fork human review; unexpected fork human review is recorded and quarantined as a mixed workflow. Automatic superseded revisions remain source history.
+
+This authorized ordinary read is distinct from fork release/export delivery. `/release/` still requires an effective Manager and an approved exact Submission; mutable export/storage delivery after formal Submission remains denied as specified below. Core independently authorizes its reviewers and retains its existing Gold production, certification and CurrentDeliveryGate. Internal reads cannot be exposed as a substitute public download/delivery path.
+
+The versioned adapter must be verified against B's fixed [#72 handoff](https://github.com/qq550723504/annotation-engine-label-studio/pull/72): documentation merge commit `ab7b76a4a36b19060c527659e2a994ead05cc5e8`, [candidate handoff](https://github.com/qq550723504/annotation-engine-label-studio/blob/ab7b76a4a36b19060c527659e2a994ead05cc5e8/docs/authorization/issue48-release-candidate.md), [manifest](https://github.com/qq550723504/annotation-engine-label-studio/blob/ab7b76a4a36b19060c527659e2a994ead05cc5e8/docs/authorization/issue48-rc48/manifest.json), [assertion receipts](https://github.com/qq550723504/annotation-engine-label-studio/blob/ab7b76a4a36b19060c527659e2a994ead05cc5e8/docs/authorization/issue48-rc48/assertions.json) and [recorded Dockerfile](https://github.com/qq550723504/annotation-engine-label-studio/blob/ab7b76a4a36b19060c527659e2a994ead05cc5e8/docs/authorization/issue48-rc48/Dockerfile.recorded). The image source remains `90153bb6450a160ed6a1a9129adce65b7c4b42f8`, with fork version `1.23.0+fork.rc48.90153bb6` and local-only reference `annotation-engine-label-studio@sha256:d0876462957eebd2608223c4af6ec5f894eae7008f2fb3e236124dca5c3d36ce`; the documentation merge commit is not the image source. The manifest distinguishes OCI index, platform manifest and image config digests. This candidate exists only in the builder's local Docker image store and has not been published to a registry. Its synthetic service-side PASS does not complete cross-repository integration or the user-deferred trusted-browser acceptance. This three-document contract is design-admitted; implementation, image distribution, deployment and starting D remain unauthorized. Source identity is the controlled connection/instance namespace plus source kind and Submission.id; task/project, assignment/revision, content hash, author and configuration are fingerprint assertions, not extra identity components that legalize same-ID conflicts. The host must freeze trusted submitted_by, assignment/revision, snapshot/hash and mapping/config/normalizer provenance, atomically bind accepted Results, and verify all replay and snapshot-integrity paths under the authoritative [DPP source contract](https://github.com/qq550723504/data-product-platform/blob/main/docs/architecture/annotation-domain.md) and [adapter mapping contract](https://github.com/qq550723504/data-product-platform/blob/main/docs/architecture/annotation-engine-integration.md).
+
+This mode adds no fork reviewer or release bypass. Assignment versions remain write tokens; the current API does not prove the token at submission time. The first Pilot uses drained, finite writes followed by quiescent full pagination and exact-ID reads; it does not promise complete enumeration during continuous writes. This paragraph specifies a design contract, not completed cross-repository acceptance or deployment approval.
+
 ## Phase 1 — trusted identity
 
 Target branch: `feature/platform-auth`
@@ -98,7 +110,7 @@ Requirements:
 - Rejection requires a reason.
 - Editing after approval creates a new revision that is not automatically approved.
 - Generic annotation APIs cannot set authoritative review fields.
-- Release/export gates use accepted revisions only.
+- Fork release/export delivery gates use approved immutable revisions only. The authorized internal ordinary-read path for the controlled Core-only-review Pilot is separate and follows the integration mode defined above.
 
 Exit criteria:
 - Annotators cannot forge approval or reviewer identity.
@@ -207,7 +219,7 @@ For new configurations, validate the raw `project` identifier, resolve it within
 
 ## Immutable review release boundary
 
-Once a project has any formal `Submission`, mutable annotation delivery is fail-closed outside the immutable submission release path. This fork-specific boundary must survive upstream rebases.
+Once a project has any formal `Submission`, mutable annotation export/storage delivery is fail-closed outside the approved immutable submission release path. This does not prohibit the authenticated ordinary Submission reads explicitly used for the controlled Core-only-review Pilot's internal acquisition. That read permission is not approval or release authority and does not reopen any delivery endpoint listed below. These boundaries must survive upstream rebases.
 
 Required enforcement points:
 
