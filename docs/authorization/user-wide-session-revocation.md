@@ -8,6 +8,13 @@ Invalidate all browser sessions for one user without scanning or decoding
 This delivery depends on #46: revocation checks must operate on the server-side
 browser-session baseline.
 
+The selected local-database implementation also requires #48's
+`SessionRevocationEvent` schema and writer in the shared foundation from PR #71.
+Deploy its migrations before enabling revoke-all or disable operations; those
+operations commit their security state and audit record together. #47's tests own
+security-state assertions on this fully migrated foundation, while #48 owns audit
+assertions and the remaining deployed operating checks.
+
 ## Data model
 
 Use a monotonic per-user security/session version stored independently from normal
@@ -164,7 +171,7 @@ For account disablement, only a real `is_active=True -> is_active=False` state
 transition is a disable security event. Re-saving an already inactive user,
 repeating `update(is_active=False)`, or including already-inactive users in a
 mixed bulk operation must not advance their session version. #48 separately
-defines whether and how an authorized transition is audited.
+defines the required audit record for each real authorized transition.
 
 For a real disable transition, the `is_active=False` state transition and the
 security-version increment are one atomic security operation. Target discovery
@@ -172,10 +179,10 @@ alone is not enough: before mutating, the disable path must lock/reload the
 authoritative user row(s) inside the transaction and re-evaluate whether each
 target is still active. Only the transaction that observes and performs the real
 `True -> False` transition may advance that user's version. Audit persistence is
-owned by #48 and must not be required for #47 to be independently correct. If version
-advancement fails, the account-state mutation must roll back as well. No supported
-disable path may commit a disabled account without also advancing the revocation
-boundary.
+owned by #48 and is a required part of the selected shared transaction. If version
+advancement or audit insertion fails, the account-state mutation must roll back as
+well. No supported disable path may commit a disabled account without advancing
+the revocation boundary and committing its required audit record.
 
 For multi-user `QuerySet.update()` and `bulk_update()` disables, the operation
 must cover **every** affected user. Each target's security version must advance

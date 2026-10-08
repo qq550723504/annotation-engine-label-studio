@@ -1,9 +1,11 @@
 # Session security delivery plan (#46–#48)
 
 This document turns the parent design in issue #44 and
-[session-revocation.md](./session-revocation.md) into three independently reviewable
-deliveries. The split is intentional: backend revocability, user-wide revocation,
-and production operations have different failure modes and rollback boundaries.
+[session-revocation.md](./session-revocation.md) into three review workstreams.
+Backend revocability, user-wide revocation, and production operations retain
+separate acceptance responsibilities. In the selected local-database topology,
+#47 security transitions and #48 durable audit persistence share one transaction
+and must be deployed together.
 
 ## Delivery order
 
@@ -11,11 +13,19 @@ and production operations have different failure modes and rollback boundaries.
 #46 server-side session baseline
         |
         v
-#47 O(1) user-wide revocation
+#47 O(1) user-wide revocation + #48 local audit persistence
         |
         v
-#48 production operations + auditability
+#48 deployed production operations + auditability acceptance
 ```
+
+The shared foundation requires `UserSessionVersion`,
+`UserSessionRevocationBoundary`, and `SessionRevocationEvent` before revocation or
+disable writers are enabled. PR #71 supplies the integrated writers and migration.
+An audit insert failure rolls back the security transition and its enclosing
+account/batch writes. A deployment containing only #47's security tables is not a
+supported intermediate release. #48's remaining deployed cookie, cleanup,
+retention/restore, and incident checks can be evaluated after that foundation.
 
 Do not implement #47 or #48 by weakening the acceptance boundary of #46.
 In particular, project membership, assignment, review, and release authorization
@@ -48,10 +58,11 @@ The following shared constraints also remain in force:
 
 ## Relationship to PR #45
 
-PR #45 already contains an integrated implementation of much of #46–#48. It is
-useful as implementation evidence, but the child issues should still be evaluated
-and delivered against their own acceptance criteria. If code is split out of #45,
-preserve the dependency order above and avoid temporary dual-mode authentication.
+PR #45 contains an integrated implementation of much of #46–#48; PR #71 repairs
+the transactional security/audit foundation. These are implementation evidence,
+while each child issue retains its own acceptance criteria. Any extracted delivery
+must preserve the shared security/audit schema and writer dependency above and
+avoid temporary dual-mode authentication.
 
 ## Documents
 
@@ -61,14 +72,16 @@ preserve the dependency order above and avoid temporary dual-mode authentication
 
 ## Review checkpoints
 
-Each issue should have its own review checkpoint before the next layer lands:
+Review these acceptance sets separately on the fully migrated shared foundation:
 
 - #46: replay security, cutover semantics, cross-worker correctness.
 - #47: counter consistency, atomicity, actor authorization, password compatibility.
-  It must be independently correct without durable audit persistence.
+  These tests own security-state assertions; they require the shared audit schema
+  and writers even when they do not assert audit-event counts.
 - #48: cookie policy, cleanup schedule, durable audit/outbox semantics, and
-  deployment/incident runbook. It adds audit durability to the #47 transitions
-  without changing their revocation semantics.
+  deployment/incident runbook. Its durable local ledger is a required part of the
+  shared foundation; audit assertions remain here without changing #47's actor,
+  target, reason, or revocation policy.
 
 The parent issue #44 can close only after all three child acceptance sets are
 satisfied in the deployed configuration, not merely because the code is merged.

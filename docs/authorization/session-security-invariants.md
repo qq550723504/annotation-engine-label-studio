@@ -117,11 +117,14 @@ user active -> inactive
 security version increment
 ```
 
-Those #47 transitions must be fully correct and independently deliverable without
-any audit persistence.
+These are #47's security-state acceptance responsibilities. The selected local
+database topology deploys those transitions together with #48's required audit
+schema and persistence. Acceptance ownership does not imply an independently
+deployable security-only build: all three tables and the integrated writers from
+PR #71 must be present before revoke-all or disable paths are enabled.
 
-#48 augments only the explicitly audited revocation transitions — revoke-all and
-account disablement — with durable audit intent:
+#48 owns the required durable audit intent for the explicitly audited revocation
+transitions — revoke-all and account disablement:
 
 ```text
 #47 security-state transition
@@ -129,12 +132,13 @@ account disablement — with durable audit intent:
 durable audit/outbox record for that transition
 ```
 
-When #48 is present, the audit record is committed in the same transaction as the
-#47 state transition. Expiry, ordinary current-session logout, and project
+For the selected receiver, the audit record is committed in the same transaction
+as the #47 state transition. Audit insertion failure rolls back that transition
+and all enclosing account/batch writes. Expiry, ordinary current-session logout, and project
 authorization changes are not brought under this transactional-outbox contract by
 #48.
 
-The transaction commits all state owned by the active delivery layer or none of it.
+The transaction commits the combined security and audit state or none of it.
 
 For multi-user operations, atomicity applies to the defined batch: partial target
 processing must not leave a mixture of committed and uncommitted security state.

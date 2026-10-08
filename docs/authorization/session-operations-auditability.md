@@ -2,8 +2,11 @@
 
 ## Goal
 
-Complete the production operating contract after #46 and #47 establish server-side
-revocation.
+Complete the production operating contract for the integrated #46/#47 foundation.
+The selected #48 local audit schema and persistence are deployed with #47 before
+revoke-all or disable writers are enabled; audit insertion failure rolls back the
+combined transaction. The remaining deployed operating checks follow that shared
+foundation, as described in the [delivery plan](session-security-delivery-plan.md).
 
 This issue is operational hardening: transport/cookie policy, cleanup, audit
 events, incident operations, rollout validation, and rollback constraints.

@@ -326,9 +326,12 @@ migration/recovery, authorization, and audit-durability guarantees are defined i
 [session security invariants](session-security-invariants.md). Preserve that file
 as the source of truth across upstream rebases.
 
-#47 owns correct revocation state transitions independently of the audit layer.
-#48 adds durable audit intent through a database-backed event/outbox record in the
-same transaction as the transition. The selected local database ledger accepts
+#47 owns security-state and authorization acceptance; #48 owns audit acceptance.
+The selected local database topology deploys both as one shared foundation, with
+all security/audit tables and integrated writers present before revocation or
+disable paths are enabled. Durable audit intent is required in the same
+transaction as the transition; audit insertion failure rolls back the security
+state and enclosing account/batch writes. The selected local database ledger accepts
 events atomically, retains stable event/target-version identity without an audit
 TTL, and preserves or reconciles the complete accepted ledger across rollback/
 restore. Optional logs are projections. If external delivery is configured, it
