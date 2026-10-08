@@ -244,23 +244,27 @@ export const AppStore = types
 
         if (self.LSF) {
           const annotation = self.LSF?.currentAnnotation;
-          const id = annotation?.pk ?? annotation?.id;
-
-          self.LSF?.setLSFTask(self.taskStore.selected, id);
+          let id = annotation?.pk ?? annotation?.id;
+          let selectPrediction = false;
 
           const { annotation: annIDFromUrl, region: regionIDFromUrl } = History.getParams();
-          const annotationStore = self.LSF?.lsf?.annotationStore;
+          const currentAnnotationStore = self.LSF?.lsf?.annotationStore;
 
-          if (annIDFromUrl && annotationStore) {
-            const lsfAnnotation = [...annotationStore.annotations, ...annotationStore.predictions].find((a) => {
+          if (annIDFromUrl && currentAnnotationStore) {
+            const lsfAnnotation = [...currentAnnotationStore.annotations, ...currentAnnotationStore.predictions].find((a) => {
               return a.pk === annIDFromUrl || a.id === annIDFromUrl;
             });
 
             if (lsfAnnotation) {
-              const annID = lsfAnnotation.pk ?? lsfAnnotation.id;
-              self.LSF?.setLSFTask(self.taskStore.selected, annID, undefined, lsfAnnotation.type === "prediction");
+              id = lsfAnnotation.pk ?? lsfAnnotation.id;
+              selectPrediction = lsfAnnotation.type === "prediction";
             }
           }
+
+          // This reset yields for paint. Keep the whole task refresh closed to
+          // edits until it finishes, and restore URL state in the rebuilt store.
+          await self.LSF.setLSFTask(self.taskStore.selected, id, undefined, selectPrediction);
+          const annotationStore = self.LSF?.lsf?.annotationStore;
           if (regionIDFromUrl) {
             const currentAnn = self.LSF?.currentAnnotation;
             // Focus on the region by hiding all other regions
@@ -280,12 +284,12 @@ export const AppStore = types
           console.error("LSF not initialized properly");
         }
 
-        self.setLoadingData(false);
-      });
+      }).finally(() => self.setLoadingData(false));
     }),
 
     setLoadingData(value) {
       self.loadingData = value;
+      self.LSF?.setLoading(value);
     },
 
     unsetTask(options) {

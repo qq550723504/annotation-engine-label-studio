@@ -1474,7 +1474,9 @@ export class LSFWrapper {
   setLoading(isLoading, shouldReset = false) {
     if (this.destroyed || !this.lsf) return;
     if (isFF(FF_LSDV_4620_3_ML) && shouldReset) this.lsf.clearApp();
-    this.lsf.setFlags({ isLoading });
+    // Editor bootstrap and task selection can finish before AppStore.setTask's
+    // refresh/reset. Neither completion may expose an editor that will be reset.
+    this.lsf.setFlags({ isLoading: isLoading || this.datamanager.store?.loadingData === true });
     if (isFF(FF_LSDV_4620_3_ML) && shouldReset) this.lsf.renderApp();
   }
 

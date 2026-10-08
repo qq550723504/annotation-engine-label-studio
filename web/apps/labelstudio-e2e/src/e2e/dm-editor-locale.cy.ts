@@ -44,10 +44,30 @@ describe("Data Manager and editor display locale", () => {
     cy.get("html").should("have.attr", "lang", "en-US");
     cy.intercept("GET", "**/api/projects/*/label-stream-history*").as("labelStreamHistory");
     cy.intercept("GET", "**/api/label_links*").as("labelLinks");
+    let taskRequests = 0;
+    let releaseTaskRefresh: () => void;
+    const taskRefresh = new Promise<void>((resolve) => { releaseTaskRefresh = resolve; });
+    cy.intercept("GET", `**/api/tasks/${fixture.tasks.a.id}?*`, (request) => {
+      taskRequests += 1;
+      if (taskRequests === 2) {
+        request.alias = "taskRefresh";
+        request.on("before:response", () => taskRefresh);
+      }
+    });
     cy.visit(path);
-    cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible");
     cy.wait("@labelStreamHistory");
     cy.wait("@labelLinks");
+    // The editor bootstrap may finish before the refreshed task arrives. It
+    // must remain closed to edits until that response and its reset settle.
+    cy.window().should((win: any) => {
+      expect(taskRequests, "initial task and refresh requested").to.eq(2);
+      expect(win.dataManager.store.loadingData, "task refresh pending").to.eq(true);
+      expect(win.Htx?.isLoading, "edits blocked during task refresh").to.eq(true);
+    });
+    cy.get('#label-studio-dm input[type="checkbox"][name="Positive"]').should("not.exist");
+    cy.then(() => releaseTaskRefresh());
+    cy.wait("@taskRefresh");
+    cy.get('[data-testid="bottombar-submit-button"]', { timeout: 30000 }).should("be.visible");
     cy.window().should((win: any) => {
       expect(win.dataManager?.localeRuntime?.locale).to.eq("en-US");
       expect(win.dataManager?.lsf?.lsfInstance?.localeRuntime?.locale).to.eq("en-US");
@@ -55,6 +75,7 @@ describe("Data Manager and editor display locale", () => {
       expect(Number(win.dataManager?.lsf?.task?.id), "Data Manager task selection started").to.eq(fixture.tasks.a.id);
       const annotation = win.Htx?.annotationStore?.selected;
       expect(win.Htx?.isLoading, "editor initialization complete").to.eq(false);
+      expect(win.dataManager.store.loadingData, "task refresh and reset complete").to.eq(false);
       expect(annotation?.editable, "editable annotation").to.eq(true);
       expect(annotation?.isReadOnly(), "annotation is not read-only").to.eq(false);
       expect(annotation?.history?.isFrozen, "annotation history ready").to.eq(false);
