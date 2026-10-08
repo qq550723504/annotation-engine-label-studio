@@ -266,6 +266,13 @@ Require both positive and transactional coverage:
 - repeated/no-op disable writes against already inactive users emit no new
   `account_disabled` event, and mixed bulk operations emit events only for the
   users that actually transitioned active-to-inactive;
+- for direct reactivation attempts rejected by #47, verify that no new revoke-all
+  or account-disable audit event commits and previously accepted history remains
+  intact; #47 owns the inactive flag, version and fresh-login rejection assertions;
+- when #47 rejects a mixed reactivation batch after earlier disable work, verify
+  that every new disable audit intent rolls back; #47 independently verifies the
+  account/profile/version rollback. Legitimate reactivation preserves prior audit
+  history and emits no new #48 revocation event; this adds no reactivation audit type;
 - rejection-path coverage above is consequence-only: #48 consumes the #47
   rejection outcome and asserts absence of durable/success audit state; it does
   not duplicate #47 authorization tests;

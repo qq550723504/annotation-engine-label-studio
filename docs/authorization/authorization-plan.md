@@ -274,6 +274,13 @@ negative provisioning-failure, nonzero-version migration, missing-boundary and
 mismatched-pair regressions. Authentication never repairs either record, and
 online recovery requires a surviving authoritative recovery boundary.
 
+Account mutation batches must preserve Django write routing and backend parameter
+budgets, including target discovery and later ID predicates. Keep global PK lock
+order and capture the entire target scope before any profile/state write. All
+chunks share one transaction and fresh authority checked after locking; retain
+budget, captured-scope, whole-batch rollback, self-disable and overlapping-batch
+concurrency regressions across upstream QuerySet changes.
+
 Retain Django password-change and secret-key fallback behavior, existing session
 expiry policy, and project/member/assignment authorization as distinct controls.
 The user admin revocation action derives its actor from the authenticated server

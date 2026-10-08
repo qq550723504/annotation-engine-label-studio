@@ -97,6 +97,15 @@ write through Django's base QuerySet implementation. Raw SQL, `save_base()` and
 direct calls to base QuerySet writers bypass application hooks and are not
 supported caller-side account security operations.
 
+Account batches reuse Django backend sizing and the existing project batching
+utility. Discovery and writes bound their ID predicates, honor `bulk_update()`'s
+batch size, and use Django's write routing. Bulk discovery locks all selected IDs
+in global primary-key order before any field changes; later writes use only that
+captured scope. The whole operation retains one transaction and a fresh authority
+check after locking. An administrator included in its own disable batch does not
+change the already-authorized later batch intent. A late failure rolls back every
+batch, including its version changes and the combined #48 audit consequence.
+
 The counter has its own one-to-one table, `htx_user_session_version`, so a stale
 ordinary User instance's profile/password/last-activity save cannot overwrite a
 revocation. Authentication reads its current value from the DB, without a cached

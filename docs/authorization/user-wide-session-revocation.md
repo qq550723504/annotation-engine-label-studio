@@ -252,6 +252,13 @@ unknown code.
 - two concurrent transactions attempting to disable the same active user serialize/revalidate against authoritative state so exactly one transaction performs the real `True -> False` transition, exactly one session-version advance occurs; #48 separately verifies exactly-once audit intent for that transition;
 - include a concurrency regression for a queryset/bulk-style path where targets are discovered before mutation, proving the second transaction does not act on stale pre-lock active state;
 - multi-user `QuerySet.update()` and `bulk_update()` regressions verify every target's counter/version, every retained pre-disable cookie, and successful re-enable semantics;
+- exercise target discovery and ID writes under a bounded database parameter
+  budget, with both default sizing and an explicit `bulk_update()` batch size;
+  preserve captured scope when profile updates change its filter, Django write
+  routing, whole-batch security-state rollback and self-disable semantics;
+- concurrently disable overlapping target sets supplied in opposite orders and
+  small batches; global PK locking must avoid deadlocks and advance each target's
+  security state only once;
 - inject a failure after at least one target in a multi-user `QuerySet.update()` and `bulk_update()` batch has been processed; the entire batch must roll back, with no partially disabled users and no partially advanced session versions;
 - inject revocation/version-write failure for ordinary model `save()`; the disable mutation rolls back and no partial disabled-without-revocation state commits;
 - stale ordinary user saves cannot overwrite the counter;
@@ -260,23 +267,23 @@ unknown code.
   the current disabled flag, applies unrelated profile edits, and rejects a fresh
   password login; administrator authority does not imply reactivation intent;
 - explicit administrator reactivation reloads current authority, preserves both
-  security versions and prior audit history, permits a new login, and still rejects
+  security versions, permits a new login, and still rejects
   every retained pre-disable cookie; unauthorized, inactive, anonymous, missing,
   and stale actors cannot reactivate accounts by submitting actor/active fields;
 - directly attempt inactive-to-active writes through model
   `save(update_fields=[..., 'is_active'])`, `QuerySet.update(is_active=True)`, and
   `bulk_update(..., ['is_active'])`, both without actor context and with an
   authorized administrator actor; all attempts outside the trusted reactivation
-  service must fail, preserve the inactive flag/version/audit, and reject fresh
+  service must fail, preserve the inactive flag and both versions, and reject fresh
   login. Actor authority alone is not explicit service intent;
 - reject mixed batch reactivation atomically, including unrelated field changes
-  and any earlier disable/version/audit effects; successful trusted reactivation
+  and any earlier disable/version effects; successful trusted reactivation
   must reload cached-permission revocation and stale-disabled actor state;
 - an already-active same-state field write may update unrelated profile fields
   without reactivation authority and must not advance security state;
 - restore a backup taken before an account disable while preserving a current
-  authoritative checkpoint for account active flags, both security tables and
-  the complete audit ledger; reconcile all of them and clear restored sessions
+  authoritative checkpoint for account active flags and both security tables;
+  reconcile that security state and clear restored sessions
   before traffic resumes, then reject fresh login for the disabled account;
 - if the current account flags cannot be recovered, deny affected accounts until
   explicit administrator revalidation; counter verification and cookie clearing
