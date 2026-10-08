@@ -248,11 +248,41 @@ for the desired ruleset, application procedure, and acceptance boundaries.
 ## Server-authoritative browser session revocation
 
 Preserve the database-only browser session backend, the independent per-user
-security counter, and its inclusion in Django's auth-session hash during upstream
+security counter, its independent recovery-boundary record, and inclusion in
+Django's auth-session hash during upstream
 upgrades. Current-session logout deletes the authoritative DB session; user-wide
 revocation advances the counter without scanning sessions. Account disablement
 must advance the counter transactionally even for QuerySet/bulk writes, and a
 stale User save must never reduce it. Missing security state must fail closed.
+Full profile saves also preserve the authoritative disabled flag, including stale
+administrator forms. Keep reactivation as an explicit administrator operation with
+fresh server-side authority checks; it must preserve the existing revocation
+boundary.
+Ordinary explicit active-field saves, QuerySet updates and bulk updates must reject
+inactive-to-active transitions outside that service, even with an administrator
+actor. Preserve direct bypass, mixed-batch rollback and fresh-login denial tests.
+Backup recovery must preserve/reconcile current account active flags, both security
+tables and the complete audit ledger before traffic resumes.
+Retain regressions for stale authorized profile saves, unauthorized reactivation,
+pre-disable cookie replay after reactivation, and fresh-login denial after restoring
+a backup that predates account disablement. Version verification and cookie clearing
+alone do not establish account-state recovery.
+Provision both security records atomically with new users. Bounded backfill copies
+existing primary versions into new boundaries without resetting them; drain old
+writers and verify zero missing/inconsistent pairs before enforcement. Preserve
+negative provisioning-failure, nonzero-version migration, missing-boundary and
+mismatched-pair regressions. Authentication never repairs either record, and
+online recovery requires a surviving authoritative recovery boundary.
+
+Account mutation batches must preserve Django write routing and backend parameter
+budgets, including target discovery and later ID predicates. Keep global PK lock
+order and capture the entire target scope before any profile/state write. All
+chunks share one transaction and fresh authority checked after locking; retain
+budget, captured-scope, whole-batch rollback, self-disable and overlapping-batch
+concurrency regressions across upstream QuerySet changes.
+When the original scope exhausts its parameter budget, do not force a one-ID
+predicate: retain the executable scope, lock in global order and intersect the
+supplied object set before writes. Document the broader lock scope of this fallback.
 
 Disable entry points must receive the trusted authenticated `session_actor`, reload
 its active staff/`users.change_user` authority, lock authoritative targets and
@@ -284,6 +314,33 @@ expiry policy, and project/member/assignment authorization as distinct controls.
 The user admin revocation action derives its actor from the authenticated server
 request. API/JWT tokens are unaffected. Require negative copied-cookie and
 cross-process regression tests, and keep expired DB-session cleanup scheduled.
+Keep authorization rejection tests for account disablement at every supported
+write entry point: model `save()`, `QuerySet.update()`, and `bulk_update()`.
+Missing-state recovery requires a freshly authorized active human staff
+administrator with `users.change_user`, derived from trusted server authentication;
+ordinary self-service and system/background identity provide no recovery grant.
+Preserve direct-service rejection, stale-privilege/disable, and API/admin
+actor-substitution regressions for recovery across upstream upgrades.
+The normative security state machine, monotonicity, transition, atomicity,
+migration/recovery, authorization, and audit-durability guarantees are defined in
+[session security invariants](session-security-invariants.md). Preserve that file
+as the source of truth across upstream rebases.
+
+#47 owns security-state and authorization acceptance; #48 owns audit acceptance.
+The selected local database topology deploys both as one shared foundation, with
+all security/audit tables and integrated writers present before revocation or
+disable paths are enabled. Durable audit intent is required in the same
+transaction as the transition; audit insertion failure rolls back the security
+state and enclosing account/batch writes. The selected local database ledger accepts
+events atomically, retains stable event/target-version identity without an audit
+TTL, and preserves or reconciles the complete accepted ledger across rollback/
+restore. Optional logs are projections. If external delivery is configured, it
+additionally requires at-least-once dispatch with crash-durable receiver dedup,
+retention for the full replay horizon, retry/dead-letter redrive, and preservation
+or reconciliation of pending intents and receiver accepted-ID state across restore.
+Do not regress either topology to best-effort post-commit-only logging or volatile/
+short-lived acceptance state.
+
 See [session revocation](session-revocation.md) for configuration, cutover,
 rollback boundaries, and deployment acceptance.
 

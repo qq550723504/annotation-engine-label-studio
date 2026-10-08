@@ -240,6 +240,10 @@ separately. Deployment, production replica validation, and the actual enabled
 cleanup schedule remain operator acceptance requirements; a merged PR alone does
 not prove them.
 
+The root security model for #46-#48 is documented in
+[session security invariants](session-security-invariants.md); child issue
+documents define delivery-specific mechanics without overriding those invariants.
+
 References: [Django session backends and replay semantics](https://docs.djangoproject.com/en/5.1/topics/http/sessions/),
 [Django auth-session hash and password changes](https://docs.djangoproject.com/en/5.1/topics/auth/default/#session-invalidation-on-password-change),
 and [Django clearsessions](https://docs.djangoproject.com/en/5.1/ref/django-admin/#clearsessions).
