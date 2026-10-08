@@ -105,6 +105,9 @@ def test_session_settings_accept_explicit_http_and_https_cookie_policy(tmp_path,
         ('django.contrib.sessions.backends.signed_cookies', 'false'),
         ('django.contrib.sessions.backends.signed_cookies', 'true'),
         ('django.contrib.sessions.backends.cached_db', 'false'),
+        ('django.contrib.sessions.backends.cache', 'false'),
+        ('django.contrib.sessions.backends.file', 'false'),
+        ('custom.unreviewed_backend', 'false'),
     ],
 )
 def test_unsupported_session_engine_fails_at_startup(tmp_path, engine, debug):
