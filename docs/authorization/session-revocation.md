@@ -102,7 +102,11 @@ utility. Discovery and writes bound their ID predicates, honor `bulk_update()`'s
 batch size, and use Django's write routing. Bulk discovery locks all selected IDs
 in global primary-key order before any field changes; later writes use only that
 captured scope. The whole operation retains one transaction and a fresh authority
-check after locking. An administrator included in its own disable batch does not
+check after locking. When an executable original scope exhausts the bind budget,
+discovery locks that scope without adding ID parameters and intersects the supplied
+objects in memory; matching users outside that object set are locked but never
+mutated. This fallback may lock more rows than an ordinary ID discovery chunk.
+An administrator included in its own disable batch does not
 change the already-authorized later batch intent. A late failure rolls back every
 batch, including its version changes and the combined #48 audit consequence.
 

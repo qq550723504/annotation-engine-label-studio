@@ -254,6 +254,8 @@ unknown code.
 - multi-user `QuerySet.update()` and `bulk_update()` regressions verify every target's counter/version, every retained pre-disable cookie, and successful re-enable semantics;
 - exercise target discovery and ID writes under a bounded database parameter
   budget, with both default sizing and an explicit `bulk_update()` batch size;
+  include an independently executable original scope that exhausts the budget,
+  and prove that matching users omitted from the supplied objects stay unchanged;
   preserve captured scope when profile updates change its filter, Django write
   routing, whole-batch security-state rollback and self-disable semantics;
 - concurrently disable overlapping target sets supplied in opposite orders and
@@ -292,6 +294,11 @@ unknown code.
 - deleting/missing the security-version record also prevents a new browser login from silently recreating a default version or authenticating;
 - after explicit missing-state recovery, replay of a cookie issued before the row was deleted remains rejected; recovery uses a never-before-issued version or forces reauthentication/session invalidation before establishing fresh state;
 - missing-state recovery succeeds only for an active human staff administrator with `users.change_user`, freshly authorized by the recovery service;
+- delete the recovery boundary while retaining a nonzero primary version, then
+  call `recover_session_state()` with an authorized administrator; reject recovery
+  without changing that primary row or recreating the boundary. Existing-session
+  requests, fresh login and the cutover verifier remain denied until maintenance
+  restores authoritative state; also cover loss of both rows;
 - call the recovery service directly with an ordinary user (including the target recovering their own state), staff without `users.change_user`, an inactive administrator, an anonymous actor, and a context-free/system caller without authorized human identity; every call is rejected without recreating the row or changing the authoritative recovery boundary;
 - load an authorized recovery actor, then revoke their permission or disable them in authoritative storage; a recovery attempt with that stale object is rejected and leaves security state unchanged;
 - a direct API/admin recovery request submitting an administrator's actor ID or privilege fields cannot substitute that identity for the authenticated unauthorized caller;
@@ -302,6 +309,11 @@ unknown code.
 - actor authorization is enforced at the service boundary using freshly reloaded active state and permissions from authoritative storage;
 - a negative regression revokes the actor's administrative permission or disables the actor directly in the database after an actor object has already been loaded, then verifies that stale privileges cannot revoke another user's sessions;
 - a direct API/admin request that submits another user's actor ID cannot choose or override the revocation actor; the authenticated server-side principal remains authoritative;
+- directly exercise every supported request-facing account-disable adapter with
+  an ordinary or underprivileged authenticated caller submitting an administrator's
+  actor ID and privilege fields; derive authority only from the server-side
+  principal, reject the disable and leave target flags/profile/security versions
+  unchanged. Model/queryset authorization cases do not replace this adapter test;
 - an authorized human staff administrator with `users.change_user` can perform an account-disable transition;
 - an ordinary authenticated human user cannot perform an account-disable transition;
 - a staff user lacking `users.change_user` cannot perform an account-disable transition;

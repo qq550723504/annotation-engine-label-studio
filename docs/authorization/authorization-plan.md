@@ -280,6 +280,9 @@ order and capture the entire target scope before any profile/state write. All
 chunks share one transaction and fresh authority checked after locking; retain
 budget, captured-scope, whole-batch rollback, self-disable and overlapping-batch
 concurrency regressions across upstream QuerySet changes.
+When the original scope exhausts its parameter budget, do not force a one-ID
+predicate: retain the executable scope, lock in global order and intersect the
+supplied object set before writes. Document the broader lock scope of this fallback.
 
 Retain Django password-change and secret-key fallback behavior, existing session
 expiry policy, and project/member/assignment authorization as distinct controls.
