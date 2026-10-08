@@ -1,6 +1,9 @@
 name: Fork PR Gate
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -16,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: fork-pr-gate-${{ github.event.pull_request.number }}
+  group: fork-pr-gate-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -48,7 +51,7 @@ jobs:
           --health-retries 12
 
     steps:
-      - name: Checkout PR merge commit
+      - name: Checkout PR merge commit or pushed main commit
         uses: actions/checkout@v6
 
       - name: Install Poetry

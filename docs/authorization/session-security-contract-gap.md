@@ -144,3 +144,13 @@ Final local suites: SQLite 134 passed with six PostgreSQL-only skips; PostgreSQL
 140 passed including six concurrency cases. Opposing-input batches are covered
 with and without an exhausted original scope. Ruff, Blue and diff checks pass.
 Current-head hosted CI and reviewer approval remain separate gates.
+
+## Merge validation gate (2026-10-08)
+
+Both existing required workflows now also run on every push to `main`, including
+documentation-only merges. PR checks continue to test the PR merge candidate;
+main runs check out the exact pushed commit. Push concurrency is isolated from PR
+work, and the browser workflow preserves separate manual-dispatch runs. Verify
+both workflow conclusions against `event=push`, `headBranch=main` and the actual
+merge SHA before accepting a merge; earlier PR or manual-dispatch results are
+separate evidence.
