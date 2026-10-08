@@ -124,3 +124,23 @@ concurrency cases. New regressions cover opposing input orders across one-row
 chunks, self-disable batches and unavailable read-replica routing. Ruff/Blue/diff
 checks pass. The reduced-budget probe is regression evidence, not a production
 large-batch throughput or deployment claim.
+
+## Exhausted-scope and adapter review evidence (2026-10-08)
+
+Both default and one-row batch regressions failed when an independently executable
+original scope used every allowed parameter. The discovery path now executes and
+locks that unchanged scope in global PK order, then intersects the caller's object
+set in memory before bounded writes. Matching users omitted from the object set
+remain unchanged; the fallback's broader lock scope is documented in the runbook.
+
+The seven focused cases passed. Existing recovery coverage now exercises a lost
+boundary with a surviving nonzero primary, preserves that primary and keeps
+requests/login/cutover denied; both-row loss remains covered. The native admin
+disable adapter rejects ordinary/underprivileged principals submitting a different
+administrator's identity and privilege fields without changing target/profile/
+paired-version state. These strengthen existing rejection behavior.
+
+Final local suites: SQLite 134 passed with six PostgreSQL-only skips; PostgreSQL
+140 passed including six concurrency cases. Opposing-input batches are covered
+with and without an exhausted original scope. Ruff, Blue and diff checks pass.
+Current-head hosted CI and reviewer approval remain separate gates.

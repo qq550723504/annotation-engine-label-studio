@@ -214,6 +214,35 @@ def test_bulk_discovery_reserves_the_original_scope_parameter_budget(administrat
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize('batch_size', [None, 1])
+def test_bulk_discovery_handles_a_scope_that_exhausts_the_parameter_budget(batch_size, administrator):
+    names = [f'Full budget profile {index}' for index in range(20)]
+    targets = [UserFactory(first_name=names[index % len(names)], is_staff=False) for index in range(21)]
+    omitted = UserFactory(first_name=names[0], is_staff=False)
+    excluded = UserFactory(first_name=names[0], is_staff=True)
+    users = list(reversed([*targets, excluded]))
+    for user in users:
+        user.is_staff = not user.is_staff
+        user.is_active = False
+    with user_parameter_budget(20):
+        count = User.objects.filter(first_name__in=names, is_staff=False).bulk_update(
+            users, ['is_staff', 'is_active'], batch_size=batch_size, session_actor=administrator
+        )
+    assert count == len(targets)
+    for user in targets:
+        user.refresh_from_db()
+        assert user.is_staff and not user.is_active
+        assert UserSessionVersion.objects.get(user=user).version == 1
+        assert UserSessionRevocationBoundary.objects.get(user=user).version == 1
+    for user, was_staff in ((omitted, False), (excluded, True)):
+        user.refresh_from_db()
+        assert user.is_active and user.is_staff is was_staff
+        assert UserSessionVersion.objects.get(user=user).version == 0
+        assert UserSessionRevocationBoundary.objects.get(user=user).version == 0
+    assert SessionRevocationEvent.objects.count() == len(targets)
+
+
+@pytest.mark.django_db
 def test_queryset_disable_bounds_captured_id_writes_to_the_parameter_budget(administrator):
     targets = [UserFactory(is_staff=False) for _ in range(21)]
     excluded = UserFactory(is_staff=True)
@@ -774,27 +803,58 @@ def test_recovery_rejects_unauthorized_or_stale_actors(kind, administrator):
 
 
 @pytest.mark.django_db
-def test_recovery_cannot_guess_a_version_when_the_boundary_is_lost(administrator):
+@pytest.mark.parametrize('primary_survives', [False, True])
+def test_recovery_cannot_guess_a_version_when_the_boundary_is_lost(primary_survives, administrator, client):
     user = UserFactory()
-    UserSessionVersion.objects.filter(user=user).delete()
+    user.set_password('missing-boundary-regression-test-only')
+    user.save(update_fields=['password'])
+    revoke_all_sessions(user, reason='logout_all_devices', actor=user)
+    client.force_login(user)
+    if not primary_survives:
+        UserSessionVersion.objects.filter(user=user).delete()
     UserSessionRevocationBoundary.objects.filter(user=user).delete()
+    primary = list(UserSessionVersion.objects.filter(user=user).values_list('pk', 'version'))
     with pytest.raises(PermissionDenied):
         recover_session_state(user, actor=administrator)
-    assert not UserSessionVersion.objects.filter(user=user).exists()
+    assert list(UserSessionVersion.objects.filter(user=user).values_list('pk', 'version')) == primary
+    assert not UserSessionRevocationBoundary.objects.filter(user=user).exists()
+    assert client.get('/api/current-user/whoami').status_code == 401
+    response = client.post('/user/login/', {'email': user.email, 'password': 'missing-boundary-regression-test-only'})
+    assert response.status_code == 403
+    with pytest.raises(CommandError, match='keep traffic drained'):
+        call_command('verify_session_security_state')
+    assert list(UserSessionVersion.objects.filter(user=user).values_list('pk', 'version')) == primary
+    assert not UserSessionRevocationBoundary.objects.filter(user=user).exists()
 
 
 @pytest.mark.django_db
-def test_admin_disable_does_not_use_submitted_actor_identity(administrator):
+@pytest.mark.parametrize('kind', ['ordinary', 'underprivileged'])
+def test_admin_disable_does_not_use_submitted_actor_identity(kind, administrator):
     from django.contrib.admin import AdminSite
     from users.admin import UserAdminShort
 
-    user, ordinary = UserFactory(), UserFactory()
-    request = RequestFactory().post('/admin/users/user/', {'actor_id': administrator.pk, 'is_active': False})
-    request.user = ordinary
+    user = UserFactory()
+    request = RequestFactory().post(
+        '/admin/users/user/',
+        {
+            'actor_id': administrator.pk,
+            'session_actor': administrator.pk,
+            'is_staff': True,
+            'is_superuser': True,
+            'permissions': ['users.change_user'],
+            'is_active': False,
+        },
+    )
+    request.user = UserFactory(is_staff=kind == 'underprivileged')
     user.is_active = False
+    user.first_name = 'Rejected profile edit'
     with pytest.raises(PermissionDenied):
         UserAdminShort(User, AdminSite()).save_model(request, user, None, True)
-    assert User.objects.get(pk=user.pk).is_active
+    user.refresh_from_db()
+    assert user.is_active and user.first_name != 'Rejected profile edit'
+    assert UserSessionVersion.objects.get(user=user).version == 0
+    assert UserSessionRevocationBoundary.objects.get(user=user).version == 0
+    assert SessionRevocationEvent.objects.count() == 0
 
 
 @pytest.mark.django_db
@@ -885,10 +945,12 @@ def test_concurrent_disable_revalidates_a_stale_target_set(path, administrator):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_concurrent_bulk_disable_uses_global_lock_order_across_batches(administrator):
+@pytest.mark.parametrize('full_scope_budget', [False, True])
+def test_concurrent_bulk_disable_uses_global_lock_order_across_batches(full_scope_budget, administrator):
     if not connection.features.has_select_for_update:
         pytest.skip('Row-lock serialization is exercised separately against PostgreSQL.')
-    users = [UserFactory() for _ in range(4)]
+    names = [f'Concurrent scope {index}' for index in range(20)]
+    users = [UserFactory(first_name=names[index]) for index in range(4)]
     barrier = Barrier(2)
 
     def worker(reverse):
@@ -900,7 +962,9 @@ def test_concurrent_bulk_disable_uses_global_lock_order_across_batches(administr
             for target in targets:
                 target.is_active = False
             barrier.wait(timeout=15)
-            return User.objects.bulk_update(targets, ['is_active'], batch_size=1, session_actor=actor)
+            queryset = User.objects.filter(first_name__in=names) if full_scope_budget else User.objects.all()
+            with user_parameter_budget(20):
+                return queryset.bulk_update(targets, ['is_active'], batch_size=1, session_actor=actor)
         finally:
             connections.close_all()
 

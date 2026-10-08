@@ -40,10 +40,13 @@ class UserQuerySet(models.QuerySet):
         # Include CASE value/PK pairs and the final ID predicate in the budget.
         # Retain a conservative protocol bound when the backend reports no limit.
         parameter_limit = connection.features.max_query_params or 65535
+        available_parameters = parameter_limit - reserved_params
+        if available_parameters <= 0:
+            raise ValueError('The queryset leaves no parameter capacity for ID discovery.')
         size = min(
             batch_size or 1000,
             1000,
-            max(1, parameter_limit - reserved_params),
+            available_parameters,
             max(1, parameter_limit // (2 * len(fields) + 1)),
             max(1, connection.ops.bulk_batch_size(['pk', 'pk'] + fields, objects)),
         )
@@ -126,11 +129,19 @@ class UserQuerySet(models.QuerySet):
                 return 0
             # Acquire the whole target scope before any field write. Global PK order
             # is independent of caller order and prevents reverse-batch deadlocks.
-            for id_batch in self._security_batches(
-                sorted(objects_by_id), fields=fields, batch_size=batch_size, reserved_params=len(scope_parameters)
-            ):
-                selected = self.filter(pk__in=id_batch).order_by('pk').select_for_update()
-                targets.extend(dict(selected.values_list('pk', 'is_active')).items())
+            parameter_limit = connections[self.db].features.max_query_params or 65535
+            if len(scope_parameters) == parameter_limit:
+                # An executable scope with no spare binds cannot add an ID predicate.
+                # Lock it in the same global order, then intersect in Python. Matching
+                # users absent from the supplied objects are locked but never written.
+                selected = self.order_by('pk').select_for_update().values_list('pk', 'is_active')
+                targets = [(pk, active) for pk, active in dict(selected).items() if pk in objects_by_id]
+            else:
+                for id_batch in self._security_batches(
+                    sorted(objects_by_id), fields=fields, batch_size=batch_size, reserved_params=len(scope_parameters)
+                ):
+                    selected = self.filter(pk__in=id_batch).order_by('pk').select_for_update()
+                    targets.extend(dict(selected.values_list('pk', 'is_active')).items())
             actor = require_session_administrator(session_actor, using=self.db) if disables else None
             for target_batch in self._security_batches(targets, fields=fields, batch_size=batch_size):
                 locked = self.model._default_manager.using(self.db).filter(pk__in=[pk for pk, _ in target_batch])
