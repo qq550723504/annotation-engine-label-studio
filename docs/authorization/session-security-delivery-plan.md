@@ -69,6 +69,7 @@ avoid temporary dual-mode authentication.
 - [#46 — server-side session backend migration](./session-backend-migration.md)
 - [#47 — O(1) user-wide session revocation](./user-wide-session-revocation.md)
 - [#48 — production session operations and auditability](./session-operations-auditability.md)
+- [#48 — local release candidate and isolated operations handoff](./issue48-release-candidate.md)
 
 ## Review checkpoints
 

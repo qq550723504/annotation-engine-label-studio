@@ -1,0 +1,236 @@
+{
+  "schema_version": 1,
+  "issue": "https://github.com/qq550723504/annotation-engine-label-studio/issues/48",
+  "evidence_recorded_at_utc": "2026-10-08T09:06:05.007482+00:00",
+  "evidence_kind": "UNSIGNED_LOCAL_SYNTHETIC_ACCEPTANCE",
+  "source": {
+    "source_commit": "90153bb6450a160ed6a1a9129adce65b7c4b42f8",
+    "source_tree": "9d4ddb72f6200ce3ffc4e059190aba618defb6ac",
+    "branch": "main",
+    "upstream_baseline": "1.23.0",
+    "fork_version": "1.23.0+fork.rc48.90153bb6"
+  },
+  "image": {
+    "platform": "linux/amd64",
+    "tag": "annotation-engine-label-studio:1.23.0-fork-rc48-90153bb6",
+    "local_immutable_reference": "annotation-engine-label-studio@sha256:d0876462957eebd2608223c4af6ec5f894eae7008f2fb3e236124dca5c3d36ce",
+    "oci_index_digest": "sha256:d0876462957eebd2608223c4af6ec5f894eae7008f2fb3e236124dca5c3d36ce",
+    "platform_manifest_digest": "sha256:42f13f52913e9e99b335f8ed794f54358e91173d143315e820a6e44808647410",
+    "config_digest": "sha256:d432558c7f3689f21281644cf4614569f9fcc459e40908ae264aad36f649c38b",
+    "runtime_variant": "Debian bookworm Python 3.11 / Node 20; native fork frontend, entrypoint, uWSGI and nginx",
+    "registry_published": false
+  },
+  "build": {
+    "recorded_dockerfile": "Dockerfile.recorded",
+    "dockerfile_sha256": "424192b5294a11e1ab15eb2dbc84067680196e2cbbffb5cba28123d3bbe368ef",
+    "context_sha256": "77c0383b57170a1b0e01f11f0f4ed375b3afdc086ea01cfee9c71fd970dde89c",
+    "canonical_git_archive_sha256": "e8e212c2561ec37cd8794377e6a6b37fdf49dd030f813f9e295cf8eebfed1127",
+    "verified_git_blob_count": 5322,
+    "executable_file_count": 23,
+    "git_tracked_links": {
+      "deploy/docker-entrypoint.d/app-docker/05-check-data-permissions.sh": "../common/05-check-data-permissions.sh",
+      "deploy/docker-entrypoint.d/app-init/11-configure-custom-cabundle.sh": "../common/11-configure-custom-cabundle.sh",
+      "deploy/docker-entrypoint.d/app-init/20-wait-for-db.sh": "../common/20-wait-for-db.sh",
+      "deploy/docker-entrypoint.d/app/11-configure-custom-cabundle.sh": "../common/11-configure-custom-cabundle.sh",
+      "deploy/docker-entrypoint.d/app/20-wait-for-db.sh": "../common/20-wait-for-db.sh",
+      "deploy/docker-entrypoint.d/app/30-run-db-migrations.sh": "../common/30-run-db-migrations.sh",
+      "deploy/docker-entrypoint.d/nginx/10-configure-nginx.sh": "../common/10-configure-nginx.sh",
+      "docs/themes/v2/source/images/templates": "../../../../../label_studio/core/static/templates/"
+    },
+    "verified_external_poetry_installer_sha256": "75745ca71373a7b22fa150953543f03d826a52f8e4bc4350328a33bddd668026",
+    "resolved_base_images": [
+      {
+        "uri": "pkg:docker/mirror.gcr.io/library/node@20-alpine?platform=linux%2Famd64",
+        "digest": {
+          "sha256": "fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293"
+        }
+      },
+      {
+        "uri": "pkg:docker/mirror.gcr.io/library/python@3.11-slim-bookworm?platform=linux%2Famd64",
+        "digest": {
+          "sha256": "0a310eeecf4e1f5a0743f9a6520c90c88d089c903ca5fd283f501e3a805f5f89"
+        }
+      }
+    ],
+    "arguments": {
+      "NODE_VERSION": "20",
+      "PYTHON_VERSION": "3.11",
+      "POETRY_VERSION": "2.3.2",
+      "VERSION_OVERRIDE": "1.23.0+fork.rc48.90153bb6",
+      "BRANCH_OVERRIDE": "main"
+    },
+    "native_metadata": {
+      "backend": {
+        "message": "Merge pull request #49 from qq550723504/docs/session-security-46-48-design",
+        "commit": "90153bb6450a160ed6a1a9129adce65b7c4b42f8",
+        "date": "2026/10/07 20:35:50",
+        "branch": "main",
+        "version": "1.23.0+fork.rc48.90153bb6"
+      },
+      "frontends": {
+        "labelstudio": {
+          "message": "Merge pull request #49 from qq550723504/docs/session-security-46-48-design",
+          "commit": "90153bb6450a160ed6a1a9129adce65b7c4b42f8",
+          "date": "2026-10-08T03:35:50.000Z",
+          "branch": "main"
+        },
+        "editor": {
+          "message": "Merge pull request #49 from qq550723504/docs/session-security-46-48-design",
+          "commit": "90153bb6450a160ed6a1a9129adce65b7c4b42f8",
+          "date": "2026-10-08T03:35:50.000Z",
+          "branch": "main"
+        },
+        "datamanager": {
+          "message": "Merge pull request #49 from qq550723504/docs/session-security-46-48-design",
+          "commit": "90153bb6450a160ed6a1a9129adce65b7c4b42f8",
+          "date": "2026-10-08T03:35:50.000Z",
+          "branch": "main"
+        }
+      },
+      "python": "3.11.17",
+      "binaries": {
+        "uwsgi": "2.0.28",
+        "nginx": "nginx version: nginx/1.22.1"
+      },
+      "compiled_locales": {
+        "en_US": {
+          "label_studio/locale/en_US/LC_MESSAGES/django.mo": "b62b2bbef724df7e9c8dab7f00a8ce8d4e8370ba17bffc83f7aea791f0afad3d"
+        },
+        "zh_Hans": {
+          "label_studio/locale/zh_Hans/LC_MESSAGES/django.mo": "ff8ecc8c74606a8db471658fa88ab80f27355b8973a9fb476b1fc4dc70b7d8e8"
+        }
+      },
+      "dependency_hashes": {
+        "pyproject.toml": "7e97d3e9fcc7e3359ad5edfe91c8363a0f5713044d06b0711ed187581368a5a9",
+        "poetry.lock": "4edef02bcf35c17d0c71e27f0114957c52a65bbdf15029cc9a3ece774d34d95f"
+      },
+      "native_entrypoint_symlinks": {
+        "deploy/docker-entrypoint.d/nginx/10-configure-nginx.sh": "../common/10-configure-nginx.sh",
+        "deploy/docker-entrypoint.d/app-init/20-wait-for-db.sh": "../common/20-wait-for-db.sh",
+        "deploy/docker-entrypoint.d/app-init/11-configure-custom-cabundle.sh": "../common/11-configure-custom-cabundle.sh",
+        "deploy/docker-entrypoint.d/app-docker/05-check-data-permissions.sh": "../common/05-check-data-permissions.sh",
+        "deploy/docker-entrypoint.d/app/20-wait-for-db.sh": "../common/20-wait-for-db.sh",
+        "deploy/docker-entrypoint.d/app/11-configure-custom-cabundle.sh": "../common/11-configure-custom-cabundle.sh",
+        "deploy/docker-entrypoint.d/app/30-run-db-migrations.sh": "../common/30-run-db-migrations.sh"
+      },
+      "main_bundle_sha256": "1e1fcede8f5227542f73eb995679a5f645027105eedddeffed09e2c2853f63bd"
+    },
+    "deployed_source_sha256": {
+      "users.models": "379c094bd981bcab4ab5aabf4125d444c64d2622abdb0993a0e6f8cfbb5e1f21",
+      "users.session_security": "53e441fe34035dcd6b683ac539dc2a0fdb448a64d32069e42d80df517d5f679d",
+      "core.wsgi": "2e6b941a33647dee3e9d0adbf49b3136c15b16709a9dcd23e47b8b068d1543f3"
+    },
+    "bit_for_bit_rebuild_promised": false,
+    "original_alpine_dockerfile_acceptance": "NOT_RUN"
+  },
+  "runtime": {
+    "compose_project": "annotation-engine-issue48-20261008-b-rc5",
+    "services": "STOPPED_FINAL_FOUR_VOLUMES_RETAINED",
+    "app_replica_count": 2,
+    "gateway_bind_address": "127.0.0.1",
+    "gateway_ports": {
+      "app": 19443,
+      "app_b": 19481,
+      "restored_app": 19482
+    },
+    "postgres_image": "postgres@sha256:7e5df973a74872482e320dcbdeb055e178d6f42de0558b083892c50cda833c96",
+    "settings": {
+      "SESSION_ENGINE": "django.contrib.sessions.backends.db",
+      "SESSION_COOKIE_NAME": "issue48_session",
+      "SESSION_COOKIE_SECURE": true,
+      "SESSION_COOKIE_HTTPONLY": true,
+      "SESSION_COOKIE_SAMESITE": "Lax",
+      "SESSION_COOKIE_DOMAIN": null,
+      "CSRF_COOKIE_SECURE": true,
+      "CSRF_COOKIE_HTTPONLY": true,
+      "DISABLE_SIGNUP_WITHOUT_LINK": true,
+      "COLLECT_ANALYTICS": false,
+      "LATEST_VERSION_CHECK": false,
+      "SENTRY_DSN": "",
+      "FRONTEND_SENTRY_DSN": ""
+    },
+    "audit_receiver": "LOCAL_TRANSACTIONAL_DATABASE_LEDGER",
+    "cleanup_interval_seconds": 86400
+  },
+  "migration": {
+    "users": [
+      "0012_user_session_version",
+      "0013_user_locale_preference",
+      "0014_usersessionrevocationboundary_sessionrevocationevent"
+    ],
+    "prior_synthetic_security_version": 7,
+    "paired_state_cutover_command": "python /label-studio/label_studio/manage.py verify_session_security_state",
+    "cutover_command_proves_checkpoint_freshness": false
+  },
+  "acceptance": {
+    "service_side_acceptance": "PASS",
+    "passed_assertions": 112,
+    "assertions_are_not_distinct_product_scenarios": true,
+    "native_uwsgi_nginx": "PASS",
+    "frontend_metadata_and_bundle_delivery_https": "PASS",
+    "migration_preserves_prior_nonzero_version": "PASS",
+    "cross_replica_logout_and_revoke": "PASS",
+    "cookie_policy_real_tls": "PASS",
+    "durable_local_audit_and_transaction_rollback": "PASS",
+    "audit_read_only_admin": "PASS",
+    "scheduled_cleanup_startup_outage_recovery": "PASS",
+    "backup_restore_into_new_volume_and_old_cookie_rejection": "PASS",
+    "independent_latest_checkpoint_integrity_gate": "PASS",
+    "trusted_browser_https": "BLOCKED_CERT_AUTHORITY_INVALID_USER_DEFERRED",
+    "full_bilingual_collaboration_browser": "NOT_RUN",
+    "full_86400_second_schedule_interval": "NOT_RUN",
+    "external_audit_sink": "NOT_CONFIGURED_LOCAL_DB_SELECTED",
+    "registry_publish": "NOT_RUN",
+    "production_deployment": "NOT_RUN",
+    "issue48_closed": false
+  },
+  "restore": {
+    "synthetic_backup_sha256": "e1567b64a3e7827bf4359f90b0ab4cde6f8fc414230202885cc3696a87a681e2",
+    "independently_retained_latest_checkpoint_sha256": "cb7be7e3336bcdff82428e1df2d44efb20f7a8d782db08a97554c04aa9598275",
+    "accepted_event_count_after_reconciliation": 3,
+    "checkpoint_outside_both_database_volumes": true,
+    "checkpoint_hash_alone_proves_freshness": false,
+    "global_restored_browser_session_deletion_required": true,
+    "helper_scope": "BOUNDED_SYNTHETIC_FIXTURE_NOT_GENERAL_PRODUCTION_RESTORE_TOOL"
+  },
+  "exact_source_main_ci": [
+    {
+      "name": "Fork PR Gate",
+      "head_sha": "90153bb6450a160ed6a1a9129adce65b7c4b42f8",
+      "event": "push",
+      "branch": "main",
+      "conclusion": "success",
+      "url": "https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37723484485"
+    },
+    {
+      "name": "Enterprise Browser E2E",
+      "head_sha": "90153bb6450a160ed6a1a9129adce65b7c4b42f8",
+      "event": "push",
+      "branch": "main",
+      "conclusion": "success",
+      "url": "https://github.com/qq550723504/annotation-engine-label-studio/actions/runs/37723484357"
+    }
+  ],
+  "supporting_local_sha256": {
+    "Dockerfile.rc-mirror": "424192b5294a11e1ab15eb2dbc84067680196e2cbbffb5cba28123d3bbe368ef",
+    "compose.rc.yml": "4c539209495d7a2e06dc7c445f07b11d0ed381108519d918566c52724198fbb5",
+    "scripts/build_canonical_candidate.py": "3f5ba40250430eab15fb8ece0f94bd704d5518d755da79f97049a7ea64f1cd51",
+    "scripts/db_ops.py": "f47d681755bda521c11b473c12b11ad1ab998f6493eb5957d81e8a6d460d4127",
+    "scripts/inspect_candidate.py": "ad0c7cd580025ecd7532203ff2eb5eb5f5957f647f1d3f505b50ece527f4f4e0",
+    "scripts/verify_operations.py": "aeab349879b81786c4721cd17184017cbe7f3a2f7764351316542a0562860b1e",
+    "scripts/verify_additional.py": "7fd249628f8fe3b3ffbf869123f35e7ae6cfcd127bb41604ac1784de9ed3ed6f",
+    "scripts/verify_checkpoint_integrity.py": "5dbbb593fb3cbaf9077786248a86a7bc1872cee4d37fece03ed0c26fafb3026e",
+    "evidence/candidate-image-identity.json": "5d50d7121c4973369ca5d497c296d92eb7945e67cfebdf4ee1dd277510d9ac35",
+    "evidence/candidate-native-metadata.json": "75ad0dd5addc6d89292ed1a2d236a14d202b2f89f5a9cb24364baa097a02dedc",
+    "evidence/canonical-source-context.json": "a82d2fb4cfe97fbf6de47a83e2293a6ed1a4cd15cf2c22e05349008dbf5551f2",
+    "evidence/operations-checks.json": "d004d9c728d874efc4981a00eb4af5706de602d12641670d575fb8489d40c7b2",
+    "evidence/operations-summary.json": "322eb8186ad37b56b14aaae4658aa421f99b664ca13432881c4ef78447c25277",
+    "evidence/additional-summary.json": "0d53c649b6bb1f948f23b7edb9edd69b51c0a66f69cf32afa0417bf00f045c8b",
+    "evidence/deployed-source-hashes.json": "d7e613b4efec561cc7d7764424fc8b1b759380fd74d82d2ee50e088d5df605ea",
+    "evidence/checkpoint-integrity-probe.json": "1f64dde27f611fb7977ccedf7c0b557d3736a4512313300e681372e7cf88ce58",
+    "evidence/final-acceptance.json": "96f59dde829218c5bdbcae58cb6d5364c6fdd4603f04a42cabbea498bbc2bd91",
+    "evidence/poetry-installer-input.json": "f18895a87c100dedc719f027260f099129e7b208951dade0fa24e4bb5be94aa5"
+  },
+  "supporting_additional_assertions_log_sha256": "8448ed89559b680b66ef4cc90dd5d481c4fe3a064235ed5f7b93fbbbe1961d7c",
+  "private_material_included": false
+}

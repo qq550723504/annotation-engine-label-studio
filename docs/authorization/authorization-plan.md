@@ -344,6 +344,14 @@ short-lived acceptance state.
 See [session revocation](session-revocation.md) for configuration, cutover,
 rollback boundaries, and deployment acceptance.
 
+The [#48 local candidate handoff](issue48-release-candidate.md) records the fixed
+source/image identities and synthetic operations evidence. Preserve native Linux
+entrypoint symlinks and Git object bytes when building on Windows. A restore must
+reconcile independently retained, authoritative latest account flags, paired
+versions and the complete accepted ledger before clearing restored sessions and
+reopening traffic; pair consistency or a checkpoint checksum alone cannot prove
+freshness. The handoff does not establish production or trusted-browser acceptance.
+
 ## Display locale remains outside authorization
 
 The request-locale middleware runs after Django session authentication and
