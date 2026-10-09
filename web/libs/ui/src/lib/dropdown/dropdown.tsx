@@ -78,6 +78,8 @@ const DropdownComponent = forwardRef<DropdownRef, DropdownProps>(
 
     const { children } = props;
     const [currentVisible, setVisible] = useState(visible);
+    const targetVisible = useRef(visible);
+    const animationGeneration = useRef(0);
     const [offset, setOffset] = useState({});
     const [visibility, setVisibility] = useState(visible ? "visible" : null);
     const [triggerWidth, setTriggerWidth] = useState<number | undefined>(undefined);
@@ -209,8 +211,9 @@ const DropdownComponent = forwardRef<DropdownRef, DropdownProps>(
     const performAnimation = useCallback(
       async (visible = false, disableAnimation?: boolean) => {
         if (props.enabled === false && visible === true) return;
+        const generation = ++animationGeneration.current;
 
-        return new Promise<void>((resolve) => {
+        await new Promise<void>((resolve) => {
           const menu = dropdown.current;
 
           // Guard: if dropdown ref isn't set yet, skip animation and set visibility directly
@@ -226,35 +229,43 @@ const DropdownComponent = forwardRef<DropdownRef, DropdownProps>(
             return;
           }
 
+          let completed = false;
+          const isCurrent = () => !completed && generation === animationGeneration.current;
           aroundTransition(menu, {
             transition: () => {
-              setVisibility(visible ? "appear" : "disappear");
+              if (isCurrent()) setVisibility(visible ? "appear" : "disappear");
             },
             beforeTransition: () => {
-              setVisibility(visible ? "before-appear" : "before-disappear");
+              if (isCurrent()) setVisibility(visible ? "before-appear" : "before-disappear");
             },
             afterTransition: () => {
-              setVisibility(visible ? "visible" : null);
+              if (isCurrent()) setVisibility(visible ? "visible" : null);
+              completed = true;
               resolve();
             },
           });
         });
+        return generation;
       },
       [animated, props.enabled],
     );
 
     const toggle = useCallback(
       async (updatedState?: boolean, disableAnimation?: boolean) => {
-        const newState = updatedState ?? !currentVisible;
+        const newState = updatedState ?? !targetVisible.current;
+        if (props.enabled === false && newState) return;
 
-        if (currentVisible !== newState) {
-          props.onToggle?.(newState);
-          await performAnimation(newState, disableAnimation);
+        if (targetVisible.current !== newState) {
+          // Record intent before awaiting the animation, so a second toggle
+          // reverses the pending action rather than repeating it.
+          targetVisible.current = newState;
           setVisible(newState);
-          props.onVisibilityChanged?.(newState);
+          props.onToggle?.(newState);
+          const generation = await performAnimation(newState, disableAnimation);
+          if (generation === animationGeneration.current) props.onVisibilityChanged?.(newState);
         }
       },
-      [currentVisible, performAnimation, props],
+      [performAnimation, props],
     );
 
     const close = useCallback(
@@ -290,6 +301,7 @@ const DropdownComponent = forwardRef<DropdownRef, DropdownProps>(
     }, [close, open, ref, toggle, dropdown, visibility]);
 
     useEffect(() => {
+      targetVisible.current = visible;
       setVisible(visible);
     }, [visible]);
 
