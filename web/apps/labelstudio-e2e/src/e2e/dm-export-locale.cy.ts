@@ -85,10 +85,13 @@ describe("Data Manager export locale", () => {
         if (pathname.endsWith("/sample-task")) previewRequests += 1;
         else projectWrites.push(`${request.method} ${pathname}`);
       });
+      cy.intercept({ method: "POST", pathname: `/api/projects/${fixture.project_id}/sample-task` }).as("samplePreview");
       cy.visit(`/projects/${fixture.project_id}/data/import`);
       cy.get("body").should("contain.text", copy.heading);
       cy.get(`[aria-label="${copy.cancel}"]`).should("be.visible");
       cy.get(`[aria-label="${copy.finish}"]`).should("exist");
+      // The modal shell can render before the project and its preview are ready.
+      cy.wait("@samplePreview").its("response.statusCode").should("eq", 200);
       cy.then(() => {
         expect(previewRequests, "sample preview loaded").to.be.greaterThan(0);
         expect(projectWrites, "opening import must not persist project data").to.deep.equal([]);
