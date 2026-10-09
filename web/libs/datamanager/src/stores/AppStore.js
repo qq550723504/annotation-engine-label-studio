@@ -1,4 +1,4 @@
-import { destroy, flow, types } from "mobx-state-tree";
+import { destroy, flow, isAlive, types } from "mobx-state-tree";
 import { runInAction } from "mobx";
 import { Modal } from "../components/Common/Modal/Modal";
 import { FF_DEV_2887, FF_DISABLE_GLOBAL_USER_FETCHING, FF_LOPS_E_3, isFF } from "../utils/feature-flags";
@@ -502,6 +502,7 @@ export const AppStore = types
 
       try {
         const newProject = yield self.apiCall("project", params);
+        if (!isAlive(self)) return false;
         if (newProject?.error) {
           self.projectFetch = false;
           return false;
@@ -528,6 +529,7 @@ export const AppStore = types
           self.SDK.invoke(`${itemType}Updated`, self.project);
         }
       } catch {
+        if (!isAlive(self)) return false;
         // When in timer (polling project counts) mode, we can still continue
         // but we need to crash for non-polling interactions
         // because we can't display the app without the project itself and will need to redirect
@@ -573,6 +575,7 @@ export const AppStore = types
           staleTime: 60 * 1000,
         },
       });
+      if (!isAlive(self)) return;
 
       // apiCall reports HTTP failures through the SDK and returns an error
       // object. A request can finish with 401 while this page is logging out.
@@ -628,6 +631,7 @@ export const AppStore = types
       }
 
       const [projectFetched] = yield Promise.all(requests);
+      if (!isAlive(self)) return;
       self.setLoading(false);
 
       if (projectFetched) {
@@ -647,6 +651,7 @@ export const AppStore = types
      * @param {{ errorHandler?: fn, headers?: object, allowToCancel?: boolean }} [options] additional options like errorHandler
      */
     apiCall: flow(function* (methodName, params, body, options) {
+      if (!isAlive(self)) return { error: "Data Manager was destroyed", isCanceled: true };
       const isAllowCancel = options?.allowToCancel;
       const controller = new AbortController();
       const signal = controller.signal;
@@ -670,6 +675,9 @@ export const AppStore = types
         body: requestBody.body ?? requestBody,
         options,
       });
+      // Import completion/reload can destroy this store during the request.
+      // An obsolete result must not write state or notify the new workspace.
+      if (!isAlive(self)) return { error: "Data Manager was destroyed", isCanceled: true };
 
       if (isAllowCancel) {
         result.isCanceled = signal.aborted;

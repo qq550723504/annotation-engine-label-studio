@@ -31,7 +31,7 @@ const allowed = {
     { text: "GitHub", line: 249, reason: "External service brand name." },
   ],
   "apps/labelstudio/src/pages/CreateProject/Import/Import.jsx": [
-    { text: "PDF", line: 466, reason: "The PDF file-format acronym is identical in both locales." },
+    { text: "PDF", line: 468, reason: "The PDF file-format acronym is identical in both locales." },
   ],
   "apps/labelstudio/src/pages/DataManager/DataManager.jsx": [
     { text: "English", line: 100, reason: "Language names are self-identifying choices." },
