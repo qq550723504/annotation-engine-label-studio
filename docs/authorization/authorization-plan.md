@@ -119,6 +119,14 @@ Exit criteria:
 
 ## Negative authorization matrix
 
+PostgreSQL candidate validation must include the existing submission/review,
+assignment and composed collaboration tests as well as session tests. #76
+reproduced PostgreSQL rejecting `FOR UPDATE` over nullable annotation and
+submitted-by joins in the submission services. Those unused joins are excluded
+from the lock queries; assignment/project serialization, actor checks, immutable
+revisions and reviewer authorization remain covered by the same tests. SQLite
+alone cannot detect this database compatibility failure.
+
 | Scenario | Expected |
 |---|---|
 | User changes project ID to unauthorized project | Denied |
