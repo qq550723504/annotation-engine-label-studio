@@ -422,4 +422,29 @@ describe('main application display locale', () => {
     cy.get('[data-testid="user-menu-trigger"]').scrollIntoView().focus().type('{enter}');
     cy.get('[data-testid="menu-language-select"]').should('be.visible').focus().should('have.focus');
   });
+
+  it('keeps the user menu usable after rapid open-close-open transitions', () => {
+    cy.loginAs(fixture.users.manager.email, fixture.password, '/user/account/personal-info');
+    ensureAccountLocale('en-US');
+    cy.get('[data-testid="user-menu-trigger"]').should('be.visible').then(($trigger) => {
+      // Native events on successive frames overlap the dropdown animation.
+      // Normal Cypress clicks wait for animations and would miss this schedule.
+      return new Cypress.Promise<void>((resolve) => {
+        const trigger = $trigger[0];
+        const window = trigger.ownerDocument.defaultView!;
+        trigger.click();
+        window.requestAnimationFrame(() => {
+          trigger.click();
+          window.requestAnimationFrame(() => { trigger.click(); resolve(); });
+        });
+      });
+    });
+    cy.get('[data-testid="menu-language-select"]').should('be.visible').select('zh-CN');
+    cy.get('html').should('have.attr', 'lang', 'zh-CN');
+    cy.get('[data-testid="user-menu-trigger"]').click();
+    cy.get('[data-testid="menu-language-select"]').should('not.be.visible');
+    cy.get('[data-testid="user-menu-trigger"]').click();
+    cy.get('[data-testid="menu-language-select"]').should('be.visible').select('en-US');
+    cy.get('html').should('have.attr', 'lang', 'en-US');
+  });
 });

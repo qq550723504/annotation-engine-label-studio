@@ -1,4 +1,4 @@
-import { applySnapshot, clone, destroy, flow, getRoot, getSnapshot, types } from "mobx-state-tree";
+import { applySnapshot, clone, destroy, flow, getRoot, getSnapshot, isAlive, types } from "mobx-state-tree";
 import { History } from "../../utils/history";
 import { guidGenerator } from "../../utils/random";
 import { isDefined, unique } from "../../utils/utils";
@@ -478,6 +478,7 @@ export const TabStore = types
     fetchTabs: flow(function* (tab, taskID, labeling) {
       const tabId = Number.parseInt(tab);
       const response = yield getRoot(self).apiCall("tabs");
+      if (!isAlive(self)) return;
       if (response?.error) return;
       const tabs = response?.tabs ?? response ?? [];
       if (!Array.isArray(tabs)) throw new TypeError("Tabs API must return an array");
@@ -520,6 +521,7 @@ export const TabStore = types
 
       if (!isNaN(tabKey) && !isNaN(tabId)) {
         const tabData = yield getRoot(self).apiCall("tab", { tabId });
+        if (!isAlive(self)) return;
         const { data, ...tabClean } = dataCleanup(tabData, self.columns ?? []);
 
         self.views.push({
