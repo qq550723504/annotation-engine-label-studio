@@ -32,6 +32,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--version", required=True)
     parser.add_argument("--tag", required=True)
+    parser.add_argument("--branch", default="main", help="Recorded snapshot branch, including unmerged candidates")
     parser.add_argument("--node-image", default="mirror.gcr.io/library/node:20-alpine")
     parser.add_argument("--python-image", default="mirror.gcr.io/library/python:3.11-slim-bookworm")
     args = parser.parse_args()
@@ -47,11 +48,11 @@ def main():
     evidence.mkdir()
     (root / "build-inputs").mkdir()
     source = root / "source"
-    subprocess.run(["git", "init", "-b", "main", str(source)], check=True, capture_output=True)
+    subprocess.run(["git", "init", "-b", args.branch, str(source)], check=True, capture_output=True)
     for key, value in (("core.autocrlf", "false"), ("core.symlinks", "false")):
         subprocess.run(["git", "config", key, value], cwd=source, check=True)
     subprocess.run(["git", "fetch", "--depth=1", repo.as_uri(), args.source], cwd=source, check=True)
-    subprocess.run(["git", "checkout", "-B", "main", "FETCH_HEAD"], cwd=source, check=True, capture_output=True)
+    subprocess.run(["git", "checkout", "-B", args.branch, "FETCH_HEAD"], cwd=source, check=True, capture_output=True)
     assert run(["git", "rev-parse", "HEAD"], source) == args.source
     assert not run(["git", "status", "--porcelain"], source)
     installer = root / "build-inputs/install-poetry.py"
@@ -105,7 +106,7 @@ def main():
         dst.addfile(member, io.BytesIO(ignore))
     assert verified == len(tracked)
     inputs = {"source_commit": args.source, "source_tree": run(["git", "rev-parse", "HEAD^{tree}"], source),
-              "version": args.version, "platform": "linux/amd64", "tag": args.tag,
+              "version": args.version, "platform": "linux/amd64", "tag": args.tag, "branch": args.branch,
               "source_archive_sha256": sha(archive), "context_sha256": sha(context),
               "dockerfile_sha256": sha(recipe), "installer": {"url": installer_url, "sha256": sha(installer)},
               "bases": bases, "verified_git_blob_count": verified, "executable_file_count": executables,
@@ -121,7 +122,7 @@ def main():
                "--build-arg", "PYTHON_IMAGE=" + bases["python"]["pinned"],
                "--build-arg", "NODE_VERSION=20", "--build-arg", "PYTHON_VERSION=3.11",
                "--build-arg", "POETRY_VERSION=2.3.2", "--build-arg", "VERSION_OVERRIDE=" + args.version,
-               "--build-arg", "BRANCH_OVERRIDE=main", "--label", "org.opencontainers.image.revision=" + args.source,
+               "--build-arg", "BRANCH_OVERRIDE=" + args.branch, "--label", "org.opencontainers.image.revision=" + args.source,
                "--label", "org.opencontainers.image.version=" + args.version,
                "--label", "org.opencontainers.image.source=https://github.com/qq550723504/annotation-engine-label-studio",
                "-t", args.tag, "-f", "Dockerfile.debian", "-"]
