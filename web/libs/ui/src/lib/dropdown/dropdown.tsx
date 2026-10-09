@@ -229,15 +229,18 @@ const DropdownComponent = forwardRef<DropdownRef, DropdownProps>(
             return;
           }
 
+          let completed = false;
+          const isCurrent = () => !completed && generation === animationGeneration.current;
           aroundTransition(menu, {
             transition: () => {
-              if (generation === animationGeneration.current) setVisibility(visible ? "appear" : "disappear");
+              if (isCurrent()) setVisibility(visible ? "appear" : "disappear");
             },
             beforeTransition: () => {
-              if (generation === animationGeneration.current) setVisibility(visible ? "before-appear" : "before-disappear");
+              if (isCurrent()) setVisibility(visible ? "before-appear" : "before-disappear");
             },
             afterTransition: () => {
-              if (generation === animationGeneration.current) setVisibility(visible ? "visible" : null);
+              if (isCurrent()) setVisibility(visible ? "visible" : null);
+              completed = true;
               resolve();
             },
           });

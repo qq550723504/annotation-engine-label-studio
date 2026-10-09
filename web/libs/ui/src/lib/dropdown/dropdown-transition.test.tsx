@@ -79,3 +79,19 @@ it("ignores a stale close completion arriving after a new open completes", async
   expect(screen.getByTestId("dropdown")).toHaveClass("ls-visible");
   expect(completed.mock.calls).toEqual([[true]]);
 });
+
+it("keeps a completed close settled when its queued transition callback arrives late", async () => {
+  const ref = createRef<DropdownRef>();
+  render(
+    <Dropdown ref={ref} visible dataTestId="dropdown">
+      {languageControl}
+    </Dropdown>,
+  );
+  let closing: unknown;
+  act(() => { closing = ref.current!.close(); });
+  await act(async () => { transitions[0].afterTransition(); await closing; });
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  act(() => { transitions[0].transition(); });
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(ref.current!.visible).toBe(false);
+});
