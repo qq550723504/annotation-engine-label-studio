@@ -3,6 +3,7 @@ import { IconPencil, IconTrashAlt, IconCheck } from "@humansignal/icons";
 import { Button, Tooltip, Typography } from "@humansignal/ui";
 import { throttle } from "@humansignal/core/lib/utils/lodash-replacements";
 import { cn } from "../../utils/bem";
+import { isComposingKeyEvent } from "../../utils/events";
 
 // used for correct auto-height calculation
 const BORDER_WIDTH = 1;
@@ -129,6 +130,10 @@ export class HtxTextBox extends React.Component {
         this.updateHeight();
       },
       onKeyDown: (e) => {
+        if (isComposingKeyEvent(e)) {
+          if (e.key === "Enter") e.preventDefault();
+          return;
+        }
         const { key, shiftKey } = e;
 
         if (key === "Enter") {

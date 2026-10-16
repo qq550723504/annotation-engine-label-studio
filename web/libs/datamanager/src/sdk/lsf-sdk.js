@@ -14,7 +14,7 @@ import { Modal } from "../components/Common/Modal/Modal";
 import { CommentsSdk } from "./comments-sdk";
 // import { LSFHistory } from "./lsf-history";
 import { annotationToServer, taskToLSFormat } from "./lsf-utils";
-import { when, runInAction } from "mobx";
+import { runInAction } from "mobx";
 import { isAlive } from "mobx-state-tree";
 import { imageCache } from "@humansignal/core";
 import { invalidateAnnotationCache, invalidateDistributionCache } from "@humansignal/core/lib/utils/annotation-cache";
@@ -217,6 +217,7 @@ export class LSFWrapper {
     const queueLeft = dm.store.project.queue_left;
     const queuePosition = queueDone ? queueDone + 1 : queueLeft ? queueTotal - queueLeft + 1 : 1;
     const commentClassificationConfig = dm.store.project.comment_classification_config;
+    this.editorInterfaces = [...interfaces];
 
     const lsfProperties = {
       user: options.user,
@@ -263,6 +264,8 @@ export class LSFWrapper {
       const LSF = resolveLabelStudio();
 
       this.lsfInstance = new LSF(this.root, settings);
+
+      this.lsfInstance.on("reloadDraft", this.onReloadDraft);
 
       this.lsfInstance.on("presignUrlForProject", this.onPresignUrlForProject);
 
@@ -345,10 +348,26 @@ export class LSFWrapper {
          * If we're in label stream and there's no task – end the stream
          * Otherwise allow user to continue exploring tasks after finished labelling
          */
-        const noTask = this.labelStream && !nextTask;
+        const noTask = this.labelStream && nextTask === null;
 
         if (this.destroyed || this.lsf !== lsf) return;
         lsf.setFlags({ noTask });
+
+        if (this.labelStream && nextTask === false) {
+          const t = (key) => this.datamanager.localeRuntime.t(`datamanager:${key}`);
+          Modal.confirm({
+            title: t("labelQueueLoadFailed"),
+            body: t("labelQueueLoadFailedDescription"),
+            okText: t("retryQueue"),
+            cancelText: t("backToTaskList"),
+            onOk: () => {
+              if (!this.destroyed && this.lsf === lsf) return this.loadTask();
+            },
+            onCancel: () => {
+              if (!this.destroyed && this.lsf === lsf) this.datamanager.store?.closeLabeling();
+            },
+          });
+        }
 
         return nextTask;
       });
@@ -468,6 +487,7 @@ export class LSFWrapper {
 
     await this.setAnnotation(annotationID, fromHistory || isRejectedQueue, selectPrediction);
     if (this.destroyed || !this.lsf) return;
+    this.applyTaskAccess();
     this.setLoading(false);
 
     if (isFF(FF_FIT_1304_STRICT_OVERLAP) && this.overlapReached) {
@@ -504,6 +524,32 @@ export class LSFWrapper {
       type: "info",
       duration: -1,
     });
+  }
+
+  applyTaskAccess() {
+    const readOnly = this.task?.can_label === false;
+    for (const name of ["submit", "update", "skip", "annotations:add-new", "annotations:delete", "ground-truth"]) {
+      this.lsf.toggleInterface(name, !readOnly && (this.editorInterfaces ?? []).includes(name));
+    }
+    if (readOnly) {
+      for (const annotation of this.annotations) annotation.setReadonly(true);
+      this.currentAnnotation?.setReadonly(true);
+    }
+    this.refreshTaskAccessGuidance();
+  }
+
+  refreshTaskAccessGuidance() {
+    if (this.destroyed) return;
+    if (this.task?.can_label === false) {
+      this.datamanager.invoke("toast", {
+        id: "task-assignment-read-only",
+        message: this.datamanager.localeRuntime.t("datamanager:taskAssignmentReadOnly"),
+        type: "info",
+        duration: -1,
+      });
+    } else {
+      this.datamanager.invoke("toast:dismiss", { id: "task-assignment-read-only" });
+    }
   }
 
   /**
@@ -569,6 +615,7 @@ export class LSFWrapper {
           lsfAnnotation.updateObjects();
           lsfAnnotation.history.safeUnfreeze();
           lsfAnnotation.history.reinit();
+          lsfAnnotation.confirmSavedState?.();
         }
 
         return fullAnnotation;
@@ -622,6 +669,7 @@ export class LSFWrapper {
         cs.selectAnnotation(c.id);
         c.deserializeResults(draft.result);
         c.setDraftId(draft.id);
+        c.setDraftRevision(draft.revision);
         c.setDraftSaved(draft.created_at);
         c.history.safeUnfreeze();
         c.history.reinit();
@@ -665,6 +713,7 @@ export class LSFWrapper {
     }
 
     if (annotation) {
+      if (this.task?.can_label === false) annotation.setReadonly(true);
       // We want to be sure this is explicitly understood to be a prediction and the
       // user wants to select it directly
       if (selectPrediction && annotation.type === "prediction") {
@@ -817,6 +866,7 @@ export class LSFWrapper {
     if (status === 200 || status === 201) {
       this.datamanager.invoke("toast", { message: t(successKey), type: "info" });
     } else if (status !== undefined) {
+      if (result?.response?.display_context?.reason === "DRAFT_CONFLICT") return;
       // Skip toast for errors that are handled by global modal handlers via display_context
       // These errors bubble up to ApiProvider which shows appropriate modals
       // Note: display_context is in result.response for API error responses
@@ -867,7 +917,7 @@ export class LSFWrapper {
     // Prevent submission if overlap is reached (only when feature flag is enabled)
     if (isFF(FF_FIT_1304_STRICT_OVERLAP) && this.overlapReached) {
       this.showOverlapReachedMessage();
-      return;
+      return { $meta: { status: 409 } };
     }
 
     const exitStream = this.shouldExitStream();
@@ -891,7 +941,7 @@ export class LSFWrapper {
     this.showOperationToast(status, "annotationSaved", "annotationSaveFailed", result);
 
     // FIT-720: Invalidate caches after successful submit
-    if (status < 400) {
+    if (status === 200 || status === 201) {
       // Invalidate specific annotation if ID is in result
       if (result?.id) {
         invalidateAnnotationCache(result.id);
@@ -900,11 +950,14 @@ export class LSFWrapper {
       invalidateDistributionCache(this.task?.id);
     }
 
-    if (exitStream) return this.exitStream();
+    if (exitStream && (status === 200 || status === 201)) this.exitStream();
+    return result;
   };
 
   /** @private */
   onUpdateAnnotation = async (ls, annotation, extraData) => {
+    if (annotation.draftSavePromise) await annotation.draftSavePromise;
+    if (annotation.draftConflict) return { $meta: { status: 409 } };
     const { task } = this;
     const serializedAnnotation = this.prepareData(annotation, { submitForReview: true });
     const exitStream = this.shouldExitStream();
@@ -929,20 +982,22 @@ export class LSFWrapper {
     });
     const status = result?.$meta?.status;
 
+    this.handleDraftResponse(annotation, result);
     this.showOperationToast(status, "annotationUpdated", "annotationUpdateFailed", result);
 
     this.datamanager.invoke("updateAnnotation", ls, annotation, result);
 
     // FIT-720: Invalidate annotation cache after successful update
-    if (status < 400 && annotation.pk) {
+    if ((status === 200 || status === 201) && annotation.pk) {
       invalidateAnnotationCache(annotation.pk);
       invalidateDistributionCache(task.id);
     }
 
-    if (exitStream) return this.exitStream();
+    if (status !== undefined && status !== 200 && status !== 201) return result;
 
-    if (status >= 400) {
-      return;
+    if (exitStream) {
+      this.exitStream();
+      return result;
     }
 
     const isRejectedQueue = isDefined(task.default_selected_annotation);
@@ -953,14 +1008,16 @@ export class LSFWrapper {
     } else {
       await this.loadTask(this.task.id, annotation.pk, true);
     }
+    return result;
   };
 
-  deleteDraft = async (id) => {
-    const response = await this.datamanager.apiCall("deleteDraft", {
-      draftID: id,
-    });
+  deleteDraft = async (id, annotation = this.currentAnnotation) => {
+    const response = await this.datamanager.apiCall("deleteDraft", { draftID: id }, {
+      body: this.prepareData(annotation),
+    }, this.existingDraftOptions);
+    this.handleDraftResponse(annotation, response, true);
 
-    this.task.deleteDraft(id);
+    if (response?.$meta?.status === 204) this.task.deleteDraft(id);
     return response;
   };
 
@@ -968,8 +1025,6 @@ export class LSFWrapper {
   onDeleteAnnotation = async (ls, annotation) => {
     const { task } = this;
     let response;
-
-    task.deleteAnnotation(annotation);
 
     if (annotation.userGenerate && annotation.sentUserGenerate === false) {
       if (annotation.draftId) {
@@ -982,14 +1037,16 @@ export class LSFWrapper {
         return this.datamanager.apiCall("deleteAnnotation", {
           taskID: task.id,
           annotationID: annotation.pk,
-        });
+        }, { body: this.prepareData(annotation) }, this.draftConflictOptions);
       });
+      this.handleDraftResponse(annotation, response);
 
       // this.task.deleteAnnotation(annotation);
       this.datamanager.invoke("deleteAnnotation", ls, annotation);
     }
 
     if (response.ok) {
+      task.deleteAnnotation(annotation);
       const lastAnnotation = this.annotations[this.annotations.length - 1] ?? {};
       const annotationID = lastAnnotation.pk ?? undefined;
 
@@ -1002,27 +1059,25 @@ export class LSFWrapper {
   };
 
   needsDraftSave = (annotation) => {
-    if (annotation.history?.hasChanges && !annotation.draftSaved) return true;
-    if (
-      annotation.history?.hasChanges &&
-      new Date(annotation.history.lastAdditionTime) > new Date(annotation.draftSaved)
-    )
-      return true;
-    return false;
+    return !!annotation.hasUnsavedDraft;
   };
 
   saveDraft = async (target = null) => {
     const selected = target || this.lsf?.annotationStore?.selected;
     const hasChanges = selected ? this.needsDraftSave(selected) : false;
 
-    if (selected?.isDraftSaving) {
-      await when(() => !selected.isDraftSaving);
-      this.draftToast(200);
-    } else if (hasChanges && selected) {
-      const res = await selected?.saveDraftImmediatelyWithResults();
-
-      this.draftToast(res.$meta?.status, res);
+    if (selected?.isDraftSaving || (hasChanges && selected)) {
+      try {
+        const res = await selected.saveDraftImmediatelyWithResults();
+        const status = res?.$meta?.status;
+        this.draftToast(status ?? 0, res);
+        return status === 200 || status === 201;
+      } catch {
+        this.draftToast(0);
+        return false;
+      }
     }
+    return true;
   };
 
   onSubmitDraft = async (_studio, annotation, params = {}) => {
@@ -1042,7 +1097,8 @@ export class LSFWrapper {
 
     if (annotation.draftId > 0) {
       // draft has been already created
-      const res = await this.datamanager.apiCall("updateDraft", { draftID: annotation.draftId }, data);
+      const res = await this.datamanager.apiCall("updateDraft", { draftID: annotation.draftId }, data, this.existingDraftOptions);
+      this.handleDraftResponse(annotation, res, true);
 
       showToast && this.draftToast(res.$meta?.status, res);
       this.datamanager.invoke("submitDraft", this, annotation, res);
@@ -1051,19 +1107,58 @@ export class LSFWrapper {
     let response;
 
     if (annotationDoesntExist) {
-      response = await this.datamanager.apiCall("createDraftForTask", { taskID: taskId }, data);
+      response = await this.datamanager.apiCall("createDraftForTask", { taskID: taskId }, data, this.draftConflictOptions);
     } else {
       response = await this.datamanager.apiCall(
         "createDraftForAnnotation",
         { taskID: taskId, annotationID: annotation.pk },
         data,
+        this.draftConflictOptions,
       );
     }
+    this.handleDraftResponse(annotation, response);
     response?.id && annotation.setDraftId(response?.id);
     showToast && this.draftToast(response.$meta?.status, response);
     this.datamanager.invoke("submitDraft", this, annotation, response);
 
     return response;
+  };
+
+  // Handle this expected concurrency outcome in the editor's localized,
+  // persistent recovery UI, rather than an English global error modal.
+  draftConflictOptions = {
+    errorHandler: (result) => result?.response?.display_context?.reason === "DRAFT_CONFLICT",
+  };
+
+  // A known draft may have been consumed by submission or explicitly deleted.
+  // Keep the stale ID and edits until backup/reload; never turn PATCH into POST.
+  existingDraftOptions = {
+    errorHandler: (result) => result?.$meta?.status === 404 || this.draftConflictOptions.errorHandler(result),
+  };
+
+  handleDraftResponse(annotation, response, existingDraft = false) {
+    if (existingDraft && response?.$meta?.status === 404) annotation.setDraftConflict("missing");
+    else if (response?.response?.display_context?.reason === "DRAFT_CONFLICT") annotation.setDraftConflict();
+    else if ((response?.$meta?.status === 200 || response?.$meta?.status === 201) && response.revision != null) {
+      annotation.setDraftRevision(response.revision);
+    }
+  }
+
+  onReloadDraft = async () => {
+    const task = await this.datamanager.store.taskStore.loadTask(this.task.id);
+    if (!task || this.destroyed || !this.lsf) return false;
+    // Do not merge the obsolete editor annotations back into this fresh task.
+    this.task = task;
+    // A submitted task-level draft has no local annotation PK. Without an
+    // explicit selection, upstream opens a new blank annotation instead of
+    // showing the actor's submitted work. Drafts still use normal hydration.
+    const actorId = this.lsf.user?.id;
+    const owned = actorId == null ? [] : Array.from(task.annotations ?? []).filter(annotation =>
+      String(annotation.completed_by?.id ?? annotation.completed_by) === String(actorId));
+    const latest = owned.reduce((previous, annotation) =>
+      !previous || Number(annotation.id) > Number(previous.id) ? annotation : previous, null);
+    await this.setLSFTask(task, task.drafts?.length || !latest ? undefined : String(latest.id), true);
+    return true;
   };
 
   onSkipTask = async (_, { comment } = {}) => {
@@ -1122,47 +1217,56 @@ export class LSFWrapper {
       return;
     }
 
-    await this.withinLoadingState(async () => {
+    const converted = await this.withinLoadingState(async () => {
       currentAnnotation.pauseAutosave();
 
       if (isFF(FF_DEV_3034)) {
-        await this.datamanager.apiCall("convertToDraft", {
+        const response = await this.datamanager.apiCall("convertToDraft", {
           annotationID: currentAnnotation.pk,
-        });
+        }, { body: this.prepareData(currentAnnotation) }, this.draftConflictOptions);
+        this.handleDraftResponse(currentAnnotation, response);
+        return response?.$meta?.status === 201;
       } else {
+        let response;
         if (currentAnnotation.draftId > 0) {
-          await this.datamanager.apiCall(
+          response = await this.datamanager.apiCall(
             "updateDraft",
             {
               draftID: currentAnnotation.draftId,
             },
             {
-              body: { annotation: null },
+              body: { ...this.prepareData(currentAnnotation), annotation: null },
             },
+            this.existingDraftOptions,
           );
         } else {
           const annotationData = { body: this.prepareData(currentAnnotation) };
 
-          await this.datamanager.apiCall(
+          response = await this.datamanager.apiCall(
             "createDraftForTask",
             {
               taskID: this.task.id,
             },
             annotationData,
+            this.draftConflictOptions,
           );
         }
+        this.handleDraftResponse(currentAnnotation, response, currentAnnotation.draftId > 0);
+        if (![200, 201].includes(response?.$meta?.status)) return false;
 
         // Carry over any comments to when the annotation draft is eventually submitted
         if (isFF(FF_DEV_2887) && this.lsf?.commentStore?.toCache) {
           this.lsf.commentStore.toCache(`task.${task.id}`);
         }
 
-        await this.datamanager.apiCall("deleteAnnotation", {
+        const removed = await this.datamanager.apiCall("deleteAnnotation", {
           taskID: task.id,
           annotationID: currentAnnotation.pk,
         });
+        return removed?.$meta?.status === 204;
       }
     });
+    if (!converted) return;
     await this.loadTask(task.id);
     this.datamanager.invoke("unskipTask");
   };
@@ -1195,6 +1299,7 @@ export class LSFWrapper {
   _selectAnnotationTimeout = null;
   _debouncedFirstOldSelection = undefined;
   onSelectAnnotation = (prevAnnotation, nextAnnotation, options) => {
+    if (this.task?.can_label === false) prevAnnotation?.setReadonly(true);
     // NOTE on parameter naming: LSF fires selectAnnotation(newAnnotation, oldAnnotation).
     // Despite the names here, prevAnnotation = the NEWLY selected annotation,
     // nextAnnotation = the PREVIOUSLY selected annotation (before this selection).
@@ -1238,9 +1343,9 @@ export class LSFWrapper {
     // Invoke the DataManager callback first so that history fetch can start immediately.
     // The history endpoint only needs the annotation pk (available on stubs).
     // Hydration (which fetches full annotation data) runs in parallel afterwards.
-    if (nextAnnotation?.history?.undoIdx) {
-      this.saveDraft(nextAnnotation).then(() => {
-        this.datamanager.invoke("onSelectAnnotation", prevAnnotation, nextAnnotation, options, this);
+    if (nextAnnotation && this.needsDraftSave(nextAnnotation)) {
+      this.saveDraft(nextAnnotation).then((saved) => {
+        if (saved !== false) this.datamanager.invoke("onSelectAnnotation", prevAnnotation, nextAnnotation, options, this);
       });
     } else {
       this.datamanager.invoke("onSelectAnnotation", prevAnnotation, nextAnnotation, options, this);
@@ -1324,9 +1429,8 @@ export class LSFWrapper {
         // Unfreeze history
         freshAnnotation.history?.safeUnfreeze?.();
 
-        // reinitHistory cancels autosave and sets initial values so LSF knows this is the base state
-        // This prevents the hydration from being treated as a user modification
         freshAnnotation.reinitHistory?.();
+        freshAnnotation.confirmSavedState?.();
       }
     } catch {
       // Failed to hydrate annotation - will show stub state
@@ -1334,15 +1438,17 @@ export class LSFWrapper {
   };
 
   onNextTask = async (nextTaskId, nextAnnotationId) => {
-    await this.saveDraft();
+    if ((await this.saveDraft()) === false) return;
     await this.loadTask(nextTaskId, nextAnnotationId, true);
   };
   onPrevTask = async (prevTaskId, prevAnnotationId) => {
-    await this.saveDraft();
+    if ((await this.saveDraft()) === false) return;
     await this.loadTask(prevTaskId, prevAnnotationId, true);
   };
   async submitCurrentAnnotation(eventName, submit, includeId = false, loadNext = true) {
     const { taskID, currentAnnotation } = this;
+    if (currentAnnotation.draftSavePromise) await currentAnnotation.draftSavePromise;
+    if (currentAnnotation.draftConflict) return { $meta: { status: 409 } };
     const unique_id = this.task.unique_lock_id;
     const serializedAnnotation = this.prepareData(currentAnnotation, { includeId, submitForReview: true });
 
@@ -1350,16 +1456,14 @@ export class LSFWrapper {
       serializedAnnotation.unique_id = unique_id;
     }
 
-    this.setLoading(true);
-
-    await this.saveUserLabels();
-
     const result = await this.withinLoadingState(async () => {
+      await this.saveUserLabels();
       const result = await submit(taskID, serializedAnnotation);
 
       return result;
     });
 
+    this.handleDraftResponse(currentAnnotation, result);
     if (result && result.id !== undefined) {
       const annotationId = result.id.toString();
 
@@ -1379,8 +1483,8 @@ export class LSFWrapper {
       }
     }
 
-    this.setLoading(false);
-    if (result?.$meta?.status >= 400) {
+    const status = result?.$meta?.status;
+    if (status !== undefined && status !== 200 && status !== 201) {
       // don't reload the task on error to avoid losing the user's changes
       return result;
     }
@@ -1449,6 +1553,7 @@ export class LSFWrapper {
       lead_time: leadTime,
       result: (isNewDraft ? annotation.versions.draft : annotation.serializeAnnotation()) ?? [],
       draft_id: annotation.draftId,
+      draft_revision: annotation.draftRevision,
       parent_prediction: annotation.parent_prediction,
       parent_annotation: annotation.parent_annotation,
       started_at: startedAt.toISOString(),
@@ -1494,6 +1599,7 @@ export class LSFWrapper {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.datamanager.invoke("toast:dismiss", { id: "task-assignment-read-only" });
     // Clean up overlap error event listeners and dismiss toast (only when feature flag is enabled)
     if (isFF(FF_FIT_1304_STRICT_OVERLAP)) {
       window.removeEventListener("overlap-error-next-task", this.handleOverlapNextTask);
